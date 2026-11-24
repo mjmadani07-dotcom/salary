@@ -1,4 +1,33 @@
-import { FiscalYear, YEAR_REGULATIONS, YearRegulation } from './payrollRegulations';
+export type FiscalYear = '1405' | '1404';
+
+export interface TaxBracket {
+  id: string;
+  label: string;
+  minMonthlyRial: number;
+  maxMonthlyRial: number | null;
+  rate: number;
+}
+
+export interface YearRegulation {
+  year: FiscalYear;
+  label: string;
+  minDailyWageRial: number;
+  minMonthlyWage30Rial: number;
+  housingAllowanceRial: number;
+  workerCouponRial: number;
+  marriageAllowanceRial: number;
+  childAllowancePerChildRial: number;
+  baseSeniorityDaily1YrRial: number;
+  baseSeniorityMonthly1YrRial: number;
+  insuranceEmployeeRate: number;
+  insuranceEmployerBaseRate: number;
+  unemploymentInsuranceRate: number;
+  insuranceCeilingMultiplier: number;
+  taxMonthlyExemptionRial: number;
+  taxAnnualExemptionRial: number;
+  eidTaxExemptionCapRial: number;
+  taxBrackets: TaxBracket[];
+}
 
 export type RuleApprovalStatus = 'pending-legal-review' | 'approved' | 'superseded';
 
@@ -13,10 +42,7 @@ export interface PayrollRuleSet {
   reviewNotes: string[];
 }
 
-const RULE_SET_METADATA: Record<
-  FiscalYear,
-  Omit<PayrollRuleSet, 'regulations'>
-> = {
+export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
   '1405': {
     id: 'IR-LABOR-PAYROLL-1405',
     version: 1,
@@ -30,6 +56,33 @@ const RULE_SET_METADATA: Record<
       'Eid tax treatment, non-cash benefits, special insurance groups and employer exemptions require separate legal review.',
       'The 1405 RuleSet is not legally approved by this application release.',
     ],
+    regulations: {
+      year: '1405',
+      label: 'مصوبه سال ۱۴۰۵',
+      minDailyWageRial: 5_541_850,
+      minMonthlyWage30Rial: 166_255_500,
+      housingAllowanceRial: 30_000_000,
+      workerCouponRial: 22_000_000,
+      marriageAllowanceRial: 5_000_000,
+      childAllowancePerChildRial: 16_625_550,
+      baseSeniorityDaily1YrRial: 166_667,
+      baseSeniorityMonthly1YrRial: 5_000_000,
+      insuranceEmployeeRate: 0.07,
+      insuranceEmployerBaseRate: 0.20,
+      unemploymentInsuranceRate: 0.03,
+      insuranceCeilingMultiplier: 7,
+      taxMonthlyExemptionRial: 400_000_000,
+      taxAnnualExemptionRial: 4_800_000_000,
+      eidTaxExemptionCapRial: 400_000_000,
+      taxBrackets: [
+        { id: 'b0', label: 'پله معافیت پایه', minMonthlyRial: 0, maxMonthlyRial: 400_000_000, rate: 0 },
+        { id: 'b1', label: 'پله اول (۱۰٪)', minMonthlyRial: 400_000_000, maxMonthlyRial: 800_000_000, rate: 0.10 },
+        { id: 'b2', label: 'پله دوم (۱۵٪)', minMonthlyRial: 800_000_000, maxMonthlyRial: 1_000_000_000, rate: 0.15 },
+        { id: 'b3', label: 'پله سوم (۲۰٪)', minMonthlyRial: 1_000_000_000, maxMonthlyRial: 1_200_000_000, rate: 0.20 },
+        { id: 'b4', label: 'پله چهارم (۲۵٪)', minMonthlyRial: 1_200_000_000, maxMonthlyRial: 1_400_000_000, rate: 0.25 },
+        { id: 'b5', label: 'پله پنجم (۳۰٪)', minMonthlyRial: 1_400_000_000, maxMonthlyRial: null, rate: 0.30 },
+      ],
+    },
   },
   '1404': {
     id: 'IR-LABOR-PAYROLL-1404',
@@ -42,25 +95,46 @@ const RULE_SET_METADATA: Record<
       'Retained for historical calculations. The complete official source pack for 1404 has not yet been attached to this RuleSet.',
       'The 1404 RuleSet is not legally approved by this application release.',
     ],
+    regulations: {
+      year: '1404',
+      label: 'مصوبه سال ۱۴۰۴',
+      minDailyWageRial: 3_463_656,
+      minMonthlyWage30Rial: 103_909_680,
+      housingAllowanceRial: 9_000_000,
+      workerCouponRial: 22_000_000,
+      marriageAllowanceRial: 5_000_000,
+      childAllowancePerChildRial: 10_390_968,
+      baseSeniorityDaily1YrRial: 94_000,
+      baseSeniorityMonthly1YrRial: 2_820_000,
+      insuranceEmployeeRate: 0.07,
+      insuranceEmployerBaseRate: 0.20,
+      unemploymentInsuranceRate: 0.03,
+      insuranceCeilingMultiplier: 7,
+      taxMonthlyExemptionRial: 240_000_000,
+      taxAnnualExemptionRial: 2_880_000_000,
+      eidTaxExemptionCapRial: 240_000_000,
+      taxBrackets: [
+        { id: 'b0', label: 'پله معافیت پایه', minMonthlyRial: 0, maxMonthlyRial: 240_000_000, rate: 0 },
+        { id: 'b1', label: 'پله اول (۱۰٪)', minMonthlyRial: 240_000_000, maxMonthlyRial: 300_000_000, rate: 0.10 },
+        { id: 'b2', label: 'پله دوم (۱۵٪)', minMonthlyRial: 300_000_000, maxMonthlyRial: 380_000_000, rate: 0.15 },
+        { id: 'b3', label: 'پله سوم (۲۰٪)', minMonthlyRial: 380_000_000, maxMonthlyRial: 500_000_000, rate: 0.20 },
+        { id: 'b4', label: 'پله چهارم (۲۵٪)', minMonthlyRial: 500_000_000, maxMonthlyRial: 666_666_667, rate: 0.25 },
+        { id: 'b5', label: 'پله پنجم (۳۰٪)', minMonthlyRial: 666_666_667, maxMonthlyRial: null, rate: 0.30 },
+      ],
+    },
   },
 };
 
 export function getPayrollRuleSet(year: FiscalYear): PayrollRuleSet {
-  const metadata = RULE_SET_METADATA[year];
-  const regulations = YEAR_REGULATIONS[year];
-
-  if (!metadata || !regulations) {
+  const ruleSet = RULE_SETS[year];
+  if (!ruleSet) {
     throw new Error(`No payroll RuleSet is registered for fiscal year: ${year}`);
   }
-
-  return {
-    ...metadata,
-    regulations,
-  };
+  return ruleSet;
 }
 
 export function listPayrollRuleSets(): PayrollRuleSet[] {
-  return (Object.keys(RULE_SET_METADATA) as FiscalYear[]).map(getPayrollRuleSet);
+  return Object.values(RULE_SETS);
 }
 
 export interface RuleSetValidationIssue {
