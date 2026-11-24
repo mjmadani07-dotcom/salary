@@ -478,17 +478,30 @@ export function PayrollCalculatorView() {
                 <button
                   type="button"
                   onClick={() =>
-                    void downloadPayrollExcelWorkbook(year, input, {
+                    void downloadPayrollExcelWorkbook({
+                    employeeName: state.employeeName || 'پرسنل تنظیم‌شده شما',
+                    periodLabel: `سال ${year} · ماه ${input.monthDays} روزه`,
+                    input,
+                    result,
+                    eos: {
                       seatName: state.employeeName || 'پرسنل تنظیم‌شده شما',
                       isGwcQualified: computed.isGwcQualified,
                       seatMonthlyBaseRial: input.dailyBaseWageRial * 30,
                       scorecardBudgetRial: state.scorecardBudgetRial,
                       scorecardAchievementPct: state.scorecardAchievementPct,
+                      scorecardBonusRial: computed.scorecardBonusRial,
                       quarterlyRockBudgetRial: state.quarterlyRockBudgetRial,
                       companyRocksPct: state.companyRocksPct,
                       individualRocksPct: state.individualRocksPct,
-                      annualProfitShareRial: state.annualProfitShareRial,
-                    })
+                      quarterlyRockEarnedRial: computed.quarterlyRockEarnedRial,
+                      monthlyRockReserveRial: computed.monthlyRockReserveRial,
+                      annualProfitShareRial: computed.annualProfitShareRial,
+                      monthlyProfitReserveRial: computed.monthlyProfitReserveRial,
+                      totalEosReservesRial: computed.totalEosReservesRial,
+                      totalCtcMonthlyRial: computed.totalCtcMonthlyRial,
+                      totalCtcAnnualRial: computed.totalCtcAnnualRial,
+                    },
+                  })
                   }
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
