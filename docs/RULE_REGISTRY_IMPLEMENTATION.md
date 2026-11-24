@@ -76,14 +76,12 @@ Files:
 - Duplicate employee IDs/personnel codes, invalid inputs, inactive employees and period mismatches are flagged or excluded instead of being silently calculated.
 - Aggregate totals are sums of employee-level `PayrollResult` values; no separate payroll formula set is introduced.
 - The new Payroll Run page supports adding employees in the current browser session and reviewing per-employee results and period totals.
-- Employee profiles and payroll snapshots are persisted in the versioned browser IndexedDB database.
-- A local vault is initialized with a user-defined passphrase; AES-GCM-256 encrypts every employee and payroll-run payload.
-- The encryption key is derived with PBKDF2-HMAC-SHA-256 (600,000 iterations) and is held only in module memory while the vault is unlocked.
-- Opaque HMAC identifiers and a keyed personnel-code token preserve record lookup and unique-code enforcement without storing personnel codes as IndexedDB keys or indexes.
-- The first vault setup migrates legacy plaintext records in a single IndexedDB transaction; encrypted records and vault metadata are committed together before legacy stores are cleared.
-- PayrollRun snapshots remain reloadable after the vault is unlocked, and the period result can be exported without recalculation.
-- A lock action clears the in-memory key reference and hides employee/run state from the Payroll Run screen.
-- The vault is still browser-local: it does not provide user identity, company/workspace authorization, organization backup/recovery, multi-device sync or audited access control.
+- Employee profiles and payroll-run snapshots are stored locally in IndexedDB on the current device.
+- New installations use the local database directly; no separate account, workspace, server or passphrase setup is required.
+- Payroll remains a single-operator workflow: one finance manager uses the application to maintain employee records and calculate a payroll period for multiple employees.
+- Existing installations that already created the earlier encrypted vault remain supported. Those records are unlocked with their existing passphrase and are not silently converted or deleted.
+- The local database belongs to the current browser profile. The application does not yet include built-in backup/restore or native Windows packaging.
+- Local storage must therefore be protected through the Windows user account and device security. Do not treat browser-local storage as a substitute for backups.
 
 ### 6. Regression tests and CI
 
@@ -101,7 +99,7 @@ Files:
 2. **Some classifications represent the current engine behavior.** In particular welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap remain review items.
 3. **Dependent eligibility is not implemented.** The existing input still accepts a child count and a 720-day insurance boolean; it does not yet hold per-child eligibility evidence or actual insurance history.
 4. **Seniority eligibility is still input-driven.** The engine has not yet been connected to employment start dates or last seniority-increase dates.
-5. **Local vault encryption is not complete production data governance.** Employee entries and payroll snapshots are encrypted at rest in IndexedDB, but remain local to one browser profile/device. There is no account authentication, company/workspace authorization, backup/restore, multi-device synchronization or audited access control. Loss of the passphrase or local browser data can make records unrecoverable.
+5. **Local persistence is device-bound.** New installations store employee entries and payroll snapshots in the current browser profile without a mandatory vault passphrase. The application has no built-in backup/restore yet, so clearing browser data or losing the device can destroy local records. Older installations with an already-configured encrypted vault still require their original passphrase. Windows account/device protection and a separate backup remain necessary.
 6. **Employment history and statutory ledgers remain incomplete.** Contracts, wage history, actual insurance history, per-dependent eligibility, attendance, leave ledger, loans, deductions and payment workflow remain future work.
 7. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
 
@@ -111,7 +109,7 @@ Files:
 2. Expand the catalog and make every formula consume catalog/rule data rather than hardcoded constants.
 3. Add legal date-effective rules for seniority, work-time patterns, Friday/holiday work, mission, leave, annual bonus and severance.
 4. Convert the Excel builder and formula library into render/export adapters over the calculation output; no independent payroll formulas should remain.
-5. Add independently tested backup/restore, company/workspace authorization and a protected persistence design appropriate to the Windows deployment; the current browser vault is only a local encryption layer.
+5. Add a simple, tested backup/restore workflow for the single-device payroll database and prepare the Windows desktop packaging. Do not introduce company/workspace authorization or multi-user infrastructure unless the product scope changes.
 6. Add employee contracts, wage history, group classification and dependent eligibility records.
 7. Add attendance, shift, mission, leave, loan and deduction ledgers.
 8. Add YTD/multi-source tax, audit, approval/payment and correction workflows.
@@ -126,7 +124,7 @@ Until the legal review is complete and the remaining integration work is closed,
 
 The Excel workbook is now an output adapter only. The single-employee calculation result is generated once by `calculatePayroll`; a batch run delegates every employee to that same function and then serializes the returned PayrollRunResult. Both single-employee and multi-employee XLSX exports contain values only and do not contain independent payroll formulas.
 
-The Payroll Run workspace is intentionally labelled as review-only. Employee profiles and payroll-run snapshots are encrypted in browser IndexedDB behind a local passphrase vault. This does not provide account authentication, company/workspace access control, backup/recovery or payment authorization.
+The Payroll Run workspace is a single-finance-user workflow for calculating multiple employees in one payroll period. New installations save employee profiles and payroll snapshots directly to local IndexedDB; an older installation that already has an encrypted vault continues to require its existing passphrase. The current storage is tied to the browser profile on this device and built-in backup/restore is not yet available. No account, company/workspace roles, server or multi-user synchronization is part of the target scope.
 
 
 ## Wage adjustment scope
@@ -138,13 +136,10 @@ The initial other-level wage helper implements the annual percentage-plus-fixed 
 
 File: `src/data/payrollLocalDatabase.ts`
 
-- Creates schema version 2 of the `iran-payroll-local` IndexedDB database and retains the version-1 stores only for one-time migration.
-- Stores active employee and payroll-run records in an `encryptedRecords` object store; the clear-text legacy stores are cleared only in the same transaction that commits the encrypted records and vault metadata.
-- Encrypts payloads with AES-GCM-256 using a fresh 96-bit IV per record and binds ciphertext to its opaque record ID as authenticated additional data.
-- Derives separate encryption and lookup keys from the passphrase with PBKDF2-HMAC-SHA-256, a unique 128-bit random salt and 600,000 iterations.
-- Keeps non-exportable Web Crypto keys in memory only; they are not written to IndexedDB.
-- Uses keyed HMAC tokens for opaque employee/run record IDs and a unique personnel-code index without exposing employee identifiers or codes in database keys/indexes.
-- Provides passphrase setup, unlock, explicit lock, list/save/delete, payroll-run history and legacy-record migration.
-- Wrong passphrases fail closed; the application does not persist the passphrase or offer a recovery/reset mechanism.
+- Uses the local IndexedDB database named `iran-payroll-local`.
+- On a new installation, employee records are stored in the `employees` object store and payroll snapshots in `payrollRuns`.
+- The existing encrypted record store and vault metadata are retained only to preserve access to installations that already configured the earlier passphrase vault.
+- Reads, saves, deletes and payroll-run history automatically use the plain local stores when no vault metadata exists; when an older encrypted vault is present, the existing unlock flow is required.
+- No network service, user account, organization workspace or multi-user authorization is introduced by this storage layer.
 
-**Security boundary:** encryption at rest reduces exposure from direct inspection of IndexedDB, but it does not protect data while the app is unlocked or against a compromised browser/device or malicious script executing in the app origin. There is still no account authentication, company/workspace authorization, backup/restore, multi-device sync or audit trail. Clearing browser storage, device failure or loss of the passphrase can make records unrecoverable. Logical clearing of legacy stores is not a guarantee of forensic erasure from storage media. The vault is not yet an approved enterprise payroll repository.
+**Data protection boundary:** the new default local storage is not application-level encrypted. Its protection depends on the operating-system user account, device controls and the browser profile. The current branch does not yet provide a built-in backup/restore workflow or native Windows package. The user should keep a separate backup and prevent unauthorized access to the Windows account. Existing encrypted-vault data remains encrypted and requires its original passphrase.
