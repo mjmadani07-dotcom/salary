@@ -35,6 +35,85 @@ export interface PayrollInput {
   serviceExtraDaysForSeverance: number;
 }
 
+export interface PayrollInputIssue {
+  field: keyof PayrollInput | 'year';
+  code: string;
+  message: string;
+}
+
+export class PayrollInputValidationError extends Error {
+  readonly issues: PayrollInputIssue[];
+
+  constructor(issues: PayrollInputIssue[]) {
+    super('Payroll input validation failed.');
+    this.name = 'PayrollInputValidationError';
+    this.issues = issues;
+  }
+}
+
+export function validatePayrollInput(input: PayrollInput): PayrollInputIssue[] {
+  const issues: PayrollInputIssue[] = [];
+  const add = (field: PayrollInputIssue['field'], code: string, message: string) => {
+    issues.push({ field, code, message });
+  };
+
+  if (!['1404', '1405'].includes(input.year)) {
+    add('year', 'UNSUPPORTED_FISCAL_YEAR', 'A registered fiscal year is required.');
+  }
+
+  if (![29, 30, 31].includes(input.monthDays)) {
+    add('monthDays', 'INVALID_MONTH_LENGTH', 'Month length must be 29, 30 or 31 days.');
+  }
+
+  if (!Number.isFinite(input.workDays) || input.workDays < 0 || input.workDays > input.monthDays) {
+    add('workDays', 'INVALID_WORK_DAYS', 'Work days must be between zero and the calendar month length.');
+  }
+
+  const nonNegativeFields: Array<keyof PayrollInput> = [
+    'dailyBaseWageRial',
+    'dailySeniorityRial',
+    'housingAllowanceRial',
+    'workerCouponRial',
+    'childrenCount',
+    'overtimeHours',
+    'nightShiftHours',
+    'holidayHours',
+    'variableBonusRial',
+    'annualWorkedDays',
+    'serviceYearsForSeverance',
+    'serviceExtraDaysForSeverance',
+  ];
+
+  for (const field of nonNegativeFields) {
+    const value = input[field];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      add(field, 'INVALID_NON_NEGATIVE_NUMBER', `${String(field)} must be a finite non-negative number.`);
+    }
+  }
+
+  if (!Number.isInteger(input.childrenCount)) {
+    add('childrenCount', 'INVALID_CHILD_COUNT', 'Child count must be a whole number.');
+  }
+
+  if (input.annualWorkedDays > 366) {
+    add('annualWorkedDays', 'INVALID_ANNUAL_WORK_DAYS', 'Annual worked days cannot exceed 366.');
+  }
+
+  if (!Number.isInteger(input.serviceYearsForSeverance)) {
+    add('serviceYearsForSeverance', 'INVALID_SERVICE_YEARS', 'Completed service years must be a whole number.');
+  }
+
+  if (!Number.isInteger(input.serviceExtraDaysForSeverance) || input.serviceExtraDaysForSeverance > 364) {
+    add('serviceExtraDaysForSeverance', 'INVALID_SERVICE_EXTRA_DAYS', 'Extra service days must be a whole number between zero and 364.');
+  }
+
+  if (input.hourlyDivisor !== undefined && input.hourlyDivisor !== 220 && input.hourlyDivisor !== 191.6) {
+    add('hourlyDivisor', 'INVALID_HOURLY_DIVISOR', 'Hourly divisor must be one of the configured calculation bases.');
+  }
+
+  return issues;
+}
+
 export interface TaxStepBreakdown {
   bracketId: string;
   label: string;
@@ -147,6 +226,11 @@ export function calculateProgressiveTax(
 }
 
 export function calculatePayroll(input: PayrollInput): PayrollResult {
+  const inputIssues = validatePayrollInput(input);
+  if (inputIssues.length > 0) {
+    throw new PayrollInputValidationError(inputIssues);
+  }
+
   const ruleSet = getPayrollRuleSet(input.year);
   const reg = ruleSet.regulations;
   const clampedWorkDays = Math.max(0, Math.min(input.monthDays, input.workDays));
