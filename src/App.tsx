@@ -6,12 +6,13 @@ import { ResearchReportView } from './components/ResearchReportView';
 import { PayrollCalculatorView } from './components/PayrollCalculatorView';
 import { PayrollRunView } from './components/PayrollRunView';
 import { EmployeeDirectoryView } from './components/EmployeeDirectoryView';
+import { AttendanceView } from './components/AttendanceView';
 import { EmployerCostView } from './components/EmployerCostView';
 import { EosCompensationView } from './components/EosCompensationView';
 import { ApplicabilityMatrixView } from './components/ApplicabilityMatrixView';
 import { ExcelVaultView } from './components/ExcelVaultView';
 
-type ActiveTab = 'report' | 'employees' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
+type ActiveTab = 'report' | 'employees' | 'attendance' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
 type ReportSubView = 'laws' | 'matrix';
 
 function AppShell() {
@@ -65,6 +66,15 @@ function AppShell() {
               }`}
             >
               پرونده کارکنان
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('attendance')}
+              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                activeTab === 'attendance' ? 'border-teal-700 text-slate-900 font-semibold' : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              ثبت کارکرد
             </button>
             <button
               type="button"
@@ -141,7 +151,8 @@ function AppShell() {
             [
               ['report', 'قوانین و مشمولیت'],
               ['employees', 'پرونده کارکنان'],
-              ['run', 'پردازش دوره'],
+              ['attendance', 'ثبت کارکرد'],
+              ['run', 'پردازش دوره']
               ['calculator', 'فیش حقوقی'],
               ['ctc', 'هزینه کارفرما'],
               ['eos', 'جبران خدمات EOS'],
@@ -289,6 +300,7 @@ function AppShell() {
           <ApplicabilityMatrixView />
         )}
         {activeTab === 'employees' && <EmployeeDirectoryView />}
+        {activeTab === 'attendance' && <AttendanceView />}
         {activeTab === 'run' && <PayrollRunView />}
         {activeTab === 'calculator' && <PayrollCalculatorView />}
         {activeTab === 'ctc' && <EmployerCostView />}
