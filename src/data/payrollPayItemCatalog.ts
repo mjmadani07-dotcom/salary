@@ -259,6 +259,15 @@ export function getPayrollPayItem(itemId: string): PayrollPayItemDefinition {
   return item;
 }
 
+export function sumOvertimeBase(lines: PayrollPayItemLine[]): number {
+  return lines.reduce((total, line) => {
+    const definition = getPayrollPayItem(line.itemId);
+    return definition.includedInOvertimeBase
+      ? total + Math.max(0, Math.round(line.amountRial))
+      : total;
+  }, 0);
+}
+
 export function sumInsuranceBasis(lines: PayrollPayItemLine[]): number {
   return lines.reduce((total, line) => {
     const definition = getPayrollPayItem(line.itemId);
@@ -285,7 +294,10 @@ export function getPendingLegalReviewItems(lines: PayrollPayItemLine[]): string[
   const pending = new Set<string>();
   for (const line of lines) {
     const definition = getPayrollPayItem(line.itemId);
-    if (definition.reviewStatus === 'pending-legal-review') {
+    if (
+      line.amountRial !== 0 &&
+      definition.reviewStatus === 'pending-legal-review'
+    ) {
       pending.add(definition.title);
     }
   }
