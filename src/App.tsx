@@ -5,12 +5,13 @@ import { UnifiedPayrollProvider, useUnifiedPayroll } from './state/UnifiedPayrol
 import { ResearchReportView } from './components/ResearchReportView';
 import { PayrollCalculatorView } from './components/PayrollCalculatorView';
 import { PayrollRunView } from './components/PayrollRunView';
+import { EmployeeDirectoryView } from './components/EmployeeDirectoryView';
 import { EmployerCostView } from './components/EmployerCostView';
 import { EosCompensationView } from './components/EosCompensationView';
 import { ApplicabilityMatrixView } from './components/ApplicabilityMatrixView';
 import { ExcelVaultView } from './components/ExcelVaultView';
 
-type ActiveTab = 'report' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
+type ActiveTab = 'report' | 'employees' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
 type ReportSubView = 'laws' | 'matrix';
 
 function AppShell() {
@@ -53,6 +54,17 @@ function AppShell() {
               }`}
             >
               قوانین و مشمولیت
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('employees')}
+              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                activeTab === 'employees'
+                  ? 'border-teal-700 text-slate-900 font-semibold'
+                  : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              پرونده کارکنان
             </button>
             <button
               type="button"
@@ -128,6 +140,7 @@ function AppShell() {
           {(
             [
               ['report', 'قوانین و مشمولیت'],
+              ['employees', 'پرونده کارکنان'],
               ['run', 'پردازش دوره'],
               ['calculator', 'فیش حقوقی'],
               ['ctc', 'هزینه کارفرما'],
@@ -275,6 +288,7 @@ function AppShell() {
         {activeTab === 'report' && reportSubView === 'matrix' && (
           <ApplicabilityMatrixView />
         )}
+        {activeTab === 'employees' && <EmployeeDirectoryView />}
         {activeTab === 'run' && <PayrollRunView />}
         {activeTab === 'calculator' && <PayrollCalculatorView />}
         {activeTab === 'ctc' && <EmployerCostView />}
