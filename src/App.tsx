@@ -4,12 +4,13 @@ import { formatMoney, toPersianDigits } from './utils/payrollEngine';
 import { UnifiedPayrollProvider, useUnifiedPayroll } from './state/UnifiedPayrollContext';
 import { ResearchReportView } from './components/ResearchReportView';
 import { PayrollCalculatorView } from './components/PayrollCalculatorView';
+import { PayrollRunView } from './components/PayrollRunView';
 import { EmployerCostView } from './components/EmployerCostView';
 import { EosCompensationView } from './components/EosCompensationView';
 import { ApplicabilityMatrixView } from './components/ApplicabilityMatrixView';
 import { ExcelVaultView } from './components/ExcelVaultView';
 
-type ActiveTab = 'report' | 'calculator' | 'ctc' | 'eos' | 'excel';
+type ActiveTab = 'report' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
 type ReportSubView = 'laws' | 'matrix';
 
 function AppShell() {
@@ -52,6 +53,17 @@ function AppShell() {
               }`}
             >
               قوانین و مشمولیت
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('run')}
+              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                activeTab === 'run'
+                  ? 'border-teal-700 text-slate-900 font-semibold'
+                  : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              پردازش دوره حقوق
             </button>
             <button
               type="button"
@@ -116,6 +128,7 @@ function AppShell() {
           {(
             [
               ['report', 'قوانین و مشمولیت'],
+              ['run', 'پردازش دوره'],
               ['calculator', 'فیش حقوقی'],
               ['ctc', 'هزینه کارفرما'],
               ['eos', 'جبران خدمات EOS'],
@@ -262,6 +275,7 @@ function AppShell() {
         {activeTab === 'report' && reportSubView === 'matrix' && (
           <ApplicabilityMatrixView />
         )}
+        {activeTab === 'run' && <PayrollRunView />}
         {activeTab === 'calculator' && <PayrollCalculatorView />}
         {activeTab === 'ctc' && <EmployerCostView />}
         {activeTab === 'eos' && <EosCompensationView />}
