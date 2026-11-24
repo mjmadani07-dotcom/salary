@@ -282,6 +282,8 @@ export async function buildPayrollExcelWorkbook(
   addKeyValue(rates, 'وضعیت تأیید حقوقی', ruleSet.approvalStatus);
   addKeyValue(rates, 'حداقل مزد روزانه', ruleSet.regulations.minDailyWageRial);
   addKeyValue(rates, 'پایه سنوات روزانه', ruleSet.regulations.baseSeniorityDaily1YrRial);
+  addKeyValue(rates, 'درصد افزایش سایر سطوح مزدی', ruleSet.regulations.otherLevelsIncreaseRate * 100, 'درصد');
+  addKeyValue(rates, 'افزایش ثابت روزانه سایر سطوح', ruleSet.regulations.otherLevelsDailyFixedIncreaseRial);
   addKeyValue(rates, 'حق مسکن ماهانه', ruleSet.regulations.housingAllowanceRial);
   addKeyValue(rates, 'بن کارگری ماهانه', ruleSet.regulations.workerCouponRial);
   addKeyValue(rates, 'حق تأهل ماهانه', ruleSet.regulations.marriageAllowanceRial);
@@ -392,6 +394,10 @@ export async function buildPayrollRunExcelWorkbook(
   addKeyValue(summary, 'ماه', run.month);
   addKeyValue(summary, 'طول ماه', run.monthDays);
   addKeyValue(summary, 'وضعیت دوره', run.status);
+  const firstCalculatedResult = run.lines.find((line) => line.result)?.result;
+  addKeyValue(summary, 'شناسه مجموعه قواعد', firstCalculatedResult?.ruleSetId ?? 'بدون نتیجه محاسبه‌شده');
+  addKeyValue(summary, 'نسخه مجموعه قواعد', firstCalculatedResult?.ruleSetVersion ?? '—');
+  addKeyValue(summary, 'وضعیت تأیید حقوقی قواعد', firstCalculatedResult?.ruleSetApprovalStatus ?? '—');
   addKeyValue(summary, 'تعداد کل ردیف‌ها', run.totals.employeeCount);
   addKeyValue(summary, 'تعداد محاسبه‌شده', run.totals.calculatedCount);
   addKeyValue(summary, 'تعداد مسدودشده', run.totals.blockedCount);
