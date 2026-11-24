@@ -210,14 +210,17 @@ export function ExcelVaultView() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="text-xs text-slate-500">
-              فرمول‌های پویا برای Microsoft Excel و Google Sheets · مصوبه سال {toPersianDigits(year)}
+              فرمول‌های مرجع برای استفاده مستقل در Excel و Google Sheets · سال {toPersianDigits(year)}
             </div>
             <h2 className="text-xl md:text-2xl font-bold text-slate-900">
-              خزانه فرمول‌های اکسل حقوق و دستمزد
+              کتابخانه فرمول‌های مرجع اکسل
             </h2>
             <p className="text-sm text-slate-600">
-              آدرس سلول‌های جدول اکسل خود را تنظیم کنید تا تمام فرمول‌های شرطی و ریاضی به‌صورت خودکار به‌روزرسانی شوند، یا فایل نمونه آماده را دانلود نمایید.
+              فرمول‌های این بخش فقط برای کپی و استفاده مستقل در Excel یا Google Sheets هستند و در محاسبات نرم‌افزار اجرا نمی‌شوند. فیش، بیمه، مالیات، CTC و فایل XLSX خروجی از موتور مرکزی TypeScript تولید می‌شوند.
             </p>
+            <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs leading-6 text-teal-900">
+              <strong>تفکیک مهم:</strong> فرمول‌های نمایشی و قابل کپی این کتابخانه، موتور محاسبات نرم‌افزار نیستند. فایل XLSX خروجی از نتایج محاسبه جاری ساخته می‌شود و فرمول حقوق، بیمه یا مالیات موازی ندارد.
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
@@ -251,7 +254,7 @@ export function ExcelVaultView() {
               className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>دانلود فایل اکسل کامل (.xlsx)</span>
+              <span>خروجی Excel از محاسبه جاری (.xlsx)</span>
             </button>
             <button
               type="button"
