@@ -76,8 +76,10 @@ Files:
 - Duplicate employee IDs/personnel codes, invalid inputs, inactive employees and period mismatches are flagged or excluded instead of being silently calculated.
 - Aggregate totals are sums of employee-level `PayrollResult` values; no separate payroll formula set is introduced.
 - The new Payroll Run page supports adding employees in the current browser session and reviewing per-employee results and period totals.
-- The current list is in-memory only. It is not a persistent employee database and must not be used as permanent payroll record storage.
+- Employee profiles and payroll inputs are persisted locally in browser IndexedDB.
+- PayrollRun snapshots are stored with unique run IDs and can be reloaded from local history.
 - The period result can be exported to an XLSX register without recalculation.
+- This local database is not encrypted, has no organization backup/recovery and is not a multi-user/server database.
 
 ### 6. Regression tests and CI
 
@@ -94,9 +96,9 @@ Files:
 2. **Some classifications represent the current engine behavior.** In particular welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap remain review items.
 3. **Dependent eligibility is not implemented.** The existing input still accepts a child count and a 720-day insurance boolean; it does not yet hold per-child eligibility evidence or actual insurance history.
 4. **Seniority eligibility is still input-driven.** The engine has not yet been connected to employment start dates or last seniority-increase dates.
-5. **No persistent employee master data or payroll ledger exists yet.** The new Payroll Run page keeps entries in memory for the current browser session only; employee profiles, contracts, attendance, leave ledger, loans, history and approval workflow remain future work.
-6. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
-7. **Employee master data and period snapshots are not persistent yet.** The UI holds its current batch in browser memory; the batch workbook is an export of that result, not a database record.
+5. **Local persistence is not production-grade data protection.** Employee entries and payroll-run snapshots are stored in browser IndexedDB, but they are not encrypted, backed up or synchronized and are accessible within the same browser profile. Do not treat this as a protected enterprise payroll database.
+6. **Employment history and statutory ledgers remain incomplete.** Contracts, wage history, actual insurance history, per-dependent eligibility, attendance, leave ledger, loans, deductions and payment workflow remain future work.
+7. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
 
 ## Required next work
 
@@ -104,10 +106,11 @@ Files:
 2. Expand the catalog and make every formula consume catalog/rule data rather than hardcoded constants.
 3. Add legal date-effective rules for seniority, work-time patterns, Friday/holiday work, mission, leave, annual bonus and severance.
 4. Convert the Excel builder and formula library into render/export adapters over the calculation output; no independent payroll formulas should remain.
-5. Add persistent employee/contract records and secure payroll-period snapshots.
-6. Add attendance, leave, loan and deduction ledgers.
-7. Add YTD/multi-source tax, audit and approval/payment workflows.
-8. Add import/export integration tests for employee lists and attendance inputs.
+5. Replace/extend browser IndexedDB with protected, backed-up persistence appropriate to the Windows deployment and company/workspace model.
+6. Add employee contracts, wage history, group classification and dependent eligibility records.
+7. Add attendance, shift, mission, leave, loan and deduction ledgers.
+8. Add YTD/multi-source tax, audit, approval/payment and correction workflows.
+9. Add data migration, backup/restore and access-control tests.
 
 ## Operational warning
 
@@ -118,9 +121,23 @@ Until the legal review is complete and the remaining integration work is closed,
 
 The Excel workbook is now an output adapter only. The single-employee calculation result is generated once by `calculatePayroll`; a batch run delegates every employee to that same function and then serializes the returned PayrollRunResult. Both single-employee and multi-employee XLSX exports contain values only and do not contain independent payroll formulas.
 
-The Payroll Run workspace is intentionally labelled as review-only. Its current state is ephemeral browser memory. It does not yet persist employee data or authorize approval/payment.
+The Payroll Run workspace is intentionally labelled as review-only. Employee profiles and payroll-run snapshots persist in browser IndexedDB, but this local store is not encrypted and has no enterprise backup/recovery or access-control layer. It does not authorize approval/payment.
 
 
 ## Wage adjustment scope
 
 The initial other-level wage helper implements the annual percentage-plus-fixed daily adjustment from the prior-year daily base wage and applies the statutory minimum wage floor. Job-classification tables are not yet applied automatically. The 1405 group-based seniority schedule is recorded as research source SRC-014 in the compliance specification, but employee job-group assignment and the relevant group-specific seniority progression still require implementation and legal confirmation.
+
+
+## Local persistence implementation
+
+File: `src/data/payrollLocalDatabase.ts`
+
+- Creates a versioned IndexedDB database named `iran-payroll-local`.
+- Stores employee profiles and their current payroll-input defaults in an `employees` object store with a unique personnel-code index.
+- Stores immutable payroll calculation snapshots in a `payrollRuns` object store keyed by unique run ID.
+- Provides list/save/delete operations for employee profiles and payroll runs.
+- Payroll Run restores saved employee profiles and recent run snapshots after page reload.
+- Re-running the same month creates a new unique run ID; it does not overwrite the previous calculation snapshot.
+
+**Security boundary:** IndexedDB is browser-local persistence, not encrypted storage. Browser profile access, data deletion, device loss and browser storage eviction remain risks. Production use with real employee data requires encryption, controlled authentication/authorization, backup/restore, audit and a protected local/server storage design.
