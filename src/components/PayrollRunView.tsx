@@ -12,6 +12,7 @@ import {
   deleteSavedEmployee,
   listSavedEmployees,
   listSavedPayrollRuns,
+  loadSavedPayrollRun,
   saveEmployee,
   savePayrollRunSnapshot,
 } from '../data/payrollLocalDatabase';
@@ -268,7 +269,12 @@ export function PayrollRunView() {
             <div className="text-xs text-slate-500">Payroll Run · پردازش گروهی</div>
             <h1 className="text-xl font-bold text-slate-900 mt-1">پردازش دوره حقوق و دستمزد</h1>
             <p className="text-sm text-slate-600 mt-1">
-              فهرست چندپرسنلی را تشکیل بده و محاسبات تمام افراد را از موتور مرکزی اجرا کن.
+              پرونده کارکنان و تاریخچه دوره‌ها در پایگاه داده محلی همین مرورگر نگهداری می‌شوند؛ محاسبات تمام افراد از موتور مرکزی انجام می‌شود.
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {isLoadingLocalData
+                ? 'در حال بازیابی اطلاعات ذخیره‌شده…'
+                : `${toPersianDigits(employees.length)} پرونده پرسنلی ذخیره‌شده در این دستگاه`}
             </p>
           </div>
           <div className="text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg px-3 py-2">
@@ -305,6 +311,53 @@ export function PayrollRunView() {
           </div>
         </div>
       </section>
+
+      {storageError && (
+        <div className="border border-rose-200 bg-rose-50 rounded-lg p-3 text-sm text-rose-800">
+          {storageError}
+        </div>
+      )}
+
+      {runHistory.length > 0 && (
+        <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">تاریخچه محاسبات ذخیره‌شده</h2>
+            <p className="text-xs text-slate-500 mt-1">این موارد Snapshot محاسبات قبلی هستند و با تغییر نرخ‌های فعلی بازمحاسبه نمی‌شوند.</p>
+          </div>
+          <div className="divide-y divide-slate-200">
+            {runHistory.map((savedRun) => (
+              <div key={savedRun.runId} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold text-slate-800">{savedRun.runId}</div>
+                  <div className="text-xs text-slate-500">
+                    {new Date(savedRun.savedAt).toLocaleString('fa-IR')} ·
+                    {toPersianDigits(savedRun.totals.calculatedCount)} نفر محاسبه‌شده ·
+                    {toPersianDigits(savedRun.totals.netPayRial.toLocaleString('fa-IR'))} ریال خالص
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const snapshot = await loadSavedPayrollRun(savedRun.runId);
+                      if (snapshot) {
+                        setRunResult(snapshot);
+                        setLastSavedRunId(snapshot.runId);
+                        setStorageError(null);
+                      }
+                    } catch (error) {
+                      setStorageError(error instanceof Error ? error.message : 'بازیابی دوره ناموفق بود.');
+                    }
+                  }}
+                  className="text-xs font-semibold text-teal-700 hover:text-teal-900"
+                >
+                  نمایش Snapshot
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-5">
         <div>
@@ -477,10 +530,11 @@ export function PayrollRunView() {
           <button
             type="button"
             onClick={addEmployee}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            disabled={isLoadingLocalData}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
           >
             <Plus className="w-4 h-4"/>
-            افزودن به فهرست دوره
+            ذخیره کارمند و افزودن به دوره
           </button>
         </div>
       </section>
@@ -493,12 +547,12 @@ export function PayrollRunView() {
           </div>
           <button
             type="button"
-            disabled={employees.length === 0}
-            onClick={calculateRun}
+            disabled={employees.length === 0 || isSaving || isLoadingLocalData}
+            onClick={() => void calculateRun()}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-40"
           >
             <Calculator className="w-4 h-4"/>
-            محاسبه دوره حقوق
+            {isSaving ? 'در حال محاسبه و ذخیره…' : 'محاسبه و ذخیره دوره حقوق'}
           </button>
         </div>
 
@@ -569,6 +623,9 @@ export function PayrollRunView() {
               <span className={runResult.status === 'ready-for-review' ? 'text-teal-700 text-sm font-semibold' : 'text-rose-700 text-sm font-semibold'}>
                 {runResult.status === 'ready-for-review' ? 'آماده بررسی' : 'دارای خطای اعتبارسنجی'}
               </span>
+              {lastSavedRunId === runResult.runId && (
+                <span className="text-xs text-teal-700">Snapshot این دوره ذخیره شده است</span>
+              )}
               <button
                 type="button"
                 onClick={() => void downloadPayrollRunExcelWorkbook(runResult)}
@@ -665,7 +722,7 @@ export function PayrollRunView() {
       )}
 
       <section className="border border-amber-200 bg-amber-50 rounded-xl p-4 text-xs text-amber-900 leading-6">
-        این صفحه در نسخه فعلی، پردازش چندپرسنلی را در حافظه همین نشست انجام می‌دهد. اطلاعات پس از بارگذاری مجدد صفحه باقی نمی‌مانند. بانک دائمی پرسنل، قراردادها، حضور و غیاب، گردش مرخصی، گردش تأیید و پرداخت، و حفاظت دسترسی هنوز پیاده‌سازی نشده‌اند. تا زمان تکمیل این اجزا و تأیید حقوقی قواعد، نتیجه صرفاً «آماده بررسی» است و مجوز پرداخت محسوب نمی‌شود.
+        اطلاعات کارکنان و Snapshot دوره‌ها اکنون در IndexedDB همین مرورگر ذخیره می‌شوند و با Refresh عادی باقی می‌مانند. این پایگاه داده محلی رمزنگاری‌شده نیست و همگام‌سازی یا پشتیبان‌گیری سازمانی ندارد؛ پاک‌کردن داده‌های مرورگر یا خرابی پروفایل می‌تواند اطلاعات را از بین ببرد. تا پیش از پیاده‌سازی رمزنگاری، کنترل دسترسی، پشتیبان‌گیری و آزمون بازیابی، اطلاعات واقعی و حساس کارکنان را در آن نگهداری نکن. همچنین قراردادهای استخدامی، تاریخچه مزد، حضور و غیاب، دفتر مرخصی و گردش تأیید/پرداخت هنوز کامل نشده‌اند؛ نتیجه «آماده بررسی» مجوز پرداخت نیست.
       </section>
     </div>
   );
