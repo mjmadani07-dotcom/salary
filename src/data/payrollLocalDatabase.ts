@@ -1,5 +1,7 @@
 import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEngine';
 import type { EmployeeMasterRecord } from '../types/employee';
+import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/attendance';
+import { createAttendanceId, validateMonthlyAttendance } from '../utils/attendanceLedger';
 import {
   createOpaqueRecordId,
   createPersonnelCodeToken,
@@ -16,10 +18,11 @@ import type {
 } from '../utils/payrollVaultCrypto';
 
 const DATABASE_NAME = 'iran-payroll-local';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 const EMPLOYEE_STORE = 'employees';
 const PAYROLL_RUN_STORE = 'payrollRuns';
 const EMPLOYEE_MASTER_STORE = 'employeeMasters';
+const ATTENDANCE_STORE = 'attendanceRecords';
 const ENCRYPTED_RECORD_STORE = 'encryptedRecords';
 const VAULT_METADATA_STORE = 'vaultMetadata';
 const VAULT_METADATA_ID = 'vault';
@@ -46,7 +49,7 @@ interface VaultMetadata {
 
 interface EncryptedRecord extends VaultCiphertext {
   id: string;
-  kind: 'employee' | 'employeeMaster' | 'payrollRun';
+  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance';
   personnelCodeToken?: string;
   updatedAt: string;
 }
@@ -101,6 +104,12 @@ function openDatabase(): Promise<IDBDatabase> {
         });
         masterStore.createIndex('personnelCode', 'personnelCode', { unique: true });
         masterStore.createIndex('fullName', ['firstName', 'lastName'], { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains(ATTENDANCE_STORE)) {
+        const attendanceStore = database.createObjectStore(ATTENDANCE_STORE, { keyPath: 'attendanceId' });
+        attendanceStore.createIndex('employeePeriod', ['employeeId', 'fiscalYear', 'month'], { unique: true });
+        attendanceStore.createIndex('period', ['fiscalYear', 'month'], { unique: false });
       }
 
       if (!database.objectStoreNames.contains(ENCRYPTED_RECORD_STORE)) {
@@ -226,6 +235,19 @@ async function createEncryptedEmployeeMaster(
     personnelCodeToken,
     ...(await encryptVaultPayload(keys, id, employee)),
     updatedAt: employee.updatedAt,
+  };
+}
+
+async function createEncryptedAttendance(
+  keys: PayrollVaultKeys,
+  attendance: MonthlyAttendanceRecord
+): Promise<EncryptedRecord> {
+  const id = await createOpaqueRecordId(keys, 'attendance', attendance.attendanceId);
+  return {
+    id,
+    kind: 'attendance',
+    ...(await encryptVaultPayload(keys, id, attendance)),
+    updatedAt: attendance.updatedAt,
   };
 }
 
@@ -700,5 +722,76 @@ export async function deleteSavedPayrollRun(runId: string): Promise<void> {
   const transaction = database.transaction(PAYROLL_RUN_STORE, 'readwrite');
   const completed = transactionComplete(transaction);
   transaction.objectStore(PAYROLL_RUN_STORE).delete(runId);
+  await completed;
+}
+
+
+export async function listMonthlyAttendance(
+  fiscalYear: MonthlyAttendanceRecord['fiscalYear'],
+  month: number
+): Promise<MonthlyAttendanceRecord[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (!metadata) {
+    const transaction = database.transaction(ATTENDANCE_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const records = await requestResult(
+      transaction.objectStore(ATTENDANCE_STORE).index('period')
+        .getAll([fiscalYear, month]) as IDBRequest<MonthlyAttendanceRecord[]>
+    );
+    await completed;
+    return records.sort((a, b) => a.personnelCode.localeCompare(b.personnelCode));
+  }
+  const keys = requireUnlockedKeys();
+  const records = await getEncryptedRecords('attendance');
+  const decoded = await Promise.all(records.map(record =>
+    decryptVaultPayload<MonthlyAttendanceRecord>(keys, record.id, record)
+  ));
+  return decoded.filter(record => record.fiscalYear === fiscalYear && record.month === month)
+    .sort((a, b) => a.personnelCode.localeCompare(b.personnelCode));
+}
+
+export async function saveMonthlyAttendance(input: MonthlyAttendanceDraft): Promise<MonthlyAttendanceRecord> {
+  const issues = validateMonthlyAttendance(input);
+  if (issues.length) throw new Error(issues.map(issue => issue.message).join(' '));
+  const normalized: MonthlyAttendanceRecord = {
+    ...input,
+    attendanceId: createAttendanceId(input.employeeId, input.fiscalYear, input.month),
+    personnelCode: input.personnelCode.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const record = await createEncryptedAttendance(keys, normalized);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return normalized;
+  }
+  const transaction = database.transaction(ATTENDANCE_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(ATTENDANCE_STORE).put(normalized);
+  await completed;
+  return normalized;
+}
+
+export async function deleteMonthlyAttendance(attendanceId: string): Promise<void> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'attendance', attendanceId);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).delete(id);
+    await completed;
+    return;
+  }
+  const transaction = database.transaction(ATTENDANCE_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(ATTENDANCE_STORE).delete(attendanceId);
   await completed;
 }
