@@ -419,6 +419,21 @@ async function getEncryptedRecord(
 }
 
 export async function listSavedEmployees(): Promise<PayrollRunEmployee[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+
+  if (!metadata) {
+    const transaction = database.transaction(EMPLOYEE_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const employees = await requestResult(
+      transaction.objectStore(EMPLOYEE_STORE).getAll() as IDBRequest<StoredEmployee[]>
+    );
+    await completed;
+    return employees
+      .sort((left, right) => left.personnelCode.localeCompare(right.personnelCode))
+      .map(({ updatedAt: _updatedAt, ...employee }) => employee);
+  }
+
   const keys = requireUnlockedKeys();
   const records = await getEncryptedRecords('employee');
   const employees = await Promise.all(
@@ -435,7 +450,6 @@ export async function listSavedEmployees(): Promise<PayrollRunEmployee[]> {
 export async function saveEmployee(
   employee: PayrollRunEmployee
 ): Promise<void> {
-  const keys = requireUnlockedKeys();
   const normalized: StoredEmployee = {
     ...employee,
     employeeId: employee.employeeId.trim(),
@@ -443,13 +457,23 @@ export async function saveEmployee(
     fullName: employee.fullName.trim(),
     updatedAt: new Date().toISOString(),
   };
-  const record = await createEncryptedEmployee(keys, normalized);
   const database = await openDatabase();
-  const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
-  const completed = transactionComplete(transaction);
-  transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+  const metadata = await readVaultMetadata(database);
 
   try {
+    if (metadata) {
+      const keys = requireUnlockedKeys();
+      const record = await createEncryptedEmployee(keys, normalized);
+      const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+      const completed = transactionComplete(transaction);
+      transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+      await completed;
+      return;
+    }
+
+    const transaction = database.transaction(EMPLOYEE_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(EMPLOYEE_STORE).put(normalized);
     await completed;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'ConstraintError') {
@@ -460,40 +484,74 @@ export async function saveEmployee(
 }
 
 export async function deleteSavedEmployee(employeeId: string): Promise<void> {
-  const keys = requireUnlockedKeys();
-  const id = await createOpaqueRecordId(keys, 'employee', employeeId);
   const database = await openDatabase();
-  const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'employee', employeeId);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).delete(id);
+    await completed;
+    return;
+  }
+
+  const transaction = database.transaction(EMPLOYEE_STORE, 'readwrite');
   const completed = transactionComplete(transaction);
-  transaction.objectStore(ENCRYPTED_RECORD_STORE).delete(id);
+  transaction.objectStore(EMPLOYEE_STORE).delete(employeeId);
   await completed;
 }
 
 export async function savePayrollRunSnapshot(
   run: PayrollRunResult
 ): Promise<void> {
-  const keys = requireUnlockedKeys();
   const snapshot: StoredPayrollRun = {
     ...run,
     savedAt: new Date().toISOString(),
   };
-  const id = await createOpaqueRecordId(keys, 'payrollRun', run.runId);
-  const record: EncryptedRecord = {
-    id,
-    kind: 'payrollRun',
-    ...(await encryptVaultPayload(keys, id, snapshot)),
-    updatedAt: snapshot.savedAt,
-  };
   const database = await openDatabase();
-  const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+  const metadata = await readVaultMetadata(database);
+
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'payrollRun', run.runId);
+    const record: EncryptedRecord = {
+      id,
+      kind: 'payrollRun',
+      ...(await encryptVaultPayload(keys, id, snapshot)),
+      updatedAt: snapshot.savedAt,
+    };
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return;
+  }
+
+  const transaction = database.transaction(PAYROLL_RUN_STORE, 'readwrite');
   const completed = transactionComplete(transaction);
-  transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+  transaction.objectStore(PAYROLL_RUN_STORE).put(snapshot);
   await completed;
 }
 
 export async function listSavedPayrollRuns(
   limit = 10
 ): Promise<StoredPayrollRun[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+
+  if (!metadata) {
+    const transaction = database.transaction(PAYROLL_RUN_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const runs = await requestResult(
+      transaction.objectStore(PAYROLL_RUN_STORE).getAll() as IDBRequest<StoredPayrollRun[]>
+    );
+    await completed;
+    return runs
+      .sort((left, right) => right.savedAt.localeCompare(left.savedAt))
+      .slice(0, Math.max(0, limit));
+  }
+
   const keys = requireUnlockedKeys();
   const records = await getEncryptedRecords('payrollRun');
   const runs = await Promise.all(
@@ -510,6 +568,19 @@ export async function listSavedPayrollRuns(
 export async function loadSavedPayrollRun(
   runId: string
 ): Promise<StoredPayrollRun | undefined> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+
+  if (!metadata) {
+    const transaction = database.transaction(PAYROLL_RUN_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const run = await requestResult(
+      transaction.objectStore(PAYROLL_RUN_STORE).get(runId) as IDBRequest<StoredPayrollRun | undefined>
+    );
+    await completed;
+    return run;
+  }
+
   const keys = requireUnlockedKeys();
   const id = await createOpaqueRecordId(keys, 'payrollRun', runId);
   const record = await getEncryptedRecord(id);
@@ -518,11 +589,20 @@ export async function loadSavedPayrollRun(
 }
 
 export async function deleteSavedPayrollRun(runId: string): Promise<void> {
-  const keys = requireUnlockedKeys();
-  const id = await createOpaqueRecordId(keys, 'payrollRun', runId);
   const database = await openDatabase();
-  const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'payrollRun', runId);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).delete(id);
+    await completed;
+    return;
+  }
+
+  const transaction = database.transaction(PAYROLL_RUN_STORE, 'readwrite');
   const completed = transactionComplete(transaction);
-  transaction.objectStore(ENCRYPTED_RECORD_STORE).delete(id);
+  transaction.objectStore(PAYROLL_RUN_STORE).delete(runId);
   await completed;
 }
