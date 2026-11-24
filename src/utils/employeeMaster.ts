@@ -159,7 +159,8 @@ export interface ResolvedEmployeeTerms {
 
 export function resolveEmployeeTerms(
   employee: EmployeeMasterRecord,
-  periodStartJalali: string
+  periodStartJalali: string,
+  periodEndJalali = periodStartJalali
 ): ResolvedEmployeeTerms {
   const issues: EmployeeMasterIssue[] = [];
   const contractMatches = employee.contracts.filter((contract) =>
@@ -170,10 +171,29 @@ export function resolveEmployeeTerms(
     wage.effectiveFromJalali <= periodStartJalali
   );
   if (employee.hireDateJalali > periodStartJalali) {
-    issues.push({ code: 'NOT_YET_HIRED', field: 'hireDateJalali', message: 'تاریخ شروع همکاری پس از ابتدای دوره حقوق است.' });
+    issues.push({
+      code: employee.hireDateJalali <= periodEndJalali ? 'EMPLOYMENT_START_DURING_PERIOD' : 'NOT_YET_HIRED',
+      field: 'hireDateJalali',
+      message: employee.hireDateJalali <= periodEndJalali
+        ? 'شروع همکاری در میانه دوره است؛ محاسبه کارکرد و مزد نسبتی هنوز پشتیبانی نمی‌شود.'
+        : 'تاریخ شروع همکاری پس از دوره حقوق است.',
+    });
   }
   if (employee.terminationDateJalali && employee.terminationDateJalali < periodStartJalali) {
     issues.push({ code: 'EMPLOYMENT_ENDED', field: 'terminationDateJalali', message: 'همکاری کارمند پیش از دوره حقوق پایان یافته است.' });
+  } else if (employee.terminationDateJalali && employee.terminationDateJalali <= periodEndJalali) {
+    issues.push({ code: 'EMPLOYMENT_END_DURING_PERIOD', field: 'terminationDateJalali', message: 'پایان همکاری در میانه دوره است؛ محاسبه کارکرد و تسویه نسبتی هنوز پشتیبانی نمی‌شود.' });
+  }
+  if (employee.wageHistory.some((entry) =>
+    entry.effectiveFromJalali > periodStartJalali && entry.effectiveFromJalali <= periodEndJalali
+  )) {
+    issues.push({ code: 'WAGE_CHANGE_DURING_PERIOD', field: 'wageHistory', message: 'تغییر مزد در میانه دوره ثبت شده است؛ محاسبه وزنی چند نرخ در یک ماه هنوز پشتیبانی نمی‌شود.' });
+  }
+  if (employee.contracts.some((entry) =>
+    (entry.effectiveFromJalali > periodStartJalali && entry.effectiveFromJalali <= periodEndJalali) ||
+    (entry.effectiveToJalali && entry.effectiveToJalali >= periodStartJalali && entry.effectiveToJalali < periodEndJalali)
+  )) {
+    issues.push({ code: 'CONTRACT_CHANGE_DURING_PERIOD', field: 'contracts', message: 'شروع یا پایان قرارداد در میانه دوره قرار دارد؛ محاسبه دوره‌ای این تغییر هنوز پشتیبانی نمی‌شود.' });
   }
   if (employee.status !== 'active') {
     issues.push({ code: 'EMPLOYEE_INACTIVE', field: 'status', message: 'وضعیت پرونده کارمند غیرفعال است.' });
