@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Calculator } from 'lucide-react';
+import { Plus, Trash2, Calculator, FileSpreadsheet } from 'lucide-react';
 import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
 import {
   formatMoney,
@@ -11,6 +11,7 @@ import {
   PayrollRunEmployee,
   PayrollRunResult,
 } from '../utils/payrollRunEngine';
+import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 
 interface EmployeeDraft {
@@ -457,9 +458,19 @@ export function PayrollRunView() {
               <h2 className="text-lg font-bold text-slate-900">نتیجه تجمیعی دوره</h2>
               <p className="text-xs text-slate-500 mt-1">{runResult.runId}</p>
             </div>
-            <span className={runResult.status === 'ready-for-review' ? 'text-teal-700 text-sm font-semibold' : 'text-rose-700 text-sm font-semibold'}>
-              {runResult.status === 'ready-for-review' ? 'آماده بررسی' : 'دارای خطای اعتبارسنجی'}
-            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={runResult.status === 'ready-for-review' ? 'text-teal-700 text-sm font-semibold' : 'text-rose-700 text-sm font-semibold'}>
+                {runResult.status === 'ready-for-review' ? 'آماده بررسی' : 'دارای خطای اعتبارسنجی'}
+              </span>
+              <button
+                type="button"
+                onClick={() => void downloadPayrollRunExcelWorkbook(runResult)}
+                className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800"
+              >
+                <FileSpreadsheet className="w-4 h-4"/>
+                خروجی Excel کل دوره
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
