@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Plus, Trash2, Calculator, FileSpreadsheet, Lock, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, Calculator, FileSpreadsheet, Lock } from 'lucide-react';
 import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
 import {
   formatMoney,
@@ -12,7 +12,6 @@ import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEn
 import {
   deleteSavedEmployee,
   getPayrollVaultStatus,
-  initializePayrollVault,
   isPayrollVaultUnlocked,
   lockPayrollVault,
   unlockPayrollVault,
@@ -87,25 +86,20 @@ export function PayrollRunView() {
   const [isLoadingLocalData, setIsLoadingLocalData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
-  const [vaultPhase, setVaultPhase] = useState<'checking' | 'setup' | 'locked' | 'unlocked' | 'error'>('checking');
+  const [vaultPhase, setVaultPhase] = useState<'checking' | 'locked' | 'unlocked' | 'error'>('checking');
   const [vaultPassword, setVaultPassword] = useState('');
-  const [vaultPasswordConfirmation, setVaultPasswordConfirmation] = useState('');
   const [vaultBusy, setVaultBusy] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
-  const [legacyRecordsCount, setLegacyRecordsCount] = useState(0);
 
   useEffect(() => {
     let active = true;
     getPayrollVaultStatus()
       .then((status) => {
         if (!active) return;
-        setLegacyRecordsCount(status.legacyRecordsCount);
+        // New installations use the local database directly. Only databases
+        // protected by an older vault require the legacy passphrase screen.
         setVaultPhase(
-          isPayrollVaultUnlocked()
-            ? 'unlocked'
-            : status.configured
-              ? 'locked'
-              : 'setup'
+          status.configured && !isPayrollVaultUnlocked() ? 'locked' : 'unlocked'
         );
       })
       .catch((error) => {
@@ -120,265 +114,16 @@ export function PayrollRunView() {
 
   useEffect(() => {
     if (vaultPhase !== 'unlocked') {
-      setEmployees([]);
-      setRunHistory([]);
-      setRunResult(null);
-      setLastSavedRunId(null);
-      setIsLoadingLocalData(false);
-      return;
-    }
-    let active = true;
-    setIsLoadingLocalData(true);
-    setRunResult(null);
-    setLastSavedRunId(null);
-    Promise.all([listSavedEmployees(), listSavedPayrollRuns(8)])
-      .then(([savedEmployees, savedRuns]) => {
-        if (!active) return;
-        setEmployees(
-          savedEmployees.map((employee) => ({
-            ...employee,
-            payrollInput: {
-              ...employee.payrollInput,
-              year,
-              monthDays,
-              workDays: Math.min(employee.payrollInput.workDays, monthDays),
-              housingAllowanceRial: rules.housingAllowanceRial,
-              workerCouponRial: rules.workerCouponRial,
-            },
-          }))
-        );
-        setRunHistory(savedRuns);
-        setStorageError(null);
-      })
-      .catch((error) => {
-        if (active) {
-          setStorageError(
-            error instanceof Error
-              ? error.message
-              : 'خواندن پایگاه داده محلی ناموفق بود.'
-          );
-        }
-      })
-      .finally(() => {
-        if (active) setIsLoadingLocalData(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [year, monthDays, rules.housingAllowanceRial, rules.workerCouponRial, vaultPhase]);
-
-  const handleSetupVault = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setVaultError(null);
-    if (vaultPassword.length < 12) {
-      setVaultError('عبارت عبور باید حداقل ۱۲ نویسه داشته باشد.');
-      return;
-    }
-    if (vaultPassword !== vaultPasswordConfirmation) {
-      setVaultError('تکرار عبارت عبور با مقدار اولیه یکسان نیست.');
-      return;
-    }
-    setVaultBusy(true);
-    try {
-      await initializePayrollVault(vaultPassword);
-      setVaultPassword('');
-      setVaultPasswordConfirmation('');
-      setVaultPhase('unlocked');
-    } catch (error) {
-      setVaultError(error instanceof Error ? error.message : 'راه‌اندازی خزانه ناموفق بود.');
-    } finally {
-      setVaultBusy(false);
-    }
-  };
-
-  const handleUnlockVault = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setVaultError(null);
-    setVaultBusy(true);
-    try {
-      await unlockPayrollVault(vaultPassword);
-      setVaultPassword('');
-      setVaultPhase('unlocked');
-    } catch (error) {
-      setVaultError(error instanceof Error ? error.message : 'بازکردن خزانه ناموفق بود.');
-    } finally {
-      setVaultBusy(false);
-    }
-  };
-
-  const handleLockVault = () => {
-    lockPayrollVault();
-    setVaultPassword('');
-    setVaultPasswordConfirmation('');
-    setEmployees([]);
-    setRunHistory([]);
-    setRunResult(null);
-    setDraft(createEmptyDraft(year, monthDays));
-    setFormError(null);
-    setStorageError(null);
-    setLastSavedRunId(null);
-    setVaultPhase('locked');
-  };
-
-  const unitMultiplier = unit === 'toman' ? 10 : 1;
-  const format = (value: number) => formatMoney(value, unit);
-  const periodLabel = useMemo(
-    () => `سال ${toPersianDigits(year)} · ماه ${toPersianDigits(month)} · ${toPersianDigits(monthDays)} روزه`,
-    [year, month, monthDays]
-  );
-
-  const updateDraft = (patch: Partial<EmployeeDraft>) => {
-    setDraft((current) => ({ ...current, ...patch }));
-    setRunResult(null);
-    setFormError(null);
-  };
-
-  const addEmployee = async () => {
-    const personnelCode = draft.personnelCode.trim();
-    const fullName = draft.fullName.trim();
-
-    if (!personnelCode || !fullName) {
-      setFormError('کد پرسنلی و نام کامل کارمند باید وارد شوند.');
-      return;
-    }
-
-    if (employees.some((employee) => employee.personnelCode === personnelCode)) {
-      setFormError('این کد پرسنلی قبلاً به فهرست دوره اضافه شده است.');
-      return;
-    }
-
-    const payrollInput: PayrollInput = {
-      year,
-      monthDays,
-      workDays: draft.workDays,
-      dailyBaseWageRial: draft.dailyBaseWageRial,
-      dailySeniorityRial: draft.dailySeniorityRial,
-      housingAllowanceRial: rules.housingAllowanceRial,
-      workerCouponRial: rules.workerCouponRial,
-      isMarried: draft.isMarried,
-      childrenCount: draft.childrenCount,
-      has720DaysInsurance: draft.has720DaysInsurance,
-      overtimeHours: draft.overtimeHours,
-      nightShiftHours: draft.nightShiftHours,
-      holidayHours: draft.holidayHours,
-      variableBonusRial: draft.variableBonusRial,
-      annualWorkedDays: draft.annualWorkedDays,
-      serviceYearsForSeverance: draft.serviceYearsForSeverance,
-      serviceExtraDaysForSeverance: draft.serviceExtraDaysForSeverance,
-    };
-
-    const employee: PayrollRunEmployee = {
-      employeeId: personnelCode,
-      personnelCode,
-      fullName,
-      isActive: true,
-      payrollInput,
-    };
-
-    try {
-      await saveEmployee(employee);
-      setEmployees((current) => [
-        ...current.filter((item) => item.employeeId !== employee.employeeId),
-        employee,
-      ]);
-      setDraft(createEmptyDraft(year, monthDays));
-      setRunResult(null);
-      setFormError(null);
-      setStorageError(null);
-    } catch (error) {
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : 'ذخیره کارمند در پایگاه داده محلی انجام نشد.'
-      );
-    }
-  };
-
-  const removeEmployee = async (personnelCode: string) => {
-    const employee = employees.find((item) => item.personnelCode === personnelCode);
-    if (!employee) return;
-
-    try {
-      await deleteSavedEmployee(employee.employeeId);
-      setEmployees((current) =>
-        current.filter((item) => item.employeeId !== employee.employeeId)
-      );
-      setRunResult(null);
-      setStorageError(null);
-    } catch (error) {
-      setStorageError(
-        error instanceof Error
-          ? error.message
-          : 'حذف کارمند از پایگاه داده محلی ناموفق بود.'
-      );
-    }
-  };
-
-  const calculateRun = async () => {
-    if (employees.length === 0 || isSaving) return;
-    setIsSaving(true);
-    setStorageError(null);
-
-    const periodEmployees = employees.map((employee) => ({
-      ...employee,
-      payrollInput: {
-        ...employee.payrollInput,
-        year,
-        monthDays,
-        workDays: Math.min(employee.payrollInput.workDays, monthDays),
-        housingAllowanceRial: rules.housingAllowanceRial,
-        workerCouponRial: rules.workerCouponRial,
-      },
-    }));
-
-    const result = calculatePayrollRun(
-      {
-        runId: `PAY-${year}-${String(month).padStart(2, '0')}-${Date.now()}`,
-        fiscalYear: year,
-        month,
-        monthDays,
-      },
-      periodEmployees
-    );
-    setRunResult(result);
-
-    try {
-      await savePayrollRunSnapshot(result);
-      const history = await listSavedPayrollRuns(8);
-      setRunHistory(history);
-      setLastSavedRunId(result.runId);
-    } catch (error) {
-      setLastSavedRunId(null);
-      setStorageError(
-        error instanceof Error
-          ? `محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود: ${error.message}`
-          : 'محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود.'
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  if (vaultPhase === 'checking') {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">
-        در حال بررسی وضعیت خزانه اطلاعات…
-      </div>
-    );
-  }
-
-  if (vaultPhase !== 'unlocked') {
-    return (
-      <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5">
+      <div className="mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-teal-50 p-3 text-teal-800">
-            <ShieldCheck className="h-6 w-6" />
+          <div className="rounded-xl bg-slate-100 p-3 text-slate-700">
+            <Lock className="h-6 w-6" />
           </div>
           <div>
-            <div className="text-xs font-semibold text-teal-800">LOCAL PAYROLL VAULT</div>
+            <div className="text-xs font-semibold text-slate-500">LOCAL DATA</div>
             <h1 className="mt-1 text-xl font-bold text-slate-900">
-              {vaultPhase === 'setup' ? 'راه‌اندازی خزانه امن اطلاعات' : vaultPhase === 'error' ? 'دسترسی به خزانه ممکن نیست' : 'خزانه اطلاعات قفل است'}
+              {vaultPhase === 'error' ? 'دسترسی به اطلاعات ممکن نیست' : 'بازکردن اطلاعات ذخیره‌شده'}
             </h1>
           </div>
         </div>
@@ -386,53 +131,25 @@ export function PayrollRunView() {
         {vaultPhase === 'error' ? (
           <div className="space-y-3">
             <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-              {vaultError ?? 'بررسی پایگاه داده محلی ناموفق بود.'}
+              {vaultError ?? 'خواندن پایگاه داده محلی ناموفق بود.'}
             </p>
             <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
               بارگذاری مجدد نرم‌افزار
             </button>
           </div>
-        ) : vaultPhase === 'setup' ? (
-          <>
-            <p className="text-sm leading-7 text-slate-600">
-              برای نگهداری پرونده کارکنان و Snapshot حقوق، ابتدا یک عبارت عبور اختصاصی تعریف کن. داده‌های نسخه قبلی که بدون رمزنگاری ذخیره شده‌اند، در همین فرایند رمزنگاری و منتقل می‌شوند.
-            </p>
-            {legacyRecordsCount > 0 && (
-              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-                {toPersianDigits(legacyRecordsCount)} رکورد قدیمی پیدا شده است؛ پس از راه‌اندازی، این رکوردها به‌صورت رمزنگاری‌شده منتقل و نسخه متن‌خوانا پاک می‌شود.
-              </div>
-            )}
-            <form onSubmit={handleSetupVault} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">عبارت عبور جدید</label>
-                <input type="password" value={vaultPassword} onChange={(event) => setVaultPassword(event.target.value)} minLength={12} autoComplete="new-password" required className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" placeholder="حداقل ۱۲ نویسه" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">تکرار عبارت عبور</label>
-                <input type="password" value={vaultPasswordConfirmation} onChange={(event) => setVaultPasswordConfirmation(event.target.value)} minLength={12} autoComplete="new-password" required className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
-              </div>
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900">
-                عبارت عبور در نرم‌افزار ذخیره نمی‌شود و امکان بازیابی یا بازنشانی آن وجود ندارد. فراموشی آن به معنی ازدست‌رفتن دسترسی به داده‌های رمزنگاری‌شده است؛ آن را در محل امن و مستقلی نگهداری کن.
-              </div>
-              {vaultError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{vaultError}</div>}
-              <button type="submit" disabled={vaultBusy || vaultPassword.length < 12 || vaultPassword !== vaultPasswordConfirmation} className="w-full rounded-lg bg-teal-700 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-40">
-                {vaultBusy ? 'در حال ایجاد خزانه و انتقال داده‌ها…' : 'ایجاد خزانه و رمزنگاری اطلاعات'}
-              </button>
-            </form>
-          </>
         ) : (
           <>
             <p className="text-sm leading-7 text-slate-600">
-              برای مشاهده پرونده کارکنان و سابقه محاسبات، عبارت عبور خزانه را وارد کن. تا قبل از بازکردن قفل، محتوای ذخیره‌شده قابل خواندن نیست.
+              این داده‌ها در نسخه قبلی نرم‌افزار با عبارت عبور محافظت شده‌اند. برای حفظ و بازیابی همان اطلاعات، عبارت عبور قبلی را وارد کن. نصب‌های جدید به ساخت خزانه یا تعریف گذرواژه جداگانه نیاز ندارند.
             </p>
             <form onSubmit={handleUnlockVault} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">عبارت عبور خزانه</label>
-                <input type="password" value={vaultPassword} onChange={(event) => setVaultPassword(event.target.value)} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" placeholder="عبارت عبور خزانه" />
+                <label className="text-sm font-medium text-slate-700">عبارت عبور قبلی</label>
+                <input type="password" value={vaultPassword} onChange={(event) => setVaultPassword(event.target.value)} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" placeholder="عبارت عبور قبلی" />
               </div>
               {vaultError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{vaultError}</div>}
               <button type="submit" disabled={vaultBusy || !vaultPassword} className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40">
-                {vaultBusy ? 'در حال بازکردن خزانه…' : 'بازکردن خزانه'}
+                {vaultBusy ? 'در حال بازکردن اطلاعات…' : 'بازکردن اطلاعات'}
               </button>
             </form>
           </>
@@ -449,7 +166,7 @@ export function PayrollRunView() {
             <div className="text-xs text-slate-500">Payroll Run · پردازش گروهی</div>
             <h1 className="text-xl font-bold text-slate-900 mt-1">پردازش دوره حقوق و دستمزد</h1>
             <p className="text-sm text-slate-600 mt-1">
-              پرونده‌ها و Snapshotها در خزانه رمزنگاری‌شده همین مرورگر نگهداری می‌شوند؛ محاسبات تمام افراد از موتور مرکزی انجام می‌شود.
+              پرونده کارکنان و سوابق محاسبات در پایگاه داده محلی همین دستگاه نگهداری می‌شوند؛ محاسبات همه کارکنان از موتور مرکزی نرم‌افزار انجام می‌شود.
             </p>
             <p className="text-xs text-slate-500 mt-1">
               {isLoadingLocalData
@@ -461,14 +178,16 @@ export function PayrollRunView() {
             <div className="text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg px-3 py-2">
               {periodLabel}
             </div>
-            <button
-              type="button"
-              onClick={handleLockVault}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              <Lock className="h-3.5 w-3.5" />
-              قفل خزانه
-            </button>
+            {isPayrollVaultUnlocked() && (
+              <button
+                type="button"
+                onClick={handleLockVault}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                قفل اطلاعات
+              </button>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
