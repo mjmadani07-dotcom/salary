@@ -218,7 +218,7 @@ export function PayrollRunView() {
 
     const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
     const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
-    const terms = resolveEmployeeTerms(master, periodStartJalali);
+    const terms = resolveEmployeeTerms(master, periodStartJalali, periodEndJalali);
     if (terms.issues.length > 0 || !terms.wage || !terms.contract) {
       setFormError(terms.issues.map((issue) => issue.message).join(' '));
       return;
@@ -331,7 +331,7 @@ export function PayrollRunView() {
         };
       }
 
-      const terms = resolveEmployeeTerms(master, periodStartJalali);
+      const terms = resolveEmployeeTerms(master, periodStartJalali, periodEndJalali);
       const masterDataIssues = terms.issues.map((issue) => ({
         code: issue.code,
         message: issue.message,
@@ -595,7 +595,11 @@ export function PayrollRunView() {
               {selectedMasterId ? (() => {
                 const master = employeeMasters.find((item) => item.employeeId === selectedMasterId);
                 if (!master) return 'کارمند انتخاب نشده است.';
-                const terms = resolveEmployeeTerms(master, `${year}-${String(month).padStart(2, '0')}-01`);
+                const terms = resolveEmployeeTerms(
+                  master,
+                  `${year}-${String(month).padStart(2, '0')}-01`,
+                  `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`
+                );
                 return terms.issues.length
                   ? terms.issues.map((issue) => issue.message).join(' ')
                   : `قرارداد: ${terms.contract?.jobTitle} · مزد روزانه مؤثر: ${format(terms.wage?.dailyBaseWageRial ?? 0)} · پایه سنوات: ${format(terms.wage?.dailySeniorityRial ?? 0)}`;
