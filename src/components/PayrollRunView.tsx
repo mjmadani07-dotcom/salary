@@ -85,6 +85,8 @@ export function PayrollRunView() {
   useEffect(() => {
     let active = true;
     setIsLoadingLocalData(true);
+    setRunResult(null);
+    setLastSavedRunId(null);
     Promise.all([listSavedEmployees(), listSavedPayrollRuns(8)])
       .then(([savedEmployees, savedRuns]) => {
         if (!active) return;
@@ -235,7 +237,7 @@ export function PayrollRunView() {
 
     const result = calculatePayrollRun(
       {
-        runId: `PAY-${year}-${String(month).padStart(2, '0')}`,
+        runId: `PAY-${year}-${String(month).padStart(2, '0')}-${Date.now()}`,
         fiscalYear: year,
         month,
         monthDays,
