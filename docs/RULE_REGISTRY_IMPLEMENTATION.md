@@ -38,7 +38,7 @@ A catalog classification marked `pending-legal-review` documents the current bas
 
 ### 3. Calculation engine integration
 
-File: `src/utils/payrollEngine.ts`
+Files: `src/utils/payrollEngine.ts`, `src/utils/wageRules.ts`
 
 - Resolves the RuleSet by fiscal year.
 - Uses the central catalog to assemble gross earnings.
@@ -46,8 +46,12 @@ File: `src/utils/payrollEngine.ts`
 - Returns RuleSet ID/version/approval state.
 - Returns per-item gross, insurance and taxable breakdowns.
 - Returns a list of items and RuleSet metadata requiring legal review.
+- Validates payroll inputs before calculation and rejects invalid negative or out-of-range values.
+- Calculates the annual "other wage levels" adjustment from the previous daily wage using the year-specific percentage plus fixed daily increment and applies the annual minimum-wage floor.
+- The 1405 increase parameters are 45% + 519,549 Rial/day. The 1404 parameters are 32% + 310,535 Rial/day. These values remain subject to source verification and legal sign-off.
+- The helper does not replace job-classification group tables, piece-rate rules or special collective agreements.
 
-The existing progressive tax calculation, insurance ceiling, overtime/night/holiday formulas, annual reserve formulas and settlement formulas are otherwise retained in this first refactor.
+The existing progressive tax calculation, insurance ceiling, overtime/night/holiday formulas, annual reserve formulas and settlement formulas are retained as the current calculation baseline.
 
 ### 4. Excel export adapter
 
@@ -80,6 +84,7 @@ Files:
 - `src/utils/payrollEngine.test.ts` tests RuleSet consistency, tax brackets, gross pay, insurance ceiling, taxable income, item classification and compliance metadata.
 - `src/utils/excelWorkbookBuilder.test.ts` verifies exported values equal the central result, the workbook contains no formula cells and mismatched RuleSet versions are rejected.
 - `src/utils/payrollRunEngine.test.ts` tests multi-employee totals, duplicate codes, invalid inputs, fiscal-period mismatches and inactive employee exclusion.
+- Wage adjustment cases for 1404 and 1405 are covered by `src/utils/payrollEngine.test.ts`.
 - `npm test` / `bun run test` runs the test suite.
 - GitHub Actions validates tests, TypeScript and production build on pushes to this branch and pull requests to main.
 
@@ -114,3 +119,8 @@ Until the legal review is complete and the remaining integration work is closed,
 The Excel workbook is now an output adapter only. The single-employee calculation result is generated once by `calculatePayroll`; a batch run delegates every employee to that same function and then serializes the returned PayrollRunResult. Both single-employee and multi-employee XLSX exports contain values only and do not contain independent payroll formulas.
 
 The Payroll Run workspace is intentionally labelled as review-only. Its current state is ephemeral browser memory. It does not yet persist employee data or authorize approval/payment.
+
+
+## Wage adjustment scope
+
+The initial other-level wage helper implements the annual percentage-plus-fixed daily adjustment from the prior-year daily base wage and applies the statutory minimum wage floor. Job-classification tables are not yet applied automatically. The 1405 group-based seniority schedule is recorded as research source SRC-014 in the compliance specification, but employee job-group assignment and the relevant group-specific seniority progression still require implementation and legal confirmation.
