@@ -1,0 +1,344 @@
+import {
+  CurrencyUnit,
+  FiscalYear,
+  TaxBracket,
+  YEAR_REGULATIONS,
+} from '../data/payrollRegulations';
+
+export interface PayrollInput {
+  year: FiscalYear;
+  monthDays: 29 | 30 | 31;
+  workDays: number;
+  dailyBaseWageRial: number;
+  dailySeniorityRial: number;
+  housingAllowanceRial: number;
+  workerCouponRial: number;
+  isMarried: boolean;
+  childrenCount: number;
+  has720DaysInsurance: boolean;
+  overtimeHours: number;
+  nightShiftHours: number;
+  holidayHours: number;
+  variableBonusRial: number;
+  hourlyDivisor?: 220 | 191.6;
+  // Annual Eid & Severance inputs
+  annualWorkedDays: number;
+  serviceYearsForSeverance: number;
+  serviceExtraDaysForSeverance: number;
+}
+
+export interface TaxStepBreakdown {
+  bracketId: string;
+  label: string;
+  rate: number;
+  sliceAmountRial: number;
+  taxAmountRial: number;
+}
+
+export interface PayrollResult {
+  // Earnings
+  basePayRial: number;
+  seniorityPayRial: number;
+  housingPayRial: number;
+  couponPayRial: number;
+  marriagePayRial: number;
+  childAllowancePayRial: number;
+  hourlyNormalRateRial: number;
+  overtimePayRial: number;
+  nightShiftPayRial: number;
+  holidayPayRial: number;
+  variableBonusRial: number;
+  grossEarningsRial: number;
+
+  // Insurance
+  insuranceSubjectEarningsRial: number;
+  insuranceMonthlyCeilingRial: number;
+  cappedInsuranceBasisRial: number;
+  employeeInsuranceRial: number; // 7%
+  employerInsuranceBaseRial: number; // 20%
+  unemploymentInsuranceRial: number; // 3%
+  totalEmployerInsuranceRial: number; // 23%
+  totalSocialSecurityRial: number; // 30%
+
+  // Tax
+  taxableIncomeRial: number;
+  taxSteps: TaxStepBreakdown[];
+  totalPayrollTaxRial: number;
+  effectiveTaxRate: number;
+
+  // Totals
+  totalDeductionsRial: number;
+  netPayRial: number;
+  totalEmployerCostRial: number; // Immediate cash + 23% insurance
+
+  // CTC (True Cost to Company including monthly reserves)
+  monthlyEidReserveRial: number;
+  monthlySeveranceReserveRial: number;
+  monthlyLeaveReserveRial: number;
+  totalMonthlyReservesRial: number;
+  ctcMonthlyRial: number;
+  ctcAnnualRial: number;
+  employerCostOverGrossRatio: number;
+  employerMultiplierToNet: number;
+
+  // Eid & Severance
+  eidMinAnnualRial: number;
+  eidMaxCapAnnualRial: number;
+  eidPayableRial: number;
+  eidTaxableExcessRial: number;
+  eidEstimatedTaxRial: number;
+  severancePayableRial: number;
+}
+
+export function calculateProgressiveTax(
+  taxableIncomeRial: number,
+  brackets: TaxBracket[]
+): { totalTax: number; steps: TaxStepBreakdown[] } {
+  const safeIncome = Math.max(0, Math.round(taxableIncomeRial));
+  const steps: TaxStepBreakdown[] = [];
+  let totalTax = 0;
+
+  for (const bracket of brackets) {
+    const upper = bracket.maxMonthlyRial ?? Infinity;
+    if (safeIncome <= bracket.minMonthlyRial) {
+      steps.push({
+        bracketId: bracket.id,
+        label: bracket.label,
+        rate: bracket.rate,
+        sliceAmountRial: 0,
+        taxAmountRial: 0,
+      });
+      continue;
+    }
+
+    const slice = Math.min(safeIncome, upper) - bracket.minMonthlyRial;
+    const taxForSlice = Math.round(slice * bracket.rate);
+    totalTax += taxForSlice;
+
+    steps.push({
+      bracketId: bracket.id,
+      label: bracket.label,
+      rate: bracket.rate,
+      sliceAmountRial: Math.round(slice),
+      taxAmountRial: taxForSlice,
+    });
+  }
+
+  return { totalTax, steps };
+}
+
+export function calculatePayroll(input: PayrollInput): PayrollResult {
+  const reg = YEAR_REGULATIONS[input.year];
+  const clampedWorkDays = Math.max(0, Math.min(input.monthDays, input.workDays));
+  const ratio = input.monthDays > 0 ? clampedWorkDays / input.monthDays : 0;
+
+  // 1. Mandatory & Prorated Monthly Items
+  const basePayRial = Math.round(input.dailyBaseWageRial * clampedWorkDays);
+  const seniorityPayRial = Math.round(input.dailySeniorityRial * clampedWorkDays);
+  const housingPayRial = Math.round(input.housingAllowanceRial * ratio);
+  const couponPayRial = Math.round(input.workerCouponRial * ratio);
+  const marriagePayRial = input.isMarried ? Math.round(reg.marriageAllowanceRial * ratio) : 0;
+
+  const childAllowancePayRial =
+    input.has720DaysInsurance && input.childrenCount > 0
+      ? Math.round(input.childrenCount * reg.childAllowancePerChildRial * ratio)
+      : 0;
+
+  // 2. Hourly Rate & Overtime (30-day standard base / 220 hours, or optional 191.6)
+  const divisor = input.hourlyDivisor ?? 220;
+  const monthly30BaseAndSeniority =
+    (input.dailyBaseWageRial + input.dailySeniorityRial) * 30;
+  const hourlyNormalRateRial = Math.round(monthly30BaseAndSeniority / divisor);
+
+  const overtimePayRial = Math.round(
+    input.overtimeHours * hourlyNormalRateRial * 1.4
+  );
+  const nightShiftPayRial = Math.round(
+    input.nightShiftHours * hourlyNormalRateRial * 0.35
+  );
+  const holidayPayRial = Math.round(
+    input.holidayHours * hourlyNormalRateRial * 1.4
+  );
+  const variableBonusRial = Math.max(0, Math.round(input.variableBonusRial));
+
+  const grossEarningsRial =
+    basePayRial +
+    seniorityPayRial +
+    housingPayRial +
+    couponPayRial +
+    marriagePayRial +
+    childAllowancePayRial +
+    overtimePayRial +
+    nightShiftPayRial +
+    holidayPayRial +
+    variableBonusRial;
+
+  // 3. Social Security Insurance (All except child allowance)
+  const insuranceSubjectEarningsRial =
+    basePayRial +
+    seniorityPayRial +
+    housingPayRial +
+    couponPayRial +
+    marriagePayRial +
+    overtimePayRial +
+    nightShiftPayRial +
+    holidayPayRial +
+    variableBonusRial;
+
+  const insuranceMonthlyCeilingRial =
+    reg.minDailyWageRial * reg.insuranceCeilingMultiplier * input.monthDays;
+
+  const cappedInsuranceBasisRial = Math.min(
+    insuranceSubjectEarningsRial,
+    insuranceMonthlyCeilingRial
+  );
+
+  const employeeInsuranceRial = Math.round(
+    cappedInsuranceBasisRial * reg.insuranceEmployeeRate
+  );
+  const employerInsuranceBaseRial = Math.round(
+    cappedInsuranceBasisRial * reg.insuranceEmployerBaseRate
+  );
+  const unemploymentInsuranceRial = Math.round(
+    cappedInsuranceBasisRial * reg.unemploymentInsuranceRate
+  );
+  const totalEmployerInsuranceRial =
+    employerInsuranceBaseRial + unemploymentInsuranceRial;
+  const totalSocialSecurityRial =
+    employeeInsuranceRial + totalEmployerInsuranceRial;
+
+  // 4. Payroll Income Tax
+  const housingTaxableExcess = Math.max(
+    0,
+    housingPayRial - Math.round(reg.housingAllowanceRial * ratio)
+  );
+  const couponTaxableExcess = Math.max(
+    0,
+    couponPayRial - Math.round(reg.workerCouponRial * ratio)
+  );
+  const taxableIncomeRial =
+    basePayRial +
+    seniorityPayRial +
+    overtimePayRial +
+    nightShiftPayRial +
+    holidayPayRial +
+    variableBonusRial +
+    marriagePayRial +
+    housingTaxableExcess +
+    couponTaxableExcess;
+
+  const { totalTax: totalPayrollTaxRial, steps: taxSteps } =
+    calculateProgressiveTax(taxableIncomeRial, reg.taxBrackets);
+
+  const effectiveTaxRate =
+    taxableIncomeRial > 0 ? totalPayrollTaxRial / taxableIncomeRial : 0;
+
+  const totalDeductionsRial = employeeInsuranceRial + totalPayrollTaxRial;
+  const netPayRial = grossEarningsRial - totalDeductionsRial;
+  const totalEmployerCostRial = grossEarningsRial + totalEmployerInsuranceRial;
+
+  // 5. Annual Eid & Severance Pay
+  const eidMinAnnualRial = Math.round(input.dailyBaseWageRial * 60);
+  const eidMaxCapAnnualRial = Math.round(reg.minDailyWageRial * 90);
+  const effectiveAnnualEid = Math.min(eidMinAnnualRial, eidMaxCapAnnualRial);
+  const clampedAnnualDays = Math.max(0, Math.min(366, input.annualWorkedDays));
+  const eidPayableRial = Math.round((effectiveAnnualEid / 365) * clampedAnnualDays);
+
+  const eidTaxableExcessRial = Math.max(
+    0,
+    eidPayableRial - reg.eidTaxExemptionCapRial
+  );
+  const eidEstimatedTaxRial = Math.round(eidTaxableExcessRial * 0.1);
+
+  const totalServiceDays =
+    Math.max(0, input.serviceYearsForSeverance) * 365 +
+    Math.max(0, input.serviceExtraDaysForSeverance);
+  const lastMonthlyBase30 =
+    (input.dailyBaseWageRial + input.dailySeniorityRial) * 30;
+  const severancePayableRial = Math.round(
+    (lastMonthlyBase30 / 365) * totalServiceDays
+  );
+
+  // 6. CTC (Cost to Company) Monthly Reserves
+  const monthlyEidReserveRial = Math.round((effectiveAnnualEid / 12) * ratio);
+  const monthlySeveranceReserveRial = Math.round((lastMonthlyBase30 / 12) * ratio);
+  // 26 work days annual leave (Article 64 Labor Law) = 2.16667 days/month
+  const monthlyLeaveReserveRial = Math.round(
+    (input.dailyBaseWageRial + input.dailySeniorityRial) * (26 / 12) * ratio
+  );
+  const totalMonthlyReservesRial =
+    monthlyEidReserveRial +
+    monthlySeveranceReserveRial +
+    monthlyLeaveReserveRial;
+
+  const ctcMonthlyRial = totalEmployerCostRial + totalMonthlyReservesRial;
+  const ctcAnnualRial = ctcMonthlyRial * 12;
+  const employerCostOverGrossRatio =
+    grossEarningsRial > 0 ? ctcMonthlyRial / grossEarningsRial : 0;
+  const employerMultiplierToNet =
+    netPayRial > 0 ? ctcMonthlyRial / netPayRial : 0;
+
+  return {
+    basePayRial,
+    seniorityPayRial,
+    housingPayRial,
+    couponPayRial,
+    marriagePayRial,
+    childAllowancePayRial,
+    hourlyNormalRateRial,
+    overtimePayRial,
+    nightShiftPayRial,
+    holidayPayRial,
+    variableBonusRial,
+    grossEarningsRial,
+    insuranceSubjectEarningsRial,
+    insuranceMonthlyCeilingRial,
+    cappedInsuranceBasisRial,
+    employeeInsuranceRial,
+    employerInsuranceBaseRial,
+    unemploymentInsuranceRial,
+    totalEmployerInsuranceRial,
+    totalSocialSecurityRial,
+    taxableIncomeRial,
+    taxSteps,
+    totalPayrollTaxRial,
+    effectiveTaxRate,
+    totalDeductionsRial,
+    netPayRial,
+    totalEmployerCostRial,
+    monthlyEidReserveRial,
+    monthlySeveranceReserveRial,
+    monthlyLeaveReserveRial,
+    totalMonthlyReservesRial,
+    ctcMonthlyRial,
+    ctcAnnualRial,
+    employerCostOverGrossRatio,
+    employerMultiplierToNet,
+    eidMinAnnualRial,
+    eidMaxCapAnnualRial,
+    eidPayableRial,
+    eidTaxableExcessRial,
+    eidEstimatedTaxRial,
+    severancePayableRial,
+  };
+}
+
+export function toPersianDigits(input: string | number): string {
+  const persian = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+  return String(input).replace(/\d/g, (d) => persian[Number(d)]);
+}
+
+export function formatMoney(
+  amountInRial: number,
+  unit: CurrencyUnit,
+  includeUnit = true
+): string {
+  const value = unit === 'toman' ? Math.round(amountInRial / 10) : Math.round(amountInRial);
+  const formatted = new Intl.NumberFormat('fa-IR').format(value);
+  if (!includeUnit) return formatted;
+  return `${formatted} ${unit === 'toman' ? 'تومان' : 'ریال'}`;
+}
+
+export function formatPercentFa(rate: number): string {
+  return `${toPersianDigits((rate * 100).toFixed(1).replace(/\.0$/, ''))}٪`;
+}

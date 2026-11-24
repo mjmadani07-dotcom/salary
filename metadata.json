@@ -1,0 +1,6 @@
+{
+  "name": "مرجع جامع و محاسبه‌گر حقوق و دستمزد ایران",
+  "description": "پژوهش جامع قوانین کار، تأمین اجتماعی و مالیات حقوق ایران به همراه فرمول‌های ریاضی، فرمول‌های اکسل و محاسبه‌گر دقیق فیش حقوقی، عیدی و سنوات",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
