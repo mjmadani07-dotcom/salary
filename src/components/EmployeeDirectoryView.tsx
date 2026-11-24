@@ -185,8 +185,8 @@ export function EmployeeDirectoryView() {
     try {
       await saveEmployeeMasterRecord(record);
       await refresh();
-      setSuccess(editingId ? 'پرونده کارمند به‌روزرسانی شد.' : 'پرونده کارمند ثبت شد.');
       resetForm();
+      setSuccess(editingId ? 'پرونده کارمند به‌روزرسانی شد.' : 'پرونده کارمند ثبت شد.');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'ذخیره پرونده ناموفق بود.');
     } finally {
