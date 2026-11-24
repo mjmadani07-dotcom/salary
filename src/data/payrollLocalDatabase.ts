@@ -1,4 +1,5 @@
 import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEngine';
+import type { EmployeeMasterRecord } from '../types/employee';
 import {
   createOpaqueRecordId,
   createPersonnelCodeToken,
@@ -15,9 +16,10 @@ import type {
 } from '../utils/payrollVaultCrypto';
 
 const DATABASE_NAME = 'iran-payroll-local';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const EMPLOYEE_STORE = 'employees';
 const PAYROLL_RUN_STORE = 'payrollRuns';
+const EMPLOYEE_MASTER_STORE = 'employeeMasters';
 const ENCRYPTED_RECORD_STORE = 'encryptedRecords';
 const VAULT_METADATA_STORE = 'vaultMetadata';
 const VAULT_METADATA_ID = 'vault';
@@ -44,7 +46,7 @@ interface VaultMetadata {
 
 interface EncryptedRecord extends VaultCiphertext {
   id: string;
-  kind: 'employee' | 'payrollRun';
+  kind: 'employee' | 'employeeMaster' | 'payrollRun';
   personnelCodeToken?: string;
   updatedAt: string;
 }
@@ -91,6 +93,14 @@ function openDatabase(): Promise<IDBDatabase> {
           keyPath: 'runId',
         });
         runStore.createIndex('savedAt', 'savedAt', { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains(EMPLOYEE_MASTER_STORE)) {
+        const masterStore = database.createObjectStore(EMPLOYEE_MASTER_STORE, {
+          keyPath: 'employeeId',
+        });
+        masterStore.createIndex('personnelCode', 'personnelCode', { unique: true });
+        masterStore.createIndex('fullName', ['firstName', 'lastName'], { unique: false });
       }
 
       if (!database.objectStoreNames.contains(ENCRYPTED_RECORD_STORE)) {
@@ -202,6 +212,21 @@ function createEncryptedEmployee(
     ...(await encryptVaultPayload(keys, id, employee)),
     updatedAt: employee.updatedAt,
   }));
+}
+
+async function createEncryptedEmployeeMaster(
+  keys: PayrollVaultKeys,
+  employee: EmployeeMasterRecord
+): Promise<EncryptedRecord> {
+  const id = await createOpaqueRecordId(keys, 'employeeMaster', employee.employeeId);
+  const personnelCodeToken = await createPersonnelCodeToken(keys, `master:${employee.personnelCode}`);
+  return {
+    id,
+    kind: 'employeeMaster',
+    personnelCodeToken,
+    ...(await encryptVaultPayload(keys, id, employee)),
+    updatedAt: employee.updatedAt,
+  };
 }
 
 async function createEncryptedPayrollRun(
@@ -499,6 +524,77 @@ export async function deleteSavedEmployee(employeeId: string): Promise<void> {
   const transaction = database.transaction(EMPLOYEE_STORE, 'readwrite');
   const completed = transactionComplete(transaction);
   transaction.objectStore(EMPLOYEE_STORE).delete(employeeId);
+  await completed;
+}
+
+export async function listEmployeeMasterRecords(): Promise<EmployeeMasterRecord[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (!metadata) {
+    const transaction = database.transaction(EMPLOYEE_MASTER_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const records = await requestResult(
+      transaction.objectStore(EMPLOYEE_MASTER_STORE).getAll() as IDBRequest<EmployeeMasterRecord[]>
+    );
+    await completed;
+    return records.sort((a, b) => a.personnelCode.localeCompare(b.personnelCode));
+  }
+
+  const keys = requireUnlockedKeys();
+  const records = await getEncryptedRecords('employeeMaster');
+  const employees = await Promise.all(records.map((record) =>
+    decryptVaultPayload<EmployeeMasterRecord>(keys, record.id, record)
+  ));
+  return employees.sort((a, b) => a.personnelCode.localeCompare(b.personnelCode));
+}
+
+export async function saveEmployeeMasterRecord(employee: EmployeeMasterRecord): Promise<void> {
+  const normalized: EmployeeMasterRecord = {
+    ...employee,
+    personnelCode: employee.personnelCode.trim(),
+    firstName: employee.firstName.trim(),
+    lastName: employee.lastName.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  try {
+    if (metadata) {
+      const keys = requireUnlockedKeys();
+      const record = await createEncryptedEmployeeMaster(keys, normalized);
+      const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+      const completed = transactionComplete(transaction);
+      transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+      await completed;
+      return;
+    }
+    const transaction = database.transaction(EMPLOYEE_MASTER_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(EMPLOYEE_MASTER_STORE).put(normalized);
+    await completed;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'ConstraintError') {
+      throw new Error('این کد پرسنلی قبلاً در پرونده کارکنان ثبت شده است.');
+    }
+    throw error;
+  }
+}
+
+export async function deleteEmployeeMasterRecord(employeeId: string): Promise<void> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'employeeMaster', employeeId);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).delete(id);
+    await completed;
+    return;
+  }
+  const transaction = database.transaction(EMPLOYEE_MASTER_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(EMPLOYEE_MASTER_STORE).delete(employeeId);
   await completed;
 }
 
