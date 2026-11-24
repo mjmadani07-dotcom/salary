@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { getPayrollRuleSet, listPayrollRuleSets, validatePayrollRuleSet } from '../data/payrollRuleRegistry';
-import { calculatePayroll, calculateProgressiveTax, PayrollInput } from './payrollEngine';
+import { calculatePayroll, calculateProgressiveTax } from './payrollEngine';
+import type { PayrollInput } from './payrollEngine';
 
 function makeInput(overrides: Partial<PayrollInput> = {}): PayrollInput {
   return {
