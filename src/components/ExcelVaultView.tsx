@@ -223,16 +223,29 @@ export function ExcelVaultView() {
             <button
               type="button"
               onClick={() =>
-                void downloadPayrollExcelWorkbook(year, computed.payrollInput, {
-                  seatName: state.employeeName || 'پرسنل تنظیم‌شده شما',
-                  isGwcQualified: computed.isGwcQualified,
-                  seatMonthlyBaseRial: computed.payrollInput.dailyBaseWageRial * 30,
-                  scorecardBudgetRial: state.scorecardBudgetRial,
-                  scorecardAchievementPct: state.scorecardAchievementPct,
-                  quarterlyRockBudgetRial: state.quarterlyRockBudgetRial,
-                  companyRocksPct: state.companyRocksPct,
-                  individualRocksPct: state.individualRocksPct,
-                  annualProfitShareRial: state.annualProfitShareRial,
+                void downloadPayrollExcelWorkbook({
+                  employeeName: state.employeeName || 'پرسنل تنظیم‌شده شما',
+                  periodLabel: `سال ${year} · ماه ${computed.payrollInput.monthDays} روزه`,
+                  input: computed.payrollInput,
+                  result: computed.payrollResult,
+                  eos: {
+                    seatName: state.employeeName || 'پرسنل تنظیم‌شده شما',
+                    isGwcQualified: computed.isGwcQualified,
+                    seatMonthlyBaseRial: computed.payrollInput.dailyBaseWageRial * 30,
+                    scorecardBudgetRial: state.scorecardBudgetRial,
+                    scorecardAchievementPct: state.scorecardAchievementPct,
+                    scorecardBonusRial: computed.scorecardBonusRial,
+                    quarterlyRockBudgetRial: state.quarterlyRockBudgetRial,
+                    companyRocksPct: state.companyRocksPct,
+                    individualRocksPct: state.individualRocksPct,
+                    quarterlyRockEarnedRial: computed.quarterlyRockEarnedRial,
+                    monthlyRockReserveRial: computed.monthlyRockReserveRial,
+                    annualProfitShareRial: computed.annualProfitShareRial,
+                    monthlyProfitReserveRial: computed.monthlyProfitReserveRial,
+                    totalEosReservesRial: computed.totalEosReservesRial,
+                    totalCtcMonthlyRial: computed.totalCtcMonthlyRial,
+                    totalCtcAnnualRial: computed.totalCtcAnnualRial,
+                  },
                 })
               }
               className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
