@@ -20,6 +20,7 @@ import {
   loadSavedPayrollRun,
   saveEmployee,
   savePayrollRunSnapshot,
+  listMonthlyAttendance,
 } from '../data/payrollLocalDatabase';
 import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
 import { listEmployeeMasterRecords } from '../data/payrollLocalDatabase';
@@ -315,7 +316,17 @@ export function PayrollRunView() {
 
     const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
     const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
+    let attendanceRecords;
+    try {
+      attendanceRecords = await listMonthlyAttendance(year, month);
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : 'خواندن کارکرد ماهانه ناموفق بود.');
+      setIsSaving(false);
+      return;
+    }
+    const attendanceByEmployee = new Map(attendanceRecords.map((record) => [record.employeeId, record]));
     const periodEmployees = employees.map((employee) => {
+      const attendance = attendanceByEmployee.get(employee.employeeId);
       const master = employeeMasters.find((item) => item.employeeId === employee.employeeId);
       if (!master) {
         return {
@@ -324,7 +335,12 @@ export function PayrollRunView() {
             ...employee.payrollInput,
             year,
             monthDays,
-            workDays: Math.min(employee.payrollInput.workDays, monthDays),
+            workDays: attendance?.workedDays ?? Math.min(employee.payrollInput.workDays, monthDays),
+            overtimeHours: attendance?.overtimeHours ?? employee.payrollInput.overtimeHours,
+            nightShiftHours: attendance?.nightShiftHours ?? employee.payrollInput.nightShiftHours,
+            holidayHours: attendance?.holidayHours ?? employee.payrollInput.holidayHours,
+            variableBonusRial: attendance?.variableBonusRial ?? employee.payrollInput.variableBonusRial,
+            annualWorkedDays: attendance?.annualWorkedDays ?? employee.payrollInput.annualWorkedDays,
             housingAllowanceRial: rules.housingAllowanceRial,
             workerCouponRial: rules.workerCouponRial,
           },
@@ -361,7 +377,12 @@ export function PayrollRunView() {
           ...employee.payrollInput,
           year,
           monthDays,
-          workDays: Math.min(employee.payrollInput.workDays, monthDays),
+          workDays: attendance?.workedDays ?? Math.min(employee.payrollInput.workDays, monthDays),
+          overtimeHours: attendance?.overtimeHours ?? employee.payrollInput.overtimeHours,
+          nightShiftHours: attendance?.nightShiftHours ?? employee.payrollInput.nightShiftHours,
+          holidayHours: attendance?.holidayHours ?? employee.payrollInput.holidayHours,
+          variableBonusRial: attendance?.variableBonusRial ?? employee.payrollInput.variableBonusRial,
+          annualWorkedDays: attendance?.annualWorkedDays ?? employee.payrollInput.annualWorkedDays,
           dailyBaseWageRial: terms.wage?.dailyBaseWageRial ?? employee.payrollInput.dailyBaseWageRial,
           dailySeniorityRial: terms.wage?.dailySeniorityRial ?? employee.payrollInput.dailySeniorityRial,
           housingAllowanceRial: rules.housingAllowanceRial,
