@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Calculator, FileSpreadsheet } from 'lucide-react';
 import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
 import {
@@ -6,11 +6,16 @@ import {
   toPersianDigits,
 } from '../utils/payrollEngine';
 import type { PayrollInput } from '../utils/payrollEngine';
+import { calculatePayrollRun } from '../utils/payrollRunEngine';
+import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEngine';
 import {
-  calculatePayrollRun,
-  PayrollRunEmployee,
-  PayrollRunResult,
-} from '../utils/payrollRunEngine';
+  deleteSavedEmployee,
+  listSavedEmployees,
+  listSavedPayrollRuns,
+  saveEmployee,
+  savePayrollRunSnapshot,
+} from '../data/payrollLocalDatabase';
+import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
 import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 
@@ -69,7 +74,52 @@ export function PayrollRunView() {
   const [draft, setDraft] = useState<EmployeeDraft>(() => createEmptyDraft(year, monthDays));
   const [employees, setEmployees] = useState<PayrollRunEmployee[]>([]);
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
+  const [runHistory, setRunHistory] = useState<StoredPayrollRun[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [isLoadingLocalData, setIsLoadingLocalData] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingLocalData(true);
+    Promise.all([listSavedEmployees(), listSavedPayrollRuns(8)])
+      .then(([savedEmployees, savedRuns]) => {
+        if (!active) return;
+        setEmployees(
+          savedEmployees.map((employee) => ({
+            ...employee,
+            payrollInput: {
+              ...employee.payrollInput,
+              year,
+              monthDays,
+              workDays: Math.min(employee.payrollInput.workDays, monthDays),
+              housingAllowanceRial: rules.housingAllowanceRial,
+              workerCouponRial: rules.workerCouponRial,
+            },
+          }))
+        );
+        setRunHistory(savedRuns);
+        setStorageError(null);
+      })
+      .catch((error) => {
+        if (active) {
+          setStorageError(
+            error instanceof Error
+              ? error.message
+              : 'خواندن پایگاه داده محلی ناموفق بود.'
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingLocalData(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [year, monthDays, rules.housingAllowanceRial, rules.workerCouponRial]);
 
   const unitMultiplier = unit === 'toman' ? 10 : 1;
   const format = (value: number) => formatMoney(value, unit);
@@ -84,7 +134,7 @@ export function PayrollRunView() {
     setFormError(null);
   };
 
-  const addEmployee = () => {
+  const addEmployee = async () => {
     const personnelCode = draft.personnelCode.trim();
     const fullName = draft.fullName.trim();
 
@@ -118,29 +168,70 @@ export function PayrollRunView() {
       serviceExtraDaysForSeverance: draft.serviceExtraDaysForSeverance,
     };
 
-    setEmployees((current) => [
-      ...current,
-      {
-        employeeId: personnelCode,
-        personnelCode,
-        fullName,
-        isActive: true,
-        payrollInput,
+    const employee: PayrollRunEmployee = {
+      employeeId: personnelCode,
+      personnelCode,
+      fullName,
+      isActive: true,
+      payrollInput,
+    };
+
+    try {
+      await saveEmployee(employee);
+      setEmployees((current) => [
+        ...current.filter((item) => item.employeeId !== employee.employeeId),
+        employee,
+      ]);
+      setDraft(createEmptyDraft(year, monthDays));
+      setRunResult(null);
+      setFormError(null);
+      setStorageError(null);
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'ذخیره کارمند در پایگاه داده محلی انجام نشد.'
+      );
+    }
+  };
+
+  const removeEmployee = async (personnelCode: string) => {
+    const employee = employees.find((item) => item.personnelCode === personnelCode);
+    if (!employee) return;
+
+    try {
+      await deleteSavedEmployee(employee.employeeId);
+      setEmployees((current) =>
+        current.filter((item) => item.employeeId !== employee.employeeId)
+      );
+      setRunResult(null);
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(
+        error instanceof Error
+          ? error.message
+          : 'حذف کارمند از پایگاه داده محلی ناموفق بود.'
+      );
+    }
+  };
+
+  const calculateRun = async () => {
+    if (employees.length === 0 || isSaving) return;
+    setIsSaving(true);
+    setStorageError(null);
+
+    const periodEmployees = employees.map((employee) => ({
+      ...employee,
+      payrollInput: {
+        ...employee.payrollInput,
+        year,
+        monthDays,
+        workDays: Math.min(employee.payrollInput.workDays, monthDays),
+        housingAllowanceRial: rules.housingAllowanceRial,
+        workerCouponRial: rules.workerCouponRial,
       },
-    ]);
-    setDraft(createEmptyDraft(year, monthDays));
-    setRunResult(null);
-    setFormError(null);
-  };
+    }));
 
-  const removeEmployee = (personnelCode: string) => {
-    setEmployees((current) =>
-      current.filter((employee) => employee.personnelCode !== personnelCode)
-    );
-    setRunResult(null);
-  };
-
-  const calculateRun = () => {
     const result = calculatePayrollRun(
       {
         runId: `PAY-${year}-${String(month).padStart(2, '0')}`,
@@ -148,9 +239,25 @@ export function PayrollRunView() {
         month,
         monthDays,
       },
-      employees
+      periodEmployees
     );
     setRunResult(result);
+
+    try {
+      await savePayrollRunSnapshot(result);
+      const history = await listSavedPayrollRuns(8);
+      setRunHistory(history);
+      setLastSavedRunId(result.runId);
+    } catch (error) {
+      setLastSavedRunId(null);
+      setStorageError(
+        error instanceof Error
+          ? `محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود: ${error.message}`
+          : 'محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
