@@ -649,34 +649,36 @@ Rule بدون منبع و تاریخ اعتبار نباید در وضعیت APP
 
 ### 8.3 مدل‌های دامنه‌ای موردنیاز
 
-1. Company / Workspace / PayrollEntity
-2. Employee / EmploymentContract / JobClassification
-3. EmployeeInsuranceHistory
-4. EmployeeDependent
-5. WageHistory / WageComponentAssignment
-6. AttendancePeriod / AttendanceEvent / ShiftPattern
-7. LeaveLedger / LeaveRequest
-8. PayrollPeriod / PayrollRun
-9. PayrollInputSnapshot
-10. PayrollLine / PayrollDeduction / EmployerContribution
-11. PayrollCalculationTrace
-12. RuleSet / RuleVersion / LegalSource
-13. Loan / Advance / Installment
-14. AnnualBonusCalculation
-15. SeveranceSettlement
-16. PayrollApproval / PaymentBatch
-17. AuditEvent / CorrectionDocument
+مدل‌ها برای نگهداری سوابق و محاسبه حقوق توسط یک مدیر مالی طراحی می‌شوند. ایجاد موجودیت‌های Company / Workspace، نقش‌های کاربری یا زیرساخت چندمستأجری در دامنه فعلی لازم نیست.
+
+1. Employee
+2. EmploymentContract
+3. JobClassification (در صورت شمول طرح طبقه‌بندی)
+4. WageHistory / WageComponentAssignment
+5. EmployeeInsuranceHistory (فقط اطلاعات مؤثر بر استحقاق و محاسبه)
+6. EmployeeDependent (در صورت نیاز قانونی به احراز شرایط)
+7. AttendancePeriod / AttendanceEvent / ShiftPattern
+8. LeaveLedger
+9. PayrollPeriod / PayrollRun
+10. PayrollInputSnapshot
+11. PayrollLine / PayrollDeduction / EmployerContribution
+12. PayrollCalculationTrace
+13. RuleSet / RuleVersion / LegalSource
+14. Loan / Advance / Installment
+15. AnnualBonusCalculation
+16. SeveranceSettlement
+
+گردش تأیید چندمرحله‌ای، پرداخت بانکی، حساب‌های کاربری متعدد و ثبت ممیزی دسترسی کاربران جزو نیازهای نسخه فعلی نیستند. نگهداری سابقه محاسبه و ورودی‌های هر دوره برای امکان بازبینی نتیجه ضروری است و با Audit دسترسی کاربران تفاوت دارد.
 
 ### 8.4 قرارداد موتور محاسبات
 
 ورودی موتور:
-- شرکت و کارگاه؛
 - کارمند و قرارداد معتبر در تاریخ دوره؛
-- Wage History و Pay Item assignments؛
-- Attendance/Leave/Shift/Mission events؛
-- کسورات و اصلاحات تأییدشده؛
-- RuleSet معتبر برای تاریخ دوره؛
-- سیاست‌های CTC/EOS که در خروجی مالی/مدیریتی اثر دارند.
+- Wage History و اقلام پرداختی معتبر؛
+- Attendance/Leave/Shift/Mission events، در حد داده‌های ثبت‌شده برای آن دوره؛
+- کسورات و اصلاحات ثبت‌شده؛
+- RuleSet معتبر برای سال/تاریخ دوره؛
+- پارامترهای لازم برای محاسبه عیدی، سنوات و هزینه کارفرما.
 
 خروجی موتور:
 - هر قلم ناخالص با مبلغ و trace؛
@@ -687,7 +689,7 @@ Rule بدون منبع و تاریخ اعتبار نباید در وضعیت APP
 - خالص پرداختی؛
 - ذخایر و CTC؛
 - هشدارها و خطاهای validation؛
-- RuleSet version و hash ورودی‌ها.
+- RuleSet version و مشخصات ورودی‌های استفاده‌شده.
 
 ### 8.5 یکپارچگی خروجی‌ها
 
