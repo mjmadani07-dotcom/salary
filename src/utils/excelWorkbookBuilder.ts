@@ -6,6 +6,7 @@ import {
   getPayrollPayItem,
 } from '../data/payrollPayItemCatalog';
 import type { PayrollInput, PayrollResult } from './payrollEngine';
+import type { PayrollRunResult } from './payrollRunEngine';
 
 export interface EosExcelConfig {
   seatName: string;
@@ -355,6 +356,243 @@ export async function downloadPayrollExcelWorkbook(
   const link = document.createElement('a');
   link.href = url;
   link.download = `Iran-Payroll-${snapshot.input.year}-${snapshot.employeeCode ?? 'employee'}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+
+/**
+ * Builds a multi-employee payroll register from the reviewed PayrollRunResult.
+ * Every amount is taken from employee-level PayrollResult snapshots; this
+ * function intentionally contains no payroll formula or recalculation.
+ */
+export async function buildPayrollRunExcelWorkbook(
+  run: PayrollRunResult
+): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'مرجع حقوق و دستمزد ایران';
+  workbook.created = new Date();
+  workbook.title = `دفتر حقوق دوره ${run.fiscalYear}-${String(run.month).padStart(2, '0')}`;
+  workbook.subject = 'Multi-employee payroll run snapshot';
+  workbook.description = 'Payroll register exported from the central PayrollRunResult. No independent payroll formulas are embedded.';
+
+  const summary = workbook.addWorksheet('خلاصه دوره', {
+    views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+  });
+  summary.columns = [
+    { header: 'عنوان', width: 40 },
+    { header: 'مقدار', width: 28 },
+    { header: 'توضیح', width: 55 },
+  ];
+  styleHeaderRow(summary.getRow(1), 'FF0F766E');
+  addKeyValue(summary, 'شناسه دوره', run.runId);
+  addKeyValue(summary, 'سال مالی', run.fiscalYear);
+  addKeyValue(summary, 'ماه', run.month);
+  addKeyValue(summary, 'طول ماه', run.monthDays);
+  addKeyValue(summary, 'وضعیت دوره', run.status);
+  addKeyValue(summary, 'تعداد کل ردیف‌ها', run.totals.employeeCount);
+  addKeyValue(summary, 'تعداد محاسبه‌شده', run.totals.calculatedCount);
+  addKeyValue(summary, 'تعداد مسدودشده', run.totals.blockedCount);
+  addKeyValue(summary, 'تعداد خارج از دوره', run.totals.excludedCount);
+  summary.addRow([]);
+  addKeyValue(summary, 'جمع ناخالص', run.totals.grossEarningsRial);
+  addKeyValue(summary, 'بیمه سهم کارگر', run.totals.employeeInsuranceRial);
+  addKeyValue(summary, 'مالیات حقوق', run.totals.payrollTaxRial);
+  addKeyValue(summary, 'جمع کسورات', run.totals.totalDeductionsRial);
+  addKeyValue(summary, 'خالص پرداختی', run.totals.netPayRial);
+  addKeyValue(summary, 'بیمه سهم کارفرما', run.totals.employerInsuranceRial);
+  addKeyValue(summary, 'هزینه مستقیم کارفرما', run.totals.directEmployerCostRial);
+  addKeyValue(summary, 'ذخایر ماهانه', run.totals.monthlyReservesRial);
+  addKeyValue(summary, 'CTC ماهانه', run.totals.ctcMonthlyRial);
+  addKeyValue(summary, 'CTC سالانه', run.totals.ctcAnnualRial);
+  if (run.periodIssues.length > 0) {
+    summary.addRow([]);
+    const header = summary.addRow(['خطاهای سطح دوره', '', '']);
+    styleHeaderRow(header, 'FFB45309');
+    run.periodIssues.forEach((issue) => addKeyValue(summary, issue.code, issue.message));
+  }
+  setRialFormat(summary, [2]);
+
+  const register = workbook.addWorksheet('لیست حقوق', {
+    views: [{ rightToLeft: true, state: 'frozen', xSplit: 2, ySplit: 1 }],
+  });
+  register.columns = [
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام کارمند', width: 26 },
+    { header: 'وضعیت', width: 18 },
+    { header: 'روز کارکرد', width: 12 },
+    { header: 'مزد پایه', width: 20 },
+    { header: 'پایه سنوات', width: 18 },
+    { header: 'حق مسکن', width: 16 },
+    { header: 'بن', width: 16 },
+    { header: 'حق تأهل', width: 16 },
+    { header: 'حق اولاد', width: 16 },
+    { header: 'اضافه‌کاری', width: 18 },
+    { header: 'شب‌کاری', width: 18 },
+    { header: 'کار در تعطیل', width: 18 },
+    { header: 'پاداش متغیر', width: 18 },
+    { header: 'ناخالص', width: 20 },
+    { header: 'مبنای بیمه', width: 20 },
+    { header: 'بیمه کارگر', width: 18 },
+    { header: 'درآمد مشمول مالیات', width: 22 },
+    { header: 'مالیات', width: 18 },
+    { header: 'جمع کسورات', width: 18 },
+    { header: 'خالص', width: 20 },
+    { header: 'بیمه کارفرما', width: 20 },
+    { header: 'هزینه مستقیم', width: 20 },
+    { header: 'ذخایر ماهانه', width: 20 },
+    { header: 'CTC ماهانه', width: 20 },
+    { header: 'CTC سالانه', width: 20 },
+  ];
+  styleHeaderRow(register.getRow(1), 'FF0F766E');
+
+  run.lines.forEach((line) => {
+    const result = line.result;
+    const input = line.payrollInput;
+    const row = register.addRow([
+      line.personnelCode,
+      line.fullName,
+      line.status,
+      input.workDays,
+      result?.basePayRial ?? null,
+      result?.seniorityPayRial ?? null,
+      result?.housingPayRial ?? null,
+      result?.couponPayRial ?? null,
+      result?.marriagePayRial ?? null,
+      result?.childAllowancePayRial ?? null,
+      result?.overtimePayRial ?? null,
+      result?.nightShiftPayRial ?? null,
+      result?.holidayPayRial ?? null,
+      result?.variableBonusRial ?? null,
+      result?.grossEarningsRial ?? null,
+      result?.cappedInsuranceBasisRial ?? null,
+      result?.employeeInsuranceRial ?? null,
+      result?.taxableIncomeRial ?? null,
+      result?.totalPayrollTaxRial ?? null,
+      result?.totalDeductionsRial ?? null,
+      result?.netPayRial ?? null,
+      result?.totalEmployerInsuranceRial ?? null,
+      result?.totalEmployerCostRial ?? null,
+      result?.totalMonthlyReservesRial ?? null,
+      result?.ctcMonthlyRial ?? null,
+      result?.ctcAnnualRial ?? null,
+    ]);
+    styleDataRow(row);
+  });
+  setRialFormat(register, Array.from({ length: 22 }, (_, index) => index + 5));
+  register.autoFilter = { from: 'A1', to: 'Z1' };
+
+  const detail = workbook.addWorksheet('جزئیات اقلام', {
+    views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+  });
+  detail.columns = [
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام کارمند', width: 26 },
+    { header: 'شناسه قلم', width: 24 },
+    { header: 'عنوان قلم', width: 34 },
+    { header: 'مبلغ (ریال)', width: 22 },
+    { header: 'مبنای بیمه (ریال)', width: 22 },
+    { header: 'مبنای مالیات (ریال)', width: 22 },
+    { header: 'وضعیت بیمه', width: 20 },
+    { header: 'وضعیت مالیات', width: 20 },
+    { header: 'بازبینی حقوقی', width: 24 },
+  ];
+  styleHeaderRow(detail.getRow(1), 'FF334155');
+  run.lines.forEach((line) => {
+    line.result?.payItemBreakdown.forEach((itemLine) => {
+      const item = getPayrollPayItem(itemLine.itemId);
+      detail.addRow([
+        line.personnelCode,
+        line.fullName,
+        item.id,
+        item.title,
+        itemLine.amountRial,
+        itemLine.insuranceBasisRial,
+        itemLine.taxableBasisRial,
+        item.insuranceTreatment,
+        item.taxTreatment,
+        item.reviewStatus,
+      ]);
+    });
+  });
+  setRialFormat(detail, [5, 6, 7]);
+  detail.autoFilter = { from: 'A1', to: 'J1' };
+
+  const tax = workbook.addWorksheet('پله‌های مالیات', {
+    views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+  });
+  tax.columns = [
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام کارمند', width: 26 },
+    { header: 'شناسه پله', width: 16 },
+    { header: 'عنوان پله', width: 30 },
+    { header: 'درآمد واقع‌شده (ریال)', width: 24 },
+    { header: 'نرخ', width: 14 },
+    { header: 'مالیات (ریال)', width: 22 },
+  ];
+  styleHeaderRow(tax.getRow(1), 'FF334155');
+  run.lines.forEach((line) => {
+    line.result?.taxSteps.forEach((step) => {
+      tax.addRow([
+        line.personnelCode,
+        line.fullName,
+        step.bracketId,
+        step.label,
+        step.sliceAmountRial,
+        step.rate,
+        step.taxAmountRial,
+      ]);
+    });
+  });
+  setRialFormat(tax, [5, 7]);
+  tax.getColumn(6).numFmt = '0.00%';
+
+  const issues = workbook.addWorksheet('هشدارها', {
+    views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+  });
+  issues.columns = [
+    { header: 'دامنه', width: 18 },
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام کارمند', width: 26 },
+    { header: 'کد هشدار', width: 34 },
+    { header: 'شرح', width: 80 },
+  ];
+  styleHeaderRow(issues.getRow(1), 'FFB45309');
+  run.periodIssues.forEach((issue) => {
+    issues.addRow(['دوره', '', '', issue.code, issue.message]);
+  });
+  run.lines.forEach((line) => {
+    line.issues.forEach((issue) => {
+      issues.addRow(['کارمند', line.personnelCode, line.fullName, issue.code, issue.message]);
+    });
+    line.result?.legalReviewRequiredItems.forEach((warning) => {
+      issues.addRow(['بازبینی حقوقی', line.personnelCode, line.fullName, 'LEGAL_REVIEW', warning]);
+    });
+  });
+
+  for (const sheet of workbook.worksheets) {
+    sheet.eachRow((row) => styleDataRow(row));
+    styleHeaderRow(sheet.getRow(1));
+    sheet.views = [{ rightToLeft: true, state: 'frozen', ySplit: 1 }];
+  }
+
+  return workbook;
+}
+
+export async function downloadPayrollRunExcelWorkbook(
+  run: PayrollRunResult
+): Promise<void> {
+  const workbook = await buildPayrollRunExcelWorkbook(run);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer as BlobPart], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `Iran-Payroll-Run-${run.fiscalYear}-${String(run.month).padStart(2, '0')}.xlsx`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
