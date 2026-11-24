@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { getPayrollRuleSet, listPayrollRuleSets, validatePayrollRuleSet } from '../data/payrollRuleRegistry';
 import { calculatePayroll, calculateProgressiveTax } from './payrollEngine';
+import { calculateOtherLevelsDailyWage } from './wageRules';
 import type { PayrollInput } from './payrollEngine';
 
 function makeInput(overrides: Partial<PayrollInput> = {}): PayrollInput {
@@ -151,4 +152,36 @@ test('calculation result carries RuleSet identity and legal-review warnings', ()
   assert.ok(result.legalReviewRequiredItems.includes('حق تأهل'));
   assert.ok(result.legalReviewRequiredItems.includes('حق اولاد / کمک عائله‌مندی'));
   assert.ok(result.legalReviewRequiredItems.includes('فوق‌العاده اضافه‌کاری'));
+});
+
+test('other-level daily wage adjustment follows 1405 percentage plus fixed amount', () => {
+  const result = calculateOtherLevelsDailyWage('1405', 8_000_000);
+
+  assert.equal(result.increaseRate, 0.45);
+  assert.equal(result.fixedDailyIncreaseRial, 519_549);
+  assert.equal(result.calculatedDailyWageBeforeFloorRial, 12_119_549);
+  assert.equal(result.adjustedDailyWageRial, 12_119_549);
+  assert.equal(result.minimumWageFloorApplied, false);
+});
+
+test('other-level daily wage adjustment follows 1404 percentage plus fixed amount', () => {
+  const result = calculateOtherLevelsDailyWage('1404', 5_000_000);
+
+  assert.equal(result.increaseRate, 0.32);
+  assert.equal(result.fixedDailyIncreaseRial, 310_535);
+  assert.equal(result.calculatedDailyWageBeforeFloorRial, 6_910_535);
+});
+
+test('other-level adjustment never falls below the annual minimum wage', () => {
+  const result = calculateOtherLevelsDailyWage('1405', 1_000);
+
+  assert.equal(result.adjustedDailyWageRial, result.minimumDailyWageRial);
+  assert.equal(result.minimumWageFloorApplied, true);
+});
+
+test('other-level adjustment rejects negative prior wages', () => {
+  assert.throws(
+    () => calculateOtherLevelsDailyWage('1405', -1),
+    /finite non-negative/
+  );
 });
