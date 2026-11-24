@@ -1,4 +1,4 @@
-import type { PayrollRunEmployee, PayrollRunResult } from './payrollRunEngine';
+import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEngine';
 
 const DATABASE_NAME = 'iran-payroll-local';
 const DATABASE_VERSION = 1;
