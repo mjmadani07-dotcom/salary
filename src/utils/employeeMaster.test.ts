@@ -87,3 +87,21 @@ test('calculates completed service years and remaining days from Jalali dates', 
     additionalDays: 196,
   });
 });
+
+test('blocks a wage change inside a payroll period instead of applying one rate to the whole month', () => {
+  const employee = makeEmployee({
+    contracts: [{ ...makeEmployee().contracts[0], effectiveToJalali: null }],
+    wageHistory: [
+      makeEmployee().wageHistory[0],
+      { ...makeEmployee().wageHistory[0], wageEntryId: 'wage-2', effectiveFromJalali: '1405-01-16', dailyBaseWageRial: 8_000_000 },
+    ],
+  });
+  const terms = resolveEmployeeTerms(employee, '1405-01-01', '1405-01-31');
+  assert.ok(terms.issues.some((issue) => issue.code === 'WAGE_CHANGE_DURING_PERIOD'));
+});
+
+test('blocks employment starting in the middle of a payroll period until proration is supported', () => {
+  const employee = makeEmployee({ hireDateJalali: '1405-01-10' });
+  const terms = resolveEmployeeTerms(employee, '1405-01-01', '1405-01-31');
+  assert.ok(terms.issues.some((issue) => issue.code === 'EMPLOYMENT_START_DURING_PERIOD'));
+});
