@@ -57,7 +57,9 @@ File: `src/utils/excelWorkbookBuilder.ts`
 - It rejects a snapshot whose RuleSet ID/version does not match the selected period.
 - All payroll, insurance, tax, net-pay, annual settlement and CTC values are copied from the central result.
 - The workbook has no independent Excel formulas for payroll, insurance, tax, settlement or CTC calculations.
-- The workbook includes calculation summary, pay-item classifications, insurance/tax breakdown, annual entitlements, RuleSet parameters and already-evaluated EOS figures.
+- The single-employee workbook includes calculation summary, pay-item classifications, insurance/tax breakdown, annual entitlements, RuleSet parameters and already-evaluated EOS figures.
+- `buildPayrollRunExcelWorkbook` exports the complete multi-employee PayrollRunResult with payroll register, employee pay-item detail, tax brackets and validation/legal-review warnings.
+- Both workbook builders reject formulas: they serialize calculated values only.
 - The formula vault remains a separate reference library for users who explicitly want to copy formulas into their own spreadsheets. Those snippets are not executed by the software calculation engine.
 
 ### 5. Multi-employee payroll run foundation
@@ -71,6 +73,7 @@ Files:
 - Aggregate totals are sums of employee-level `PayrollResult` values; no separate payroll formula set is introduced.
 - The new Payroll Run page supports adding employees in the current browser session and reviewing per-employee results and period totals.
 - The current list is in-memory only. It is not a persistent employee database and must not be used as permanent payroll record storage.
+- The period result can be exported to an XLSX register without recalculation.
 
 ### 6. Regression tests and CI
 
@@ -88,7 +91,7 @@ Files:
 4. **Seniority eligibility is still input-driven.** The engine has not yet been connected to employment start dates or last seniority-increase dates.
 5. **No persistent employee master data or payroll ledger exists yet.** The new Payroll Run page keeps entries in memory for the current browser session only; employee profiles, contracts, attendance, leave ledger, loans, history and approval workflow remain future work.
 6. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
-7. **The workbook export is currently a single-employee snapshot.** The batch payroll engine has not yet been connected to a multi-employee XLSX register.
+7. **Employee master data and period snapshots are not persistent yet.** The UI holds its current batch in browser memory; the batch workbook is an export of that result, not a database record.
 
 ## Required next work
 
@@ -108,6 +111,6 @@ Until the legal review is complete and the remaining integration work is closed,
 
 ## Current Excel and multi-employee status
 
-The Excel workbook is now an output adapter only. The calculation result is generated once by `calculatePayroll` and serialized to XLSX. The exported file is a snapshot of one employee calculation from the current single-employee views. Multi-employee calculations are available through `calculatePayrollRun` and the Payroll Run workspace; batch-to-XLSX export and durable storage are not yet implemented.
+The Excel workbook is now an output adapter only. The single-employee calculation result is generated once by `calculatePayroll`; a batch run delegates every employee to that same function and then serializes the returned PayrollRunResult. Both single-employee and multi-employee XLSX exports contain values only and do not contain independent payroll formulas.
 
 The Payroll Run workspace is intentionally labelled as review-only. Its current state is ephemeral browser memory. It does not yet persist employee data or authorize approval/payment.
