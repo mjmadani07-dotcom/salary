@@ -313,17 +313,64 @@ export function PayrollRunView() {
     setIsSaving(true);
     setStorageError(null);
 
-    const periodEmployees = employees.map((employee) => ({
-      ...employee,
-      payrollInput: {
-        ...employee.payrollInput,
-        year,
-        monthDays,
-        workDays: Math.min(employee.payrollInput.workDays, monthDays),
-        housingAllowanceRial: rules.housingAllowanceRial,
-        workerCouponRial: rules.workerCouponRial,
-      },
-    }));
+    const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
+    const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
+    const periodEmployees = employees.map((employee) => {
+      const master = employeeMasters.find((item) => item.employeeId === employee.employeeId);
+      if (!master) {
+        return {
+          ...employee,
+          payrollInput: {
+            ...employee.payrollInput,
+            year,
+            monthDays,
+            workDays: Math.min(employee.payrollInput.workDays, monthDays),
+            housingAllowanceRial: rules.housingAllowanceRial,
+            workerCouponRial: rules.workerCouponRial,
+          },
+        };
+      }
+
+      const terms = resolveEmployeeTerms(master, periodStartJalali);
+      const masterDataIssues = terms.issues.map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        field: issue.field,
+      }));
+      let serviceDuration = {
+        completedYears: employee.payrollInput.serviceYearsForSeverance,
+        additionalDays: employee.payrollInput.serviceExtraDaysForSeverance,
+      };
+      try {
+        serviceDuration = calculateServiceDurationJalali(master.hireDateJalali, periodEndJalali);
+      } catch (error) {
+        masterDataIssues.push({
+          code: 'INVALID_SERVICE_DURATION',
+          message: error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.',
+          field: 'hireDateJalali',
+        });
+      }
+
+      return {
+        ...employee,
+        personnelCode: master.personnelCode,
+        fullName: `${master.firstName} ${master.lastName}`,
+        isActive: master.status === 'active',
+        masterDataIssues,
+        payrollInput: {
+          ...employee.payrollInput,
+          year,
+          monthDays,
+          workDays: Math.min(employee.payrollInput.workDays, monthDays),
+          dailyBaseWageRial: terms.wage?.dailyBaseWageRial ?? employee.payrollInput.dailyBaseWageRial,
+          dailySeniorityRial: terms.wage?.dailySeniorityRial ?? employee.payrollInput.dailySeniorityRial,
+          housingAllowanceRial: rules.housingAllowanceRial,
+          workerCouponRial: rules.workerCouponRial,
+          serviceYearsForSeverance: serviceDuration.completedYears,
+          serviceExtraDaysForSeverance: serviceDuration.additionalDays,
+        },
+      };
+    });
 
     const result = calculatePayrollRun(
       {
