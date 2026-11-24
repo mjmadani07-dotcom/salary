@@ -91,8 +91,24 @@ export function validateEmployeeMaster(
       }
     }
   }
+  if (employee.contracts.length === 0) {
+    add('CONTRACT_REQUIRED', 'contracts', 'حداقل یک قرارداد استخدامی ثبت کنید.');
+  }
+  if (employee.wageHistory.length === 0) {
+    add('WAGE_HISTORY_REQUIRED', 'wageHistory', 'حداقل یک سابقه مزد ثبت کنید.');
+  }
   if (employee.status === 'inactive' && !employee.terminationDateJalali) {
     add('INACTIVE_WITHOUT_TERMINATION_DATE', 'terminationDateJalali', 'برای کارمند غیرفعال، تاریخ پایان همکاری ثبت کنید.');
+  }
+  for (const contract of employee.contracts) {
+    if (isJalaliDate(employee.hireDateJalali) && isJalaliDate(contract.effectiveFromJalali) && contract.effectiveFromJalali < employee.hireDateJalali) {
+      add('CONTRACT_BEFORE_HIRE', 'contracts.effectiveFromJalali', 'شروع قرارداد نمی‌تواند قبل از تاریخ شروع همکاری باشد.');
+    }
+  }
+  for (const wage of employee.wageHistory) {
+    if (isJalaliDate(employee.hireDateJalali) && isJalaliDate(wage.effectiveFromJalali) && wage.effectiveFromJalali < employee.hireDateJalali) {
+      add('WAGE_BEFORE_HIRE', 'wageHistory.effectiveFromJalali', 'تاریخ اثر مزد نمی‌تواند قبل از شروع همکاری باشد.');
+    }
   }
   return issues;
 }
