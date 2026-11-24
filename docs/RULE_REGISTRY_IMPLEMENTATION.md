@@ -86,9 +86,9 @@ Files:
 2. **Some classifications represent the current engine behavior.** In particular welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap remain review items.
 3. **Dependent eligibility is not implemented.** The existing input still accepts a child count and a 720-day insurance boolean; it does not yet hold per-child eligibility evidence or actual insurance history.
 4. **Seniority eligibility is still input-driven.** The engine has not yet been connected to employment start dates or last seniority-increase dates.
-5. **The Excel builder still contains independent spreadsheet formulas.** This change centralizes the web calculation engine; it does not yet remove all duplicated formulas from `excelWorkbookBuilder.ts` or the formula library UI. That is a subsequent integration task.
-6. **No multi-employee payroll run has been introduced.** Employee master data, contracts, attendance, leave ledger, loans and approval workflow remain future work.
-7. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
+5. **No persistent employee master data or payroll ledger exists yet.** The new Payroll Run page keeps entries in memory for the current browser session only; employee profiles, contracts, attendance, leave ledger, loans, history and approval workflow remain future work.
+6. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
+7. **The workbook export is currently a single-employee snapshot.** The batch payroll engine has not yet been connected to a multi-employee XLSX register.
 
 ## Required next work
 
