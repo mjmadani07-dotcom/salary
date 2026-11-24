@@ -41,6 +41,8 @@ test('1405 RuleSet is explicitly pending legal approval', () => {
   assert.equal(ruleSet.id, 'IR-LABOR-PAYROLL-1405');
   assert.equal(ruleSet.version, 1);
   assert.equal(ruleSet.approvalStatus, 'pending-legal-review');
+  assert.equal(ruleSet.effectiveFromJalali, '1405-01-01');
+  assert.equal(ruleSet.effectiveToJalali, null);
   assert.ok(ruleSet.sourceRefs.includes('SRC-003'));
 });
 
@@ -62,11 +64,34 @@ test('minimum wage, gross pay, insurance and tax use catalog classifications', (
   assert.equal(result.employeeInsuranceRial, 15_277_885);
   assert.equal(result.taxableIncomeRial, 166_255_500);
   assert.equal(result.totalPayrollTaxRial, 0);
+  assert.equal(
+    result.legalReviewRequiredItems.includes('حق اولاد / کمک عائله‌مندی'),
+    false
+  );
 
   const childItem = result.payItemBreakdown.find((line) => line.itemId === 'child-allowance');
   assert.ok(childItem);
   assert.equal(childItem.insuranceBasisRial, 0);
   assert.equal(childItem.taxableBasisRial, 0);
+});
+
+test('overtime base is derived from catalog items and retains aggregate rounding', () => {
+  const result = calculatePayroll(
+    makeInput({
+      dailyBaseWageRial: 10_000_000,
+      dailySeniorityRial: 200_000,
+      overtimeHours: 1,
+    })
+  );
+
+  assert.equal(
+    result.hourlyNormalRateRial,
+    Math.round(((10_000_000 + 200_000) * 30) / 220)
+  );
+  assert.equal(
+    result.overtimePayRial,
+    Math.round(result.hourlyNormalRateRial * 1.4)
+  );
 });
 
 test('insurance ceiling is applied to the 30-day monthly base', () => {
