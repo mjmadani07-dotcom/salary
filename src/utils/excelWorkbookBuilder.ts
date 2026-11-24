@@ -305,32 +305,33 @@ export async function buildPayrollExcelWorkbook(
 
   // Sheet 6: EOS — export the already evaluated EOS results; do not re-run its formulas.
   if (snapshot.eos) {
-    const eos = workbook.addWorksheet('جبران خدمات EOS', {
+    const eosData = snapshot.eos;
+    const eosSheet = workbook.addWorksheet('جبران خدمات EOS', {
       views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
     });
-    eos.columns = [
+    eosSheet.columns = [
       { header: 'عنوان', width: 42 },
       { header: 'مقدار', width: 28 },
       { header: 'شرح', width: 58 },
     ];
-    styleHeaderRow(eos.getRow(1), 'FF0F766E');
-    addKeyValue(eos, 'صندلی / نقش', eos.seatName);
-    addKeyValue(eos, 'احراز شرایط GWC', eos.isGwcQualified ? 'بله' : 'خیر');
-    addKeyValue(eos, 'حقوق پایه ماهانه صندلی', eos.seatMonthlyBaseRial);
-    addKeyValue(eos, 'بودجه اسکورکارد', eos.scorecardBudgetRial);
-    addKeyValue(eos, 'درصد تحقق اسکورکارد', eos.scorecardAchievementPct);
-    addKeyValue(eos, 'پاداش محاسبه‌شده اسکورکارد', eos.scorecardBonusRial);
-    addKeyValue(eos, 'بودجه راک فصلی', eos.quarterlyRockBudgetRial);
-    addKeyValue(eos, 'تحقق راک سازمان', eos.companyRocksPct);
-    addKeyValue(eos, 'تحقق راک فردی', eos.individualRocksPct);
-    addKeyValue(eos, 'پاداش فصلی راک', eos.quarterlyRockEarnedRial);
-    addKeyValue(eos, 'ذخیره ماهانه راک', eos.monthlyRockReserveRial);
-    addKeyValue(eos, 'سهم سود سالانه', eos.annualProfitShareRial);
-    addKeyValue(eos, 'ذخیره ماهانه سهم سود', eos.monthlyProfitReserveRial);
-    addKeyValue(eos, 'جمع ذخایر EOS', eos.totalEosReservesRial);
-    addKeyValue(eos, 'CTC ماهانه همراه EOS', eos.totalCtcMonthlyRial);
-    addKeyValue(eos, 'CTC سالانه همراه EOS', eos.totalCtcAnnualRial);
-    setRialFormat(eos, [2]);
+    styleHeaderRow(eosSheet.getRow(1), 'FF0F766E');
+    addKeyValue(eosSheet, 'صندلی / نقش', eosData.seatName);
+    addKeyValue(eosSheet, 'احراز شرایط GWC', eosData.isGwcQualified ? 'بله' : 'خیر');
+    addKeyValue(eosSheet, 'حقوق پایه ماهانه صندلی', eosData.seatMonthlyBaseRial);
+    addKeyValue(eosSheet, 'بودجه اسکورکارد', eosData.scorecardBudgetRial);
+    addKeyValue(eosSheet, 'درصد تحقق اسکورکارد', eosData.scorecardAchievementPct);
+    addKeyValue(eosSheet, 'پاداش محاسبه‌شده اسکورکارد', eosData.scorecardBonusRial);
+    addKeyValue(eosSheet, 'بودجه راک فصلی', eosData.quarterlyRockBudgetRial);
+    addKeyValue(eosSheet, 'تحقق راک سازمان', eosData.companyRocksPct);
+    addKeyValue(eosSheet, 'تحقق راک فردی', eosData.individualRocksPct);
+    addKeyValue(eosSheet, 'پاداش فصلی راک', eosData.quarterlyRockEarnedRial);
+    addKeyValue(eosSheet, 'ذخیره ماهانه راک', eosData.monthlyRockReserveRial);
+    addKeyValue(eosSheet, 'سهم سود سالانه', eosData.annualProfitShareRial);
+    addKeyValue(eosSheet, 'ذخیره ماهانه سهم سود', eosData.monthlyProfitReserveRial);
+    addKeyValue(eosSheet, 'جمع ذخایر EOS', eosData.totalEosReservesRial);
+    addKeyValue(eosSheet, 'CTC ماهانه همراه EOS', eosData.totalCtcMonthlyRial);
+    addKeyValue(eosSheet, 'CTC سالانه همراه EOS', eosData.totalCtcAnnualRial);
+    setRialFormat(eosSheet, [2]);
   }
 
   for (const sheet of workbook.worksheets) {
