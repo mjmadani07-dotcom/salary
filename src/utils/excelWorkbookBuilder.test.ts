@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { calculatePayroll } from './payrollEngine';
-import { buildPayrollExcelWorkbook } from './excelWorkbookBuilder';
+import {
+  buildPayrollExcelWorkbook,
+  buildPayrollRunExcelWorkbook,
+} from './excelWorkbookBuilder';
+import { calculatePayrollRun } from './payrollRunEngine';
 import type { PayrollInput } from './payrollEngine';
 
 function makeInput(overrides: Partial<PayrollInput> = {}): PayrollInput {
@@ -123,4 +127,52 @@ test('Excel detail sheet includes central pay-item classifications', async () =>
     detail.getColumn(1).values.includes('child-allowance'),
     'detail export must include the child allowance pay item'
   );
+});
+
+test('multi-employee Excel register exports every PayrollRunResult without formulas', async () => {
+  const firstInput = makeInput();
+  const secondInput = makeInput({ dailyBaseWageRial: 10_000_000 });
+  const run = calculatePayrollRun(
+    { runId: 'PAY-1405-01', fiscalYear: '1405', month: 1, monthDays: 30 },
+    [
+      {
+        employeeId: 'emp-001',
+        personnelCode: 'P-001',
+        fullName: 'کارمند اول',
+        isActive: true,
+        payrollInput: firstInput,
+      },
+      {
+        employeeId: 'emp-002',
+        personnelCode: 'P-002',
+        fullName: 'کارمند دوم',
+        isActive: true,
+        payrollInput: secondInput,
+      },
+    ]
+  );
+  const workbook = await buildPayrollRunExcelWorkbook(run);
+  const register = workbook.getWorksheet('لیست حقوق');
+
+  assert.ok(register);
+  assert.equal(register.rowCount, 3);
+  assert.equal(register.getCell('A2').value, 'P-001');
+  assert.equal(register.getCell('A3').value, 'P-002');
+  assert.equal(
+    register.getCell('O2').value,
+    run.lines[0].result?.grossEarningsRial
+  );
+
+  let formulaCount = 0;
+  workbook.worksheets.forEach((sheet) => {
+    sheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        const value = cell.value;
+        if (value && typeof value === 'object' && 'formula' in value) {
+          formulaCount += 1;
+        }
+      });
+    });
+  });
+  assert.equal(formulaCount, 0);
 });
