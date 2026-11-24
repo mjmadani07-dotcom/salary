@@ -2,8 +2,15 @@ import {
   CurrencyUnit,
   FiscalYear,
   TaxBracket,
-  YEAR_REGULATIONS,
 } from '../data/payrollRegulations';
+import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
+import {
+  getPayrollPayItem,
+  getPendingLegalReviewItems,
+  PayrollPayItemLine,
+  sumInsuranceBasis,
+  sumTaxableIncome,
+} from '../data/payrollPayItemCatalog';
 
 export interface PayrollInput {
   year: FiscalYear;
@@ -36,6 +43,17 @@ export interface TaxStepBreakdown {
 }
 
 export interface PayrollResult {
+  ruleSetId: string;
+  ruleSetVersion: number;
+  ruleSetApprovalStatus: string;
+  legalReviewRequiredItems: string[];
+  payItemBreakdown: Array<{
+    itemId: string;
+    amountRial: number;
+    insuranceBasisRial: number;
+    taxableBasisRial: number;
+  }>;
+
   // Earnings
   basePayRial: number;
   seniorityPayRial: number;
@@ -128,7 +146,8 @@ export function calculateProgressiveTax(
 }
 
 export function calculatePayroll(input: PayrollInput): PayrollResult {
-  const reg = YEAR_REGULATIONS[input.year];
+  const ruleSet = getPayrollRuleSet(input.year);
+  const reg = ruleSet.regulations;
   const clampedWorkDays = Math.max(0, Math.min(input.monthDays, input.workDays));
   const ratio = input.monthDays > 0 ? clampedWorkDays / input.monthDays : 0;
 
@@ -161,29 +180,45 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   );
   const variableBonusRial = Math.max(0, Math.round(input.variableBonusRial));
 
-  const grossEarningsRial =
-    basePayRial +
-    seniorityPayRial +
-    housingPayRial +
-    couponPayRial +
-    marriagePayRial +
-    childAllowancePayRial +
-    overtimePayRial +
-    nightShiftPayRial +
-    holidayPayRial +
-    variableBonusRial;
+  const housingTaxableExcess = Math.max(
+    0,
+    housingPayRial - Math.round(reg.housingAllowanceRial * ratio)
+  );
+  const couponTaxableExcess = Math.max(
+    0,
+    couponPayRial - Math.round(reg.workerCouponRial * ratio)
+  );
 
-  // 3. Social Security Insurance (All except child allowance)
-  const insuranceSubjectEarningsRial =
-    basePayRial +
-    seniorityPayRial +
-    housingPayRial +
-    couponPayRial +
-    marriagePayRial +
-    overtimePayRial +
-    nightShiftPayRial +
-    holidayPayRial +
-    variableBonusRial;
+  const payItemLines: PayrollPayItemLine[] = [
+    { itemId: 'base-salary', amountRial: basePayRial },
+    { itemId: 'base-seniority', amountRial: seniorityPayRial },
+    {
+      itemId: 'housing-allowance',
+      amountRial: housingPayRial,
+      taxableAmountRial: housingTaxableExcess,
+    },
+    {
+      itemId: 'worker-coupon',
+      amountRial: couponPayRial,
+      taxableAmountRial: couponTaxableExcess,
+    },
+    { itemId: 'marriage-allowance', amountRial: marriagePayRial },
+    { itemId: 'child-allowance', amountRial: childAllowancePayRial },
+    { itemId: 'overtime', amountRial: overtimePayRial },
+    { itemId: 'night-shift', amountRial: nightShiftPayRial },
+    { itemId: 'holiday-work', amountRial: holidayPayRial },
+    { itemId: 'variable-bonus', amountRial: variableBonusRial },
+  ];
+
+  const grossEarningsRial = payItemLines.reduce((total, line) => {
+    const definition = getPayrollPayItem(line.itemId);
+    return definition.includedInMonthlyGross
+      ? total + Math.max(0, Math.round(line.amountRial))
+      : total;
+  }, 0);
+
+  // 3. Social Security Insurance: the central pay-item catalog controls inclusion.
+  const insuranceSubjectEarningsRial = sumInsuranceBasis(payItemLines);
 
   const insuranceMonthlyCeilingRial =
     reg.minDailyWageRial * reg.insuranceCeilingMultiplier * input.monthDays;
@@ -207,25 +242,8 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const totalSocialSecurityRial =
     employeeInsuranceRial + totalEmployerInsuranceRial;
 
-  // 4. Payroll Income Tax
-  const housingTaxableExcess = Math.max(
-    0,
-    housingPayRial - Math.round(reg.housingAllowanceRial * ratio)
-  );
-  const couponTaxableExcess = Math.max(
-    0,
-    couponPayRial - Math.round(reg.workerCouponRial * ratio)
-  );
-  const taxableIncomeRial =
-    basePayRial +
-    seniorityPayRial +
-    overtimePayRial +
-    nightShiftPayRial +
-    holidayPayRial +
-    variableBonusRial +
-    marriagePayRial +
-    housingTaxableExcess +
-    couponTaxableExcess;
+  // 4. Payroll Income Tax: tax treatment is controlled by the central pay-item catalog.
+  const taxableIncomeRial = sumTaxableIncome(payItemLines);
 
   const { totalTax: totalPayrollTaxRial, steps: taxSteps } =
     calculateProgressiveTax(taxableIncomeRial, reg.taxBrackets);
@@ -278,7 +296,40 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const employerMultiplierToNet =
     netPayRial > 0 ? ctcMonthlyRial / netPayRial : 0;
 
+  const legalReviewRequiredItems = getPendingLegalReviewItems(payItemLines);
+  if (ruleSet.approvalStatus !== 'approved') {
+    legalReviewRequiredItems.unshift(
+      `RuleSet ${ruleSet.id} is pending legal approval.`
+    );
+  }
+
+  const payItemBreakdown = payItemLines.map((line) => {
+    const definition = getPayrollPayItem(line.itemId);
+    const insuranceBasisRial =
+      definition.insuranceTreatment === 'included'
+        ? Math.max(0, Math.round(line.amountRial))
+        : 0;
+    const taxableBasisRial =
+      definition.taxTreatment === 'taxable'
+        ? Math.max(0, Math.round(line.amountRial))
+        : definition.taxTreatment === 'taxable-excess'
+          ? Math.max(0, Math.round(line.taxableAmountRial ?? 0))
+          : 0;
+
+    return {
+      itemId: line.itemId,
+      amountRial: Math.max(0, Math.round(line.amountRial)),
+      insuranceBasisRial,
+      taxableBasisRial,
+    };
+  });
+
   return {
+    ruleSetId: ruleSet.id,
+    ruleSetVersion: ruleSet.version,
+    ruleSetApprovalStatus: ruleSet.approvalStatus,
+    legalReviewRequiredItems,
+    payItemBreakdown,
     basePayRial,
     seniorityPayRial,
     housingPayRial,
