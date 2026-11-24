@@ -22,6 +22,9 @@ import {
   savePayrollRunSnapshot,
 } from '../data/payrollLocalDatabase';
 import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
+import { listEmployeeMasterRecords } from '../data/payrollLocalDatabase';
+import type { EmployeeMasterRecord } from '../types/employee';
+import { calculateServiceDurationJalali, resolveEmployeeTerms } from '../utils/employeeMaster';
 import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 
@@ -79,6 +82,8 @@ export function PayrollRunView() {
   const [month, setMonth] = useState(1);
   const [draft, setDraft] = useState<EmployeeDraft>(() => createEmptyDraft(year, monthDays));
   const [employees, setEmployees] = useState<PayrollRunEmployee[]>([]);
+  const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
+  const [selectedMasterId, setSelectedMasterId] = useState('');
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
   const [runHistory, setRunHistory] = useState<StoredPayrollRun[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -125,8 +130,8 @@ export function PayrollRunView() {
     setIsLoadingLocalData(true);
     setRunResult(null);
     setLastSavedRunId(null);
-    Promise.all([listSavedEmployees(), listSavedPayrollRuns(8)])
-      .then(([savedEmployees, savedRuns]) => {
+    Promise.all([listSavedEmployees(), listSavedPayrollRuns(8), listEmployeeMasterRecords()])
+      .then(([savedEmployees, savedRuns, savedMasters]) => {
         if (!active) return;
         setEmployees(
           savedEmployees.map((employee) => ({
@@ -142,6 +147,7 @@ export function PayrollRunView() {
           }))
         );
         setRunHistory(savedRuns);
+        setEmployeeMasters(savedMasters);
         setStorageError(null);
       })
       .catch((error) => {
@@ -204,16 +210,33 @@ export function PayrollRunView() {
   };
 
   const addEmployee = async () => {
-    const personnelCode = draft.personnelCode.trim();
-    const fullName = draft.fullName.trim();
-
-    if (!personnelCode || !fullName) {
-      setFormError('کد پرسنلی و نام کامل کارمند باید وارد شوند.');
+    const master = employeeMasters.find((item) => item.employeeId === selectedMasterId);
+    if (!master) {
+      setFormError('ابتدا کارمند را در بخش «پرونده کارکنان» ثبت کنید و سپس از این فهرست انتخاب کنید.');
       return;
     }
 
-    if (employees.some((employee) => employee.personnelCode === personnelCode)) {
-      setFormError('این کد پرسنلی قبلاً به فهرست دوره اضافه شده است.');
+    const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
+    const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
+    const terms = resolveEmployeeTerms(master, periodStartJalali);
+    if (terms.issues.length > 0 || !terms.wage || !terms.contract) {
+      setFormError(terms.issues.map((issue) => issue.message).join(' '));
+      return;
+    }
+
+    if (employees.some((employee) =>
+      employee.employeeId === master.employeeId ||
+      employee.personnelCode === master.personnelCode
+    )) {
+      setFormError('این کارمند قبلاً به فهرست دوره اضافه شده است.');
+      return;
+    }
+
+    let serviceDuration;
+    try {
+      serviceDuration = calculateServiceDurationJalali(master.hireDateJalali, periodEndJalali);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.');
       return;
     }
 
@@ -221,8 +244,8 @@ export function PayrollRunView() {
       year,
       monthDays,
       workDays: draft.workDays,
-      dailyBaseWageRial: draft.dailyBaseWageRial,
-      dailySeniorityRial: draft.dailySeniorityRial,
+      dailyBaseWageRial: terms.wage.dailyBaseWageRial,
+      dailySeniorityRial: terms.wage.dailySeniorityRial,
       housingAllowanceRial: rules.housingAllowanceRial,
       workerCouponRial: rules.workerCouponRial,
       isMarried: draft.isMarried,
@@ -233,15 +256,15 @@ export function PayrollRunView() {
       holidayHours: draft.holidayHours,
       variableBonusRial: draft.variableBonusRial,
       annualWorkedDays: draft.annualWorkedDays,
-      serviceYearsForSeverance: draft.serviceYearsForSeverance,
-      serviceExtraDaysForSeverance: draft.serviceExtraDaysForSeverance,
+      serviceYearsForSeverance: serviceDuration.completedYears,
+      serviceExtraDaysForSeverance: serviceDuration.additionalDays,
     };
 
     const employee: PayrollRunEmployee = {
-      employeeId: personnelCode,
-      personnelCode,
-      fullName,
-      isActive: true,
+      employeeId: master.employeeId,
+      personnelCode: master.personnelCode,
+      fullName: `${master.firstName} ${master.lastName}`,
+      isActive: master.status === 'active',
       payrollInput,
     };
 
@@ -251,6 +274,7 @@ export function PayrollRunView() {
         ...current.filter((item) => item.employeeId !== employee.employeeId),
         employee,
       ]);
+      setSelectedMasterId('');
       setDraft(createEmptyDraft(year, monthDays));
       setRunResult(null);
       setFormError(null);
@@ -500,130 +524,64 @@ export function PayrollRunView() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">کد پرسنلی</label>
-            <input
-              value={draft.personnelCode}
-              onChange={(event) => updateDraft({ personnelCode: event.target.value })}
-              placeholder="مثلاً P-1001"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">انتخاب از پرونده کارکنان *</label>
+              <select
+                value={selectedMasterId}
+                onChange={(event) => { setSelectedMasterId(event.target.value); setFormError(null); }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">انتخاب کارمند ثبت‌شده</option>
+                {employeeMasters.map((master) => (
+                  <option key={master.employeeId} value={master.employeeId}>
+                    {master.personnelCode} — {master.firstName} {master.lastName}
+                  </option>
+                ))}
+              </select>
+              {employeeMasters.length === 0 && (
+                <p className="text-xs text-amber-700">هنوز پرونده‌ای ثبت نشده است. ابتدا از تب «پرونده کارکنان» اطلاعات پایه، قرارداد و مزد را ثبت کنید.</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-600">
+              {selectedMasterId ? (() => {
+                const master = employeeMasters.find((item) => item.employeeId === selectedMasterId);
+                if (!master) return 'کارمند انتخاب نشده است.';
+                const terms = resolveEmployeeTerms(master, `${year}-${String(month).padStart(2, '0')}-01`);
+                return terms.issues.length
+                  ? terms.issues.map((issue) => issue.message).join(' ')
+                  : `قرارداد: ${terms.contract?.jobTitle} · مزد روزانه مؤثر: ${format(terms.wage?.dailyBaseWageRial ?? 0)} · پایه سنوات: ${format(terms.wage?.dailySeniorityRial ?? 0)}`;
+              })() : 'با انتخاب کارمند، قرارداد و آخرین سابقه مزد معتبر در ابتدای دوره به‌صورت خودکار انتخاب می‌شوند.'}
+            </div>
           </div>
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs font-medium text-slate-600">نام و نام خانوادگی</label>
-            <input
-              value={draft.fullName}
-              onChange={(event) => updateDraft({ fullName: event.target.value })}
-              placeholder="نام کارمند"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">مزد روزانه پایه ({unit})</label>
-            <input
-              type="number"
-              min={0}
-              value={Math.round(draft.dailyBaseWageRial / unitMultiplier)}
-              onChange={(event) => updateDraft({ dailyBaseWageRial: numberValue(event.target.value) * unitMultiplier })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">پایه سنوات روزانه ({unit})</label>
-            <input
-              type="number"
-              min={0}
-              value={Math.round(draft.dailySeniorityRial / unitMultiplier)}
-              onChange={(event) => updateDraft({ dailySeniorityRial: numberValue(event.target.value) * unitMultiplier })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">روزهای پرداخت/کارکرد</label>
-            <input
-              type="number"
-              min={0}
-              max={monthDays}
-              value={draft.workDays}
-              onChange={(event) => updateDraft({ workDays: numberValue(event.target.value) })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">اضافه‌کاری (ساعت)</label>
-            <input
-              type="number"
-              min={0}
-              value={draft.overtimeHours}
-              onChange={(event) => updateDraft({ overtimeHours: numberValue(event.target.value) })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">شب‌کاری (ساعت)</label>
-            <input
-              type="number"
-              min={0}
-              value={draft.nightShiftHours}
-              onChange={(event) => updateDraft({ nightShiftHours: numberValue(event.target.value) })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">کار در تعطیل (ساعت)</label>
-            <input
-              type="number"
-              min={0}
-              value={draft.holidayHours}
-              onChange={(event) => updateDraft({ holidayHours: numberValue(event.target.value) })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">پاداش متغیر ({unit})</label>
-            <input
-              type="number"
-              min={0}
-              value={Math.round(draft.variableBonusRial / unitMultiplier)}
-              onChange={(event) => updateDraft({ variableBonusRial: numberValue(event.target.value) * unitMultiplier })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">کارکرد سال برای عیدی (روز)</label>
-            <input
-              type="number"
-              min={0}
-              max={366}
-              value={draft.annualWorkedDays}
-              onChange={(event) => updateDraft({ annualWorkedDays: numberValue(event.target.value) })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">سابقه سنوات (سال کامل)</label>
-            <input
-              type="number"
-              min={0}
-              value={draft.serviceYearsForSeverance}
-              onChange={(event) => updateDraft({ serviceYearsForSeverance: numberValue(event.target.value) })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">روز اضافه سابقه</label>
-            <input
-              type="number"
-              min={0}
-              max={364}
-              value={draft.serviceExtraDaysForSeverance}
-              onChange={(event) => updateDraft({ serviceExtraDaysForSeverance: numberValue(event.target.value) })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums"
-            />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">روزهای پرداخت/کارکرد</label>
+              <input type="number" min={0} max={monthDays} value={draft.workDays} onChange={(event) => updateDraft({ workDays: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">اضافه‌کاری (ساعت)</label>
+              <input type="number" min={0} value={draft.overtimeHours} onChange={(event) => updateDraft({ overtimeHours: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">شب‌کاری (ساعت)</label>
+              <input type="number" min={0} value={draft.nightShiftHours} onChange={(event) => updateDraft({ nightShiftHours: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">کار در تعطیل (ساعت)</label>
+              <input type="number" min={0} value={draft.holidayHours} onChange={(event) => updateDraft({ holidayHours: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">پاداش متغیر ({unit})</label>
+              <input type="number" min={0} value={Math.round(draft.variableBonusRial / unitMultiplier)} onChange={(event) => updateDraft({ variableBonusRial: numberValue(event.target.value) * unitMultiplier })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">کارکرد سال برای عیدی (روز)</label>
+              <input type="number" min={0} max={366} value={draft.annualWorkedDays} onChange={(event) => updateDraft({ annualWorkedDays: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
+            </div>
           </div>
         </div>
-
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="inline-flex items-center gap-2">
             <input
