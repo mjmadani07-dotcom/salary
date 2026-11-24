@@ -151,7 +151,7 @@ export async function decryptVaultPayload<T>(
       tagLength: 128,
     },
     keys.encryptionKey,
-    fromBase64(encrypted.ciphertext)
+    asArrayBuffer(fromBase64(encrypted.ciphertext))
   );
 
   return JSON.parse(new TextDecoder().decode(plaintext)) as T;
