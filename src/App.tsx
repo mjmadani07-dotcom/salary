@@ -7,12 +7,13 @@ import { PayrollCalculatorView } from './components/PayrollCalculatorView';
 import { PayrollRunView } from './components/PayrollRunView';
 import { EmployeeDirectoryView } from './components/EmployeeDirectoryView';
 import { AttendanceView } from './components/AttendanceView';
+import { LeaveLedgerView } from './components/LeaveLedgerView';
 import { EmployerCostView } from './components/EmployerCostView';
 import { EosCompensationView } from './components/EosCompensationView';
 import { ApplicabilityMatrixView } from './components/ApplicabilityMatrixView';
 import { ExcelVaultView } from './components/ExcelVaultView';
 
-type ActiveTab = 'report' | 'employees' | 'attendance' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
+type ActiveTab = 'report' | 'employees' | 'attendance' | 'leave' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
 type ReportSubView = 'laws' | 'matrix';
 
 function AppShell() {
@@ -75,6 +76,15 @@ function AppShell() {
               }`}
             >
               ثبت کارکرد
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('leave')}
+              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                activeTab === 'leave' ? 'border-teal-700 text-slate-900 font-semibold' : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              دفتر مرخصی
             </button>
             <button
               type="button"
@@ -152,6 +162,7 @@ function AppShell() {
               ['report', 'قوانین و مشمولیت'],
               ['employees', 'پرونده کارکنان'],
               ['attendance', 'ثبت کارکرد'],
+              ['leave', 'دفتر مرخصی'],
               ['run', 'پردازش دوره'],
               ['calculator', 'فیش حقوقی'],
               ['ctc', 'هزینه کارفرما'],
@@ -301,6 +312,7 @@ function AppShell() {
         )}
         {activeTab === 'employees' && <EmployeeDirectoryView />}
         {activeTab === 'attendance' && <AttendanceView />}
+        {activeTab === 'leave' && <LeaveLedgerView />}
         {activeTab === 'run' && <PayrollRunView />}
         {activeTab === 'calculator' && <PayrollCalculatorView />}
         {activeTab === 'ctc' && <EmployerCostView />}
