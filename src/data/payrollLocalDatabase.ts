@@ -1,7 +1,9 @@
 import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEngine';
 import type { EmployeeMasterRecord } from '../types/employee';
 import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/attendance';
+import type { MonthlyLeaveRecord, MonthlyLeaveDraft } from '../types/leave';
 import { createAttendanceId, validateMonthlyAttendance } from '../utils/attendanceLedger';
+import { calculateLeaveClosingBalance, createLeaveId, validateMonthlyLeave } from '../utils/leaveLedger';
 import {
   createOpaqueRecordId,
   createPersonnelCodeToken,
@@ -18,11 +20,12 @@ import type {
 } from '../utils/payrollVaultCrypto';
 
 const DATABASE_NAME = 'iran-payroll-local';
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 const EMPLOYEE_STORE = 'employees';
 const PAYROLL_RUN_STORE = 'payrollRuns';
 const EMPLOYEE_MASTER_STORE = 'employeeMasters';
 const ATTENDANCE_STORE = 'attendanceRecords';
+const LEAVE_STORE = 'leaveRecords';
 const ENCRYPTED_RECORD_STORE = 'encryptedRecords';
 const VAULT_METADATA_STORE = 'vaultMetadata';
 const VAULT_METADATA_ID = 'vault';
@@ -49,7 +52,7 @@ interface VaultMetadata {
 
 interface EncryptedRecord extends VaultCiphertext {
   id: string;
-  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance';
+  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance' | 'leave';
   personnelCodeToken?: string;
   updatedAt: string;
 }
@@ -110,6 +113,12 @@ function openDatabase(): Promise<IDBDatabase> {
         const attendanceStore = database.createObjectStore(ATTENDANCE_STORE, { keyPath: 'attendanceId' });
         attendanceStore.createIndex('employeePeriod', ['employeeId', 'fiscalYear', 'month'], { unique: true });
         attendanceStore.createIndex('period', ['fiscalYear', 'month'], { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains(LEAVE_STORE)) {
+        const leaveStore = database.createObjectStore(LEAVE_STORE, { keyPath: 'leaveId' });
+        leaveStore.createIndex('employeeYear', ['employeeId', 'fiscalYear'], { unique: false });
+        leaveStore.createIndex('period', ['fiscalYear', 'month'], { unique: false });
       }
 
       if (!database.objectStoreNames.contains(ENCRYPTED_RECORD_STORE)) {
@@ -248,6 +257,19 @@ async function createEncryptedAttendance(
     kind: 'attendance',
     ...(await encryptVaultPayload(keys, id, attendance)),
     updatedAt: attendance.updatedAt,
+  };
+}
+
+async function createEncryptedLeave(
+  keys: PayrollVaultKeys,
+  leave: MonthlyLeaveRecord
+): Promise<EncryptedRecord> {
+  const id = await createOpaqueRecordId(keys, 'leave', leave.leaveId);
+  return {
+    id,
+    kind: 'leave',
+    ...(await encryptVaultPayload(keys, id, leave)),
+    updatedAt: leave.updatedAt,
   };
 }
 
@@ -793,5 +815,85 @@ export async function deleteMonthlyAttendance(attendanceId: string): Promise<voi
   const transaction = database.transaction(ATTENDANCE_STORE, 'readwrite');
   const completed = transactionComplete(transaction);
   transaction.objectStore(ATTENDANCE_STORE).delete(attendanceId);
+  await completed;
+}
+
+
+export async function listAnnualLeaveRecords(
+  fiscalYear: MonthlyLeaveRecord['fiscalYear'],
+  employeeId?: string
+): Promise<MonthlyLeaveRecord[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  let records: MonthlyLeaveRecord[];
+  if (!metadata) {
+    const transaction = database.transaction(LEAVE_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(LEAVE_STORE);
+    records = await requestResult(
+      (employeeId
+        ? store.index('employeeYear').getAll([employeeId, fiscalYear])
+        : store.index('period').getAll(IDBKeyRange.bound([fiscalYear, 1], [fiscalYear, 12]))
+      ) as IDBRequest<MonthlyLeaveRecord[]>
+    );
+    await completed;
+  } else {
+    const keys = requireUnlockedKeys();
+    const encrypted = await getEncryptedRecords('leave');
+    const decoded = await Promise.all(encrypted.map(record =>
+      decryptVaultPayload<MonthlyLeaveRecord>(keys, record.id, record)
+    ));
+    records = decoded.filter(record =>
+      record.fiscalYear === fiscalYear && (!employeeId || record.employeeId === employeeId)
+    );
+  }
+  return records.sort((a, b) =>
+    a.employeeId.localeCompare(b.employeeId) || a.month - b.month
+  );
+}
+
+export async function saveMonthlyLeave(input: MonthlyLeaveDraft): Promise<MonthlyLeaveRecord> {
+  const issues = validateMonthlyLeave(input);
+  if (issues.length) throw new Error(issues.map(issue => issue.message).join(' '));
+  const normalized: MonthlyLeaveRecord = {
+    ...input,
+    leaveId: createLeaveId(input.employeeId, input.fiscalYear, input.month),
+    personnelCode: input.personnelCode.trim(),
+    closingBalanceDays: calculateLeaveClosingBalance(input),
+    updatedAt: new Date().toISOString(),
+  };
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const record = await createEncryptedLeave(keys, normalized);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return normalized;
+  }
+  const transaction = database.transaction(LEAVE_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(LEAVE_STORE).put(normalized);
+  await completed;
+  return normalized;
+}
+
+export async function deleteMonthlyLeave(leaveId: string): Promise<void> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'leave', leaveId);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).delete(id);
+    await completed;
+    return;
+  }
+  const transaction = database.transaction(LEAVE_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(LEAVE_STORE).delete(leaveId);
   await completed;
 }
