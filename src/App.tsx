@@ -107,7 +107,7 @@ function AppShell() {
                   : 'border-transparent hover:text-slate-900'
               }`}
             >
-              خزانه اکسل
+              مرجع فرمول‌ها
             </button>
           </nav>
 
@@ -132,7 +132,7 @@ function AppShell() {
               ['calculator', 'فیش حقوقی'],
               ['ctc', 'هزینه کارفرما'],
               ['eos', 'جبران خدمات EOS'],
-              ['excel', 'خزانه اکسل'],
+              ['excel', 'مرجع فرمول‌ها'],
             ] as [ActiveTab, string][]
           ).map(([id, label]) => (
             <button
