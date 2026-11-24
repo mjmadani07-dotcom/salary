@@ -27,6 +27,24 @@ export function PayrollCalculatorView() {
 
   return (
     <div className="space-y-6">
+      {result.ruleSetApprovalStatus !== 'approved' && (
+        <section className="border border-amber-300 bg-amber-50 rounded-xl p-4 space-y-2">
+          <div className="text-sm font-bold text-amber-900">
+            این محاسبه با نسخه قواعد تأییدنشده انجام شده است
+          </div>
+          <p className="text-xs leading-6 text-amber-900">
+            نسخه قواعد {result.ruleSetId} (ویرایش {toPersianDigits(result.ruleSetVersion)}) هنوز تأیید حقوقی نهایی ندارد؛
+            بنابراین ارقام فعلی برای توسعه و بررسی هستند و نباید به‌عنوان محاسبه نهایی تأییدشده حقوق و دستمزد تلقی شوند.
+          </p>
+          {result.legalReviewRequiredItems.filter((item) => !item.startsWith('RuleSet ')).length > 0 && (
+            <div className="text-xs text-amber-900 leading-6">
+              اقلام دارای بررسی حقوقی باز: {result.legalReviewRequiredItems
+                .filter((item) => !item.startsWith('RuleSet '))
+                .join('، ')}
+            </div>
+          )}
+        </section>
+      )}
       {/* Top 4 KPI Summary Strip */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
         <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-1">
