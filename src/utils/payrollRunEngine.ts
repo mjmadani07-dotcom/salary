@@ -37,6 +37,7 @@ export interface PayrollRunLine {
   fullName: string;
   status: PayrollRunLineStatus;
   issues: PayrollRunLineIssue[];
+  payrollInput: PayrollInput;
   result?: PayrollResult;
 }
 
@@ -173,6 +174,7 @@ export function calculatePayrollRun(
         personnelCode,
         fullName: employee.fullName,
         status: 'excluded',
+        payrollInput: employee.payrollInput,
         issues: [
           ...issues,
           {
@@ -214,6 +216,7 @@ export function calculatePayrollRun(
         personnelCode,
         fullName: employee.fullName,
         status: 'blocked',
+        payrollInput: employee.payrollInput,
         issues,
       };
     }
@@ -226,6 +229,7 @@ export function calculatePayrollRun(
         fullName: employee.fullName,
         status: 'calculated',
         issues: [],
+        payrollInput: employee.payrollInput,
         result,
       };
     } catch (error) {
@@ -246,6 +250,7 @@ export function calculatePayrollRun(
         personnelCode,
         fullName: employee.fullName,
         status: 'blocked',
+        payrollInput: employee.payrollInput,
         issues: engineIssues,
       };
     }
