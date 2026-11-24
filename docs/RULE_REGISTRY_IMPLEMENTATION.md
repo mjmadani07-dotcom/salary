@@ -90,6 +90,7 @@ Files:
 - `src/utils/payrollEngine.test.ts` tests RuleSet consistency, tax brackets, gross pay, insurance ceiling, taxable income, item classification and compliance metadata.
 - `src/utils/excelWorkbookBuilder.test.ts` verifies exported values equal the central result, the workbook contains no formula cells and mismatched RuleSet versions are rejected.
 - `src/utils/payrollRunEngine.test.ts` tests multi-employee totals, duplicate codes, invalid inputs, fiscal-period mismatches and inactive employee exclusion.
+- `src/utils/payrollVaultCrypto.test.ts` tests AES-GCM encryption/decryption, authenticated record identity, opaque IDs and deterministic keyed personnel-code tokens.
 - Wage adjustment cases for 1404 and 1405 are covered by `src/utils/payrollEngine.test.ts`.
 - `npm test` / `bun run test` runs the test suite.
 - GitHub Actions validates tests, TypeScript and production build on pushes to this branch and pull requests to main.
