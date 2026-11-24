@@ -20,6 +20,7 @@ export interface PayrollRunEmployee {
   fullName: string;
   isActive: boolean;
   payrollInput: PayrollInput;
+  masterDataIssues?: PayrollRunLineIssue[];
 }
 
 export type PayrollRunLineStatus = 'calculated' | 'blocked' | 'excluded';
@@ -166,6 +167,10 @@ export function calculatePayrollRun(
         message: 'Employee full name is required.',
         field: 'fullName',
       });
+    }
+
+    for (const issue of employee.masterDataIssues ?? []) {
+      issues.push(issue);
     }
 
     if (!employee.isActive) {
