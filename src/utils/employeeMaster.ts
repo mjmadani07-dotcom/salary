@@ -113,6 +113,44 @@ export function validateEmployeeMaster(
   return issues;
 }
 
+export interface ServiceDuration {
+  completedYears: number;
+  additionalDays: number;
+}
+
+function jalaliDayNumber(value: string): number {
+  const [year, month, day] = value.split('-').map(Number);
+  const elapsedYears = year - 979;
+  const elapsedDays =
+    365 * elapsedYears +
+    Math.floor(elapsedYears / 33) * 8 +
+    Math.floor(((elapsedYears % 33) + 3) / 4);
+  const elapsedMonths = month <= 6
+    ? (month - 1) * 31
+    : 186 + (month - 7) * 30;
+  return elapsedDays + elapsedMonths + day - 1;
+}
+
+export function calculateServiceDurationJalali(
+  hireDateJalali: string,
+  asOfDateJalali: string
+): ServiceDuration {
+  if (!isJalaliDate(hireDateJalali) || !isJalaliDate(asOfDateJalali) || asOfDateJalali < hireDateJalali) {
+    throw new Error('تاریخ شروع همکاری یا تاریخ محاسبه سابقه معتبر نیست.');
+  }
+  const [hireYear, hireMonth, hireDay] = hireDateJalali.split('-').map(Number);
+  const [endYear, endMonth, endDay] = asOfDateJalali.split('-').map(Number);
+  let completedYears = endYear - hireYear;
+  if (endMonth < hireMonth || (endMonth === hireMonth && endDay < hireDay)) {
+    completedYears -= 1;
+  }
+  const anniversary = `${String(hireYear + completedYears).padStart(4, '0')}-${String(hireMonth).padStart(2, '0')}-${String(hireDay).padStart(2, '0')}`;
+  return {
+    completedYears,
+    additionalDays: jalaliDayNumber(asOfDateJalali) - jalaliDayNumber(anniversary),
+  };
+}
+
 export interface ResolvedEmployeeTerms {
   contract?: EmploymentContract;
   wage?: WageHistoryEntry;
