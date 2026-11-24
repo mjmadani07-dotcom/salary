@@ -36,6 +36,8 @@ export interface PayrollRuleSet {
   version: number;
   year: FiscalYear;
   calendar: 'jalali';
+  effectiveFromJalali: string;
+  effectiveToJalali: string | null;
   approvalStatus: RuleApprovalStatus;
   regulations: YearRegulation;
   sourceRefs: string[];
@@ -48,6 +50,8 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
     version: 1,
     year: '1405',
     calendar: 'jalali',
+    effectiveFromJalali: '1405-01-01',
+    effectiveToJalali: null,
     approvalStatus: 'pending-legal-review',
     sourceRefs: ['SRC-001', 'SRC-003', 'SRC-004', 'SRC-005', 'SRC-008', 'SRC-009', 'SRC-010', 'SRC-011'],
     reviewNotes: [
@@ -89,6 +93,8 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
     version: 1,
     year: '1404',
     calendar: 'jalali',
+    effectiveFromJalali: '1404-01-01',
+    effectiveToJalali: null,
     approvalStatus: 'pending-legal-review',
     sourceRefs: ['SRC-007', 'SRC-009', 'SRC-010', 'SRC-011'],
     reviewNotes: [
@@ -130,6 +136,13 @@ export function getPayrollRuleSet(year: FiscalYear): PayrollRuleSet {
   if (!ruleSet) {
     throw new Error(`No payroll RuleSet is registered for fiscal year: ${year}`);
   }
+
+  const issues = validatePayrollRuleSet(ruleSet);
+  if (issues.length > 0) {
+    const summary = issues.map((issue) => `${issue.code}: ${issue.message}`).join('; ');
+    throw new Error(`Payroll RuleSet ${ruleSet.id} is invalid: ${summary}`);
+  }
+
   return ruleSet;
 }
 
