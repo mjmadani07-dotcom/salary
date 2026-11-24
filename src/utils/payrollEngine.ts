@@ -9,6 +9,7 @@ import {
   getPendingLegalReviewItems,
   PayrollPayItemLine,
   sumInsuranceBasis,
+  sumOvertimeBase,
   sumTaxableIncome,
 } from '../data/payrollPayItemCatalog';
 
@@ -165,8 +166,16 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
 
   // 2. Hourly Rate & Overtime (30-day standard base / 220 hours, or optional 191.6)
   const divisor = input.hourlyDivisor ?? 220;
-  const monthly30BaseAndSeniority =
-    (input.dailyBaseWageRial + input.dailySeniorityRial) * 30;
+  const monthly30BaseAndSeniority = sumOvertimeBase([
+    {
+      itemId: 'base-salary',
+      amountRial: input.dailyBaseWageRial * 30,
+    },
+    {
+      itemId: 'base-seniority',
+      amountRial: input.dailySeniorityRial * 30,
+    },
+  ]);
   const hourlyNormalRateRial = Math.round(monthly30BaseAndSeniority / divisor);
 
   const overtimePayRial = Math.round(
