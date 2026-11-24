@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FileSpreadsheet, Printer, RotateCcw } from 'lucide-react';
 import { YEAR_REGULATIONS } from '../data/payrollRegulations';
 import {
@@ -5,12 +6,15 @@ import {
   formatPercentFa,
   toPersianDigits,
 } from '../utils/payrollEngine';
+import { calculateOtherLevelsDailyWage } from '../utils/wageRules';
 import { downloadPayrollExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 
 export function PayrollCalculatorView() {
   const { state, computed, updateState, resetToDefaults } = useUnifiedPayroll();
   const reg = YEAR_REGULATIONS[state.year];
+  const [previousYearDailyBaseWageRial, setPreviousYearDailyBaseWageRial] = useState(0);
+  const [wageAdjustmentMessage, setWageAdjustmentMessage] = useState<string | null>(null);
   const unit = state.unit;
   const year = state.year;
   const result = computed.payrollResult;
@@ -191,6 +195,47 @@ export function PayrollCalculatorView() {
               >
                 حقوق صندلی / توافقی
               </button>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+              <div className="text-xs font-semibold text-slate-700">
+                محاسبه خودکار سایر سطوح مزدی از مزد سال قبل
+              </div>
+              <div className="text-xs text-slate-500 leading-5">
+                نرخ سال {toPersianDigits(year)}: {(reg.otherLevelsIncreaseRate * 100).toFixed(0)}٪ به‌علاوه روزانه {formatMoney(reg.otherLevelsDailyFixedIncreaseRial, unit)}؛ با رعایت کف حداقل مزد.
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={previousYearDailyBaseWageRial > 0 ? Math.round(previousYearDailyBaseWageRial / multiplierToRial) : ''}
+                  onChange={(e) => {
+                    setPreviousYearDailyBaseWageRial(Number(e.target.value) * multiplierToRial);
+                    setWageAdjustmentMessage(null);
+                  }}
+                  placeholder={`مزد روزانه سال ${Number(year) - 1} (${unit})`}
+                  className="min-w-0 px-3 py-2 text-sm tabular-nums bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-700"
+                />
+                <button
+                  type="button"
+                  disabled={previousYearDailyBaseWageRial <= 0}
+                  onClick={() => {
+                    const adjustment = calculateOtherLevelsDailyWage(year, previousYearDailyBaseWageRial);
+                    updateState({
+                      wageMode: 'custom',
+                      customMonthlyBase30Rial: adjustment.adjustedDailyWageRial * 30,
+                    });
+                    setWageAdjustmentMessage(
+                      `مزد روزانه جدید: ${formatMoney(adjustment.adjustedDailyWageRial, unit)}${adjustment.minimumWageFloorApplied ? ' · کف حداقل مزد اعمال شد' : ''}`
+                    );
+                  }}
+                  className="px-3 py-2 text-xs font-semibold bg-teal-700 text-white rounded-lg disabled:opacity-40"
+                >
+                  محاسبه و اعمال
+                </button>
+              </div>
+              {wageAdjustmentMessage && (
+                <div className="text-xs font-medium text-teal-800">{wageAdjustmentMessage}</div>
+              )}
             </div>
             {state.wageMode === 'custom' && (
               <div className="space-y-1.5 pt-1">
