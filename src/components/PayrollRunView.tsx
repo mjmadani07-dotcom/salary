@@ -114,6 +114,230 @@ export function PayrollRunView() {
 
   useEffect(() => {
     if (vaultPhase !== 'unlocked') {
+      setEmployees([]);
+      setRunHistory([]);
+      setRunResult(null);
+      setLastSavedRunId(null);
+      setIsLoadingLocalData(false);
+      return;
+    }
+    let active = true;
+    setIsLoadingLocalData(true);
+    setRunResult(null);
+    setLastSavedRunId(null);
+    Promise.all([listSavedEmployees(), listSavedPayrollRuns(8)])
+      .then(([savedEmployees, savedRuns]) => {
+        if (!active) return;
+        setEmployees(
+          savedEmployees.map((employee) => ({
+            ...employee,
+            payrollInput: {
+              ...employee.payrollInput,
+              year,
+              monthDays,
+              workDays: Math.min(employee.payrollInput.workDays, monthDays),
+              housingAllowanceRial: rules.housingAllowanceRial,
+              workerCouponRial: rules.workerCouponRial,
+            },
+          }))
+        );
+        setRunHistory(savedRuns);
+        setStorageError(null);
+      })
+      .catch((error) => {
+        if (active) {
+          setStorageError(
+            error instanceof Error
+              ? error.message
+              : 'خواندن پایگاه داده محلی ناموفق بود.'
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingLocalData(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [year, monthDays, rules.housingAllowanceRial, rules.workerCouponRial, vaultPhase]);
+
+  const handleUnlockVault = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setVaultError(null);
+    setVaultBusy(true);
+    try {
+      await unlockPayrollVault(vaultPassword);
+      setVaultPassword('');
+      setVaultPhase('unlocked');
+    } catch (error) {
+      setVaultError(error instanceof Error ? error.message : 'بازکردن خزانه ناموفق بود.');
+    } finally {
+      setVaultBusy(false);
+    }
+  };
+
+  const handleLockVault = () => {
+    lockPayrollVault();
+    setVaultPassword('');
+    setEmployees([]);
+    setRunHistory([]);
+    setRunResult(null);
+    setDraft(createEmptyDraft(year, monthDays));
+    setFormError(null);
+    setStorageError(null);
+    setLastSavedRunId(null);
+    setVaultPhase('locked');
+  };
+
+  const unitMultiplier = unit === 'toman' ? 10 : 1;
+  const format = (value: number) => formatMoney(value, unit);
+  const periodLabel = useMemo(
+    () => `سال ${toPersianDigits(year)} · ماه ${toPersianDigits(month)} · ${toPersianDigits(monthDays)} روزه`,
+    [year, month, monthDays]
+  );
+
+  const updateDraft = (patch: Partial<EmployeeDraft>) => {
+    setDraft((current) => ({ ...current, ...patch }));
+    setRunResult(null);
+    setFormError(null);
+  };
+
+  const addEmployee = async () => {
+    const personnelCode = draft.personnelCode.trim();
+    const fullName = draft.fullName.trim();
+
+    if (!personnelCode || !fullName) {
+      setFormError('کد پرسنلی و نام کامل کارمند باید وارد شوند.');
+      return;
+    }
+
+    if (employees.some((employee) => employee.personnelCode === personnelCode)) {
+      setFormError('این کد پرسنلی قبلاً به فهرست دوره اضافه شده است.');
+      return;
+    }
+
+    const payrollInput: PayrollInput = {
+      year,
+      monthDays,
+      workDays: draft.workDays,
+      dailyBaseWageRial: draft.dailyBaseWageRial,
+      dailySeniorityRial: draft.dailySeniorityRial,
+      housingAllowanceRial: rules.housingAllowanceRial,
+      workerCouponRial: rules.workerCouponRial,
+      isMarried: draft.isMarried,
+      childrenCount: draft.childrenCount,
+      has720DaysInsurance: draft.has720DaysInsurance,
+      overtimeHours: draft.overtimeHours,
+      nightShiftHours: draft.nightShiftHours,
+      holidayHours: draft.holidayHours,
+      variableBonusRial: draft.variableBonusRial,
+      annualWorkedDays: draft.annualWorkedDays,
+      serviceYearsForSeverance: draft.serviceYearsForSeverance,
+      serviceExtraDaysForSeverance: draft.serviceExtraDaysForSeverance,
+    };
+
+    const employee: PayrollRunEmployee = {
+      employeeId: personnelCode,
+      personnelCode,
+      fullName,
+      isActive: true,
+      payrollInput,
+    };
+
+    try {
+      await saveEmployee(employee);
+      setEmployees((current) => [
+        ...current.filter((item) => item.employeeId !== employee.employeeId),
+        employee,
+      ]);
+      setDraft(createEmptyDraft(year, monthDays));
+      setRunResult(null);
+      setFormError(null);
+      setStorageError(null);
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'ذخیره کارمند در پایگاه داده محلی انجام نشد.'
+      );
+    }
+  };
+
+  const removeEmployee = async (personnelCode: string) => {
+    const employee = employees.find((item) => item.personnelCode === personnelCode);
+    if (!employee) return;
+
+    try {
+      await deleteSavedEmployee(employee.employeeId);
+      setEmployees((current) =>
+        current.filter((item) => item.employeeId !== employee.employeeId)
+      );
+      setRunResult(null);
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(
+        error instanceof Error
+          ? error.message
+          : 'حذف کارمند از پایگاه داده محلی ناموفق بود.'
+      );
+    }
+  };
+
+  const calculateRun = async () => {
+    if (employees.length === 0 || isSaving) return;
+    setIsSaving(true);
+    setStorageError(null);
+
+    const periodEmployees = employees.map((employee) => ({
+      ...employee,
+      payrollInput: {
+        ...employee.payrollInput,
+        year,
+        monthDays,
+        workDays: Math.min(employee.payrollInput.workDays, monthDays),
+        housingAllowanceRial: rules.housingAllowanceRial,
+        workerCouponRial: rules.workerCouponRial,
+      },
+    }));
+
+    const result = calculatePayrollRun(
+      {
+        runId: `PAY-${year}-${String(month).padStart(2, '0')}-${Date.now()}`,
+        fiscalYear: year,
+        month,
+        monthDays,
+      },
+      periodEmployees
+    );
+    setRunResult(result);
+
+    try {
+      await savePayrollRunSnapshot(result);
+      const history = await listSavedPayrollRuns(8);
+      setRunHistory(history);
+      setLastSavedRunId(result.runId);
+    } catch (error) {
+      setLastSavedRunId(null);
+      setStorageError(
+        error instanceof Error
+          ? `محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود: ${error.message}`
+          : 'محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (vaultPhase === 'checking') {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">
+        در حال بررسی وضعیت خزانه اطلاعات…
+      </div>
+    );
+  }
+
+  if (vaultPhase !== 'unlocked') {
     return (
       <div className="mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5">
         <div className="flex items-center gap-3">
@@ -631,7 +855,7 @@ export function PayrollRunView() {
       )}
 
       <section className="border border-amber-200 bg-amber-50 rounded-xl p-4 text-xs text-amber-900 leading-6">
-        پرونده کارکنان و Snapshotهای حقوق با AES-GCM-256 رمزنگاری می‌شوند؛ کلید از عبارت عبور با PBKDF2-HMAC-SHA-256 و ۶۰۰٬۰۰۰ تکرار مشتق می‌شود و فقط تا زمان بازبودن خزانه در حافظه برنامه باقی می‌ماند. شناسه‌های ذخیره‌سازی و شاخص کد پرسنلی نیز به‌صورت HMAC نگهداری می‌شوند. با این حال، رمزنگاری محلی جایگزین ورود کاربری، سطح‌بندی دسترسی شرکت/Workspace، پشتیبان‌گیری و آزمون بازیابی نیست. حذف داده مرورگر، خرابی دستگاه یا فراموشی عبارت عبور می‌تواند دسترسی را برای همیشه از بین ببرد. قراردادهای استخدامی، تاریخچه مزد، حضور و غیاب، دفتر مرخصی و گردش تأیید/پرداخت نیز هنوز کامل نشده‌اند؛ نتیجه «آماده بررسی» مجوز پرداخت نیست.
+        اطلاعات این نسخه به‌صورت محلی در پروفایل مرورگر همین دستگاه ذخیره می‌شوند و در نصب جدید رمزنگاری جداگانه یا حساب کاربری مستقل لازم نیست. پاک‌شدن داده‌های مرورگر یا خرابی دستگاه می‌تواند باعث از دست‌رفتن اطلاعات شود؛ تا زمان آماده‌شدن پشتیبان‌گیری داخلی، نسخه پشتیبان مستقل نگهداری شود. این نسخه هنوز بسته مستقل Windows نیست. قراردادها، تاریخچه مزد، حضور و غیاب، دفتر مرخصی و گردش تأیید/پرداخت نیز کامل نشده‌اند؛ نتیجه «آماده بررسی» مجوز پرداخت نیست.
       </section>
     </div>
   );
