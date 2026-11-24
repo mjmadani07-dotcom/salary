@@ -132,6 +132,20 @@ The Payroll Run workspace is a single-finance-user workflow for calculating mult
 The initial other-level wage helper implements the annual percentage-plus-fixed daily adjustment from the prior-year daily base wage and applies the statutory minimum wage floor. Job-classification tables are not yet applied automatically. The 1405 group-based seniority schedule is recorded as research source SRC-014 in the compliance specification, but employee job-group assignment and the relevant group-specific seniority progression still require implementation and legal confirmation.
 
 
+## Employee master data and effective-dated history
+
+Files:
+- `src/types/employee.ts`
+- `src/utils/employeeMaster.ts`
+- `src/components/EmployeeDirectoryView.tsx`
+- `src/data/payrollLocalDatabase.ts`
+
+The employee directory stores a stable employee ID, personnel code, name, optional national/insurance identifiers, Jalali hire/termination dates, active status, contract history and effective-dated daily base/seniority wage history. Dates are stored in sortable `YYYY-MM-DD` Jalali form. The directory supports create, edit and delete operations, with validation for required data, duplicate IDs, invalid dates and overlapping contracts.
+
+The Payroll Run screen now selects employees from the directory. For the selected payroll period it resolves the contract and latest wage entry effective at the start of the period, then derives completed service years and additional service days from the hire date. It does not silently apply a single wage rate when a wage change occurs during the month: mid-period hire/termination, contract changes and wage changes are currently blocked pending a future proration/multi-segment calculation feature.
+
+The new IndexedDB object store is introduced through schema version 3. When an older encrypted vault is present, employee master records are stored as encrypted records and require that vault to be unlocked. On new installations they use the local employee-master store.
+
 ## Local persistence implementation
 
 File: `src/data/payrollLocalDatabase.ts`
