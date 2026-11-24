@@ -501,11 +501,24 @@ export function PayrollRunView() {
 
           {runResult.lines.some((line) => line.issues.length > 0) && (
             <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-2">
-              <div className="text-sm font-semibold text-amber-900">موارد نیازمند بررسی</div>
+              <div className="text-sm font-semibold text-amber-900">موارد نیازمند اصلاح ورودی</div>
               {runResult.lines.filter((line) => line.issues.length > 0).map((line) => (
                 <div key={line.employeeId} className="text-xs text-amber-900">
                   <strong>{line.personnelCode} · {line.fullName}:</strong>{' '}
                   {line.issues.map((issue) => issue.message).join('؛ ')}
+                </div>
+              ))}
+            </div>
+          )}
+          {runResult.lines.some((line) => (line.result?.legalReviewRequiredItems.length ?? 0) > 0) && (
+            <div className="border border-orange-200 bg-orange-50 rounded-lg p-4 space-y-2">
+              <div className="text-sm font-semibold text-orange-900">
+                هشدارهای حقوقی؛ محاسبه انجام شده اما قواعد تأیید نهایی ندارند
+              </div>
+              {runResult.lines.filter((line) => (line.result?.legalReviewRequiredItems.length ?? 0) > 0).map((line) => (
+                <div key={line.employeeId} className="text-xs text-orange-900 leading-6">
+                  <strong>{line.personnelCode} · {line.fullName}:</strong>{' '}
+                  {line.result?.legalReviewRequiredItems.join('؛ ')}
                 </div>
               ))}
             </div>
