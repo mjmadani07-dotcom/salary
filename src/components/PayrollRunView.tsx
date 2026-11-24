@@ -214,6 +214,9 @@ export function PayrollRunView() {
     setEmployees([]);
     setRunHistory([]);
     setRunResult(null);
+    setDraft(createEmptyDraft(year, monthDays));
+    setFormError(null);
+    setStorageError(null);
     setLastSavedRunId(null);
     setVaultPhase('locked');
   };
