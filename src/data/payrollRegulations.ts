@@ -1,90 +1,18 @@
-export type FiscalYear = '1405' | '1404';
+import { RULE_SETS } from './payrollRuleRegistry';
+import type {
+  FiscalYear,
+  TaxBracket,
+  YearRegulation,
+} from './payrollRuleRegistry';
+
+export type { FiscalYear, TaxBracket, YearRegulation } from './payrollRuleRegistry';
 export type CurrencyUnit = 'rial' | 'toman';
 
-export interface TaxBracket {
-  id: string;
-  label: string;
-  minMonthlyRial: number;
-  maxMonthlyRial: number | null; // null = infinity
-  rate: number; // e.g., 0.10
-}
-
-export interface YearRegulation {
-  year: FiscalYear;
-  label: string;
-  minDailyWageRial: number;
-  minMonthlyWage30Rial: number;
-  housingAllowanceRial: number;
-  workerCouponRial: number;
-  marriageAllowanceRial: number;
-  childAllowancePerChildRial: number;
-  baseSeniorityDaily1YrRial: number;
-  baseSeniorityMonthly1YrRial: number;
-  insuranceEmployeeRate: number; // 0.07
-  insuranceEmployerBaseRate: number; // 0.20
-  unemploymentInsuranceRate: number; // 0.03
-  insuranceCeilingMultiplier: number; // 7
-  taxMonthlyExemptionRial: number;
-  taxAnnualExemptionRial: number;
-  eidTaxExemptionCapRial: number;
-  taxBrackets: TaxBracket[];
-}
-
+// Backward-compatible projection for existing UI components.
+// The versioned Rule Registry is the sole source of annual parameter values.
 export const YEAR_REGULATIONS: Record<FiscalYear, YearRegulation> = {
-  '1405': {
-    year: '1405',
-    label: 'مصوبه سال ۱۴۰۵',
-    minDailyWageRial: 5_541_850,
-    minMonthlyWage30Rial: 166_255_500,
-    housingAllowanceRial: 30_000_000,
-    workerCouponRial: 22_000_000,
-    marriageAllowanceRial: 5_000_000,
-    childAllowancePerChildRial: 16_625_550, // 3 * minDailyWage
-    baseSeniorityDaily1YrRial: 166_667,
-    baseSeniorityMonthly1YrRial: 5_000_000,
-    insuranceEmployeeRate: 0.07,
-    insuranceEmployerBaseRate: 0.20,
-    unemploymentInsuranceRate: 0.03,
-    insuranceCeilingMultiplier: 7,
-    taxMonthlyExemptionRial: 400_000_000,
-    taxAnnualExemptionRial: 4_800_000_000,
-    eidTaxExemptionCapRial: 400_000_000,
-    taxBrackets: [
-      { id: 'b0', label: 'پله معافیت پایه', minMonthlyRial: 0, maxMonthlyRial: 400_000_000, rate: 0 },
-      { id: 'b1', label: 'پله اول (۱۰٪)', minMonthlyRial: 400_000_000, maxMonthlyRial: 800_000_000, rate: 0.10 },
-      { id: 'b2', label: 'پله دوم (۱۵٪)', minMonthlyRial: 800_000_000, maxMonthlyRial: 1_000_000_000, rate: 0.15 },
-      { id: 'b3', label: 'پله سوم (۲۰٪)', minMonthlyRial: 1_000_000_000, maxMonthlyRial: 1_200_000_000, rate: 0.20 },
-      { id: 'b4', label: 'پله چهارم (۲۵٪)', minMonthlyRial: 1_200_000_000, maxMonthlyRial: 1_400_000_000, rate: 0.25 },
-      { id: 'b5', label: 'پله پنجم (۳۰٪)', minMonthlyRial: 1_400_000_000, maxMonthlyRial: null, rate: 0.30 },
-    ],
-  },
-  '1404': {
-    year: '1404',
-    label: 'مصوبه سال ۱۴۰۴',
-    minDailyWageRial: 3_463_656,
-    minMonthlyWage30Rial: 103_909_680,
-    housingAllowanceRial: 9_000_000,
-    workerCouponRial: 22_000_000,
-    marriageAllowanceRial: 5_000_000,
-    childAllowancePerChildRial: 10_390_968, // 3 * minDailyWage
-    baseSeniorityDaily1YrRial: 94_000,
-    baseSeniorityMonthly1YrRial: 2_820_000,
-    insuranceEmployeeRate: 0.07,
-    insuranceEmployerBaseRate: 0.20,
-    unemploymentInsuranceRate: 0.03,
-    insuranceCeilingMultiplier: 7,
-    taxMonthlyExemptionRial: 240_000_000,
-    taxAnnualExemptionRial: 2_880_000_000,
-    eidTaxExemptionCapRial: 240_000_000,
-    taxBrackets: [
-      { id: 'b0', label: 'پله معافیت پایه', minMonthlyRial: 0, maxMonthlyRial: 240_000_000, rate: 0 },
-      { id: 'b1', label: 'پله اول (۱۰٪)', minMonthlyRial: 240_000_000, maxMonthlyRial: 300_000_000, rate: 0.10 },
-      { id: 'b2', label: 'پله دوم (۱۵٪)', minMonthlyRial: 300_000_000, maxMonthlyRial: 380_000_000, rate: 0.15 },
-      { id: 'b3', label: 'پله سوم (۲۰٪)', minMonthlyRial: 380_000_000, maxMonthlyRial: 500_000_000, rate: 0.20 },
-      { id: 'b4', label: 'پله چهارم (۲۵٪)', minMonthlyRial: 500_000_000, maxMonthlyRial: 666_666_667, rate: 0.25 },
-      { id: 'b5', label: 'پله پنجم (۳۰٪)', minMonthlyRial: 666_666_667, maxMonthlyRial: null, rate: 0.30 },
-    ],
-  },
+  '1405': RULE_SETS['1405'].regulations,
+  '1404': RULE_SETS['1404'].regulations,
 };
 
 export type ApplicabilityStatus = 'included' | 'exempt' | 'conditional';
