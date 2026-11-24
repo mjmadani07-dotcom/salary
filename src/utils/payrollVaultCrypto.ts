@@ -39,6 +39,12 @@ function fromBase64(value: string): Uint8Array {
   return bytes;
 }
 
+function asArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(value.byteLength);
+  new Uint8Array(buffer).set(value);
+  return buffer;
+}
+
 export function createVaultSalt(): Uint8Array {
   return requireWebCrypto().getRandomValues(new Uint8Array(16));
 }
@@ -68,7 +74,7 @@ export async function derivePayrollVaultKeys(
     await webCrypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
-        salt,
+        salt: asArrayBuffer(salt),
         iterations,
         hash: 'SHA-256',
       },
@@ -117,7 +123,7 @@ export async function encryptVaultPayload<T>(
   const ciphertext = await webCrypto.subtle.encrypt(
     {
       name: 'AES-GCM',
-      iv,
+      iv: asArrayBuffer(iv),
       additionalData: new TextEncoder().encode(recordId),
       tagLength: 128,
     },
@@ -140,7 +146,7 @@ export async function decryptVaultPayload<T>(
   const plaintext = await webCrypto.subtle.decrypt(
     {
       name: 'AES-GCM',
-      iv: fromBase64(encrypted.iv),
+      iv: asArrayBuffer(fromBase64(encrypted.iv)),
       additionalData: new TextEncoder().encode(recordId),
       tagLength: 128,
     },
