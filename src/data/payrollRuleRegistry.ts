@@ -19,6 +19,8 @@ export interface YearRegulation {
   childAllowancePerChildRial: number;
   baseSeniorityDaily1YrRial: number;
   baseSeniorityMonthly1YrRial: number;
+  otherLevelsIncreaseRate: number;
+  otherLevelsDailyFixedIncreaseRial: number;
   insuranceEmployeeRate: number;
   insuranceEmployerBaseRate: number;
   unemploymentInsuranceRate: number;
@@ -71,6 +73,8 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
       childAllowancePerChildRial: 16_625_550,
       baseSeniorityDaily1YrRial: 166_667,
       baseSeniorityMonthly1YrRial: 5_000_000,
+      otherLevelsIncreaseRate: 0.45,
+      otherLevelsDailyFixedIncreaseRial: 519_549,
       insuranceEmployeeRate: 0.07,
       insuranceEmployerBaseRate: 0.20,
       unemploymentInsuranceRate: 0.03,
@@ -112,6 +116,8 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
       childAllowancePerChildRial: 10_390_968,
       baseSeniorityDaily1YrRial: 94_000,
       baseSeniorityMonthly1YrRial: 2_820_000,
+      otherLevelsIncreaseRate: 0.32,
+      otherLevelsDailyFixedIncreaseRial: 310_535,
       insuranceEmployeeRate: 0.07,
       insuranceEmployerBaseRate: 0.20,
       unemploymentInsuranceRate: 0.03,
@@ -169,6 +175,8 @@ export function validatePayrollRuleSet(
     ['marriageAllowanceRial', reg.marriageAllowanceRial],
     ['childAllowancePerChildRial', reg.childAllowancePerChildRial],
     ['baseSeniorityDaily1YrRial', reg.baseSeniorityDaily1YrRial],
+    ['otherLevelsIncreaseRate', reg.otherLevelsIncreaseRate],
+    ['otherLevelsDailyFixedIncreaseRial', reg.otherLevelsDailyFixedIncreaseRial],
     ['insuranceEmployeeRate', reg.insuranceEmployeeRate],
     ['insuranceEmployerBaseRate', reg.insuranceEmployerBaseRate],
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
@@ -191,6 +199,7 @@ export function validatePayrollRuleSet(
     ['insuranceEmployeeRate', reg.insuranceEmployeeRate],
     ['insuranceEmployerBaseRate', reg.insuranceEmployerBaseRate],
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
+    ['otherLevelsIncreaseRate', reg.otherLevelsIncreaseRate],
   ] as Array<[string, number]>) {
     if (rate < 0 || rate > 1) {
       issues.push({
