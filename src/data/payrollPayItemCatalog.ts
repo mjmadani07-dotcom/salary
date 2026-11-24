@@ -260,12 +260,14 @@ export function getPayrollPayItem(itemId: string): PayrollPayItemDefinition {
 }
 
 export function sumOvertimeBase(lines: PayrollPayItemLine[]): number {
-  return lines.reduce((total, line) => {
+  const total = lines.reduce((sum, line) => {
     const definition = getPayrollPayItem(line.itemId);
     return definition.includedInOvertimeBase
-      ? total + Math.max(0, Math.round(line.amountRial))
-      : total;
+      ? sum + Math.max(0, line.amountRial)
+      : sum;
   }, 0);
+
+  return Math.round(total);
 }
 
 export function sumInsuranceBasis(lines: PayrollPayItemLine[]): number {
