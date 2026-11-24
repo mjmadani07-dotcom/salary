@@ -100,7 +100,7 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
     effectiveFromJalali: '1404-01-01',
     effectiveToJalali: null,
     approvalStatus: 'pending-legal-review',
-    sourceRefs: ['SRC-007', 'SRC-009', 'SRC-010', 'SRC-011'],
+    sourceRefs: ['SRC-007', 'SRC-009', 'SRC-010', 'SRC-011', 'SRC-013'],
     reviewNotes: [
       'Retained for historical calculations. The complete official source pack for 1404 has not yet been attached to this RuleSet.',
       'The 1404 RuleSet is not legally approved by this application release.',
