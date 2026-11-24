@@ -147,3 +147,17 @@ test('requires a non-empty payroll period and at least one employee', () => {
   assert.ok(run.periodIssues.some((issue) => issue.code === 'INVALID_PAYROLL_MONTH'));
   assert.ok(run.periodIssues.some((issue) => issue.code === 'EMPTY_PAYROLL_RUN'));
 });
+
+test('blocks payroll when effective employee master data is incomplete', () => {
+  const employee = makeEmployee({
+    masterDataIssues: [{
+      code: 'NO_ACTIVE_CONTRACT',
+      message: 'در ابتدای دوره، قرارداد معتبر ثبت نشده است.',
+      field: 'contracts',
+    }],
+  });
+  const run = calculatePayrollRun(period, [employee]);
+  assert.equal(run.status, 'validation-failed');
+  assert.equal(run.totals.blockedCount, 1);
+  assert.ok(run.lines[0].issues.some((issue) => issue.code === 'NO_ACTIVE_CONTRACT'));
+});
