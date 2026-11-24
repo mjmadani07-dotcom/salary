@@ -49,9 +49,34 @@ File: `src/utils/payrollEngine.ts`
 
 The existing progressive tax calculation, insurance ceiling, overtime/night/holiday formulas, annual reserve formulas and settlement formulas are otherwise retained in this first refactor.
 
-### 4. Regression tests and CI
+### 4. Excel export adapter
+
+File: `src/utils/excelWorkbookBuilder.ts`
+
+- The workbook builder accepts a `PayrollExcelSnapshot` containing the exact `PayrollInput` and `PayrollResult` already calculated by the central engine.
+- It rejects a snapshot whose RuleSet ID/version does not match the selected period.
+- All payroll, insurance, tax, net-pay, annual settlement and CTC values are copied from the central result.
+- The workbook has no independent Excel formulas for payroll, insurance, tax, settlement or CTC calculations.
+- The workbook includes calculation summary, pay-item classifications, insurance/tax breakdown, annual entitlements, RuleSet parameters and already-evaluated EOS figures.
+- The formula vault remains a separate reference library for users who explicitly want to copy formulas into their own spreadsheets. Those snippets are not executed by the software calculation engine.
+
+### 5. Multi-employee payroll run foundation
+
+Files:
+- `src/utils/payrollRunEngine.ts`
+- `src/components/PayrollRunView.tsx`
+
+- A payroll run delegates every employee to the same `calculatePayroll` function.
+- Duplicate employee IDs/personnel codes, invalid inputs, inactive employees and period mismatches are flagged or excluded instead of being silently calculated.
+- Aggregate totals are sums of employee-level `PayrollResult` values; no separate payroll formula set is introduced.
+- The new Payroll Run page supports adding employees in the current browser session and reviewing per-employee results and period totals.
+- The current list is in-memory only. It is not a persistent employee database and must not be used as permanent payroll record storage.
+
+### 6. Regression tests and CI
 
 - `src/utils/payrollEngine.test.ts` tests RuleSet consistency, tax brackets, gross pay, insurance ceiling, taxable income, item classification and compliance metadata.
+- `src/utils/excelWorkbookBuilder.test.ts` verifies exported values equal the central result, the workbook contains no formula cells and mismatched RuleSet versions are rejected.
+- `src/utils/payrollRunEngine.test.ts` tests multi-employee totals, duplicate codes, invalid inputs, fiscal-period mismatches and inactive employee exclusion.
 - `npm test` / `bun run test` runs the test suite.
 - GitHub Actions validates tests, TypeScript and production build on pushes to this branch and pull requests to main.
 
@@ -71,9 +96,18 @@ The existing progressive tax calculation, insurance ceiling, overtime/night/holi
 2. Expand the catalog and make every formula consume catalog/rule data rather than hardcoded constants.
 3. Add legal date-effective rules for seniority, work-time patterns, Friday/holiday work, mission, leave, annual bonus and severance.
 4. Convert the Excel builder and formula library into render/export adapters over the calculation output; no independent payroll formulas should remain.
-5. Add payroll-run snapshots, YTD tax, history, audit and approval.
-6. Add integration tests comparing the same payroll input across web, XLSX and other output formats.
+5. Add persistent employee/contract records and secure payroll-period snapshots.
+6. Add attendance, leave, loan and deduction ledgers.
+7. Add YTD/multi-source tax, audit and approval/payment workflows.
+8. Add import/export integration tests for employee lists and attendance inputs.
 
 ## Operational warning
 
 Until the legal review is complete and the remaining integration work is closed, this branch is a development baseline. It must not be represented as a fully compliant or production-approved payroll system.
+
+
+## Current Excel and multi-employee status
+
+The Excel workbook is now an output adapter only. The calculation result is generated once by `calculatePayroll` and serialized to XLSX. The exported file is a snapshot of one employee calculation from the current single-employee views. Multi-employee calculations are available through `calculatePayrollRun` and the Payroll Run workspace; batch-to-XLSX export and durable storage are not yet implemented.
+
+The Payroll Run workspace is intentionally labelled as review-only. Its current state is ephemeral browser memory. It does not yet persist employee data or authorize approval/payment.
