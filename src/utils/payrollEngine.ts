@@ -484,6 +484,22 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     netPayRial > 0 ? ctcMonthlyRial / netPayRial : 0;
 
   const legalReviewRequiredItems = getPendingLegalReviewItems(payItemLines);
+  if (
+    input.overtimeHours > 0 &&
+    (input.fridayHours ?? 0) > 0
+  ) {
+    legalReviewRequiredItems.push(
+      'ساعات اضافه‌کاری و جمعه‌کاری جداگانه محاسبه شده‌اند؛ هم‌پوشانی زمانی آن‌ها باید با کارکرد روزانه کنترل شود تا یک ساعت دوبار پرداخت نشود.'
+    );
+  }
+  if (
+    input.holidayHours > 0 &&
+    ((input.fridayHours ?? 0) > 0 || input.overtimeHours > 0)
+  ) {
+    legalReviewRequiredItems.push(
+      'تعطیل‌کاری عمومی همراه با جمعه‌کاری یا اضافه‌کاری ثبت شده است؛ بازه‌های زمانی و استحقاق هر فوق‌العاده باید بررسی شود.'
+    );
+  }
   if (ruleSet.approvalStatus !== 'approved') {
     legalReviewRequiredItems.unshift(
       `RuleSet ${ruleSet.id} is pending legal approval.`
