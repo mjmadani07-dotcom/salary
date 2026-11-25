@@ -264,6 +264,7 @@ test('restores period-specific inputs from the matching saved snapshot and inclu
 test('requires an explicit shift-work pattern for a new payroll period', () => {
   const rows = createPayrollWorkspaceEmployees({
     ...standardSeed,
+    employeeMasters: [makeMaster()],
     savedEmployees: [makeSavedEmployee()],
   });
   const employee = rows.find((row) => row.employeeId === 'emp-001');
@@ -285,6 +286,7 @@ test('restores a confirmed shift pattern only in the same payroll period', () =>
   const samePeriodRows = createPayrollWorkspaceEmployees({
     ...standardSeed,
     month: 1,
+    employeeMasters: [makeMaster()],
     savedEmployees: [samePeriod],
   });
   const samePeriodEmployee = samePeriodRows.find((row) => row.employeeId === 'emp-001');
@@ -297,6 +299,7 @@ test('restores a confirmed shift pattern only in the same payroll period', () =>
   const nextPeriodRows = createPayrollWorkspaceEmployees({
     ...standardSeed,
     month: 2,
+    employeeMasters: [makeMaster()],
     savedEmployees: [samePeriod],
   });
   const nextPeriodEmployee = nextPeriodRows.find((row) => row.employeeId === 'emp-001');
