@@ -261,6 +261,19 @@ test('restores period-specific inputs from the matching saved snapshot and inclu
   assert.ok(newlyAdded.masterDataIssues?.some((issue) => issue.code === 'MONTHLY_WORK_DAYS_UNCONFIRMED'));
 });
 
+test('requires an explicit shift-work pattern for a new payroll period', () => {
+  const rows = createPayrollWorkspaceEmployees({
+    ...standardSeed,
+    savedEmployees: [makeSavedEmployee()],
+  });
+  const employee = rows.find((row) => row.employeeId === 'emp-001');
+  assert.ok(employee);
+  assert.equal(employee.payrollInput.shiftWorkPattern, undefined);
+  assert.ok(employee.masterDataIssues?.some((issue) =>
+    issue.code === 'MONTHLY_SHIFT_PATTERN_UNCONFIRMED'
+  ));
+});
+
 test('keeps a historically calculated employee active when the current master record is now inactive', () => {
   const snapshot = makeSnapshot([{
     employeeId: 'emp-001',
