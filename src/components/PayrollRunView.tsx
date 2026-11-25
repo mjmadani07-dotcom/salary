@@ -1146,12 +1146,12 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                 <div className="font-semibold">حالت اصلاح دوره</div>
                 <div>Snapshot مبنا: {correctionOfRunId}. نسخه اصلی حفظ می‌شود و هر بار محاسبه، Snapshot اصلاحی مستقل و قابل ردیابی می‌سازد.</div>
                 <label className="mt-2 block">
-                  <span className="mb-1 block font-semibold">علت اصلاح (الزامی)</span>
+                  <span className="mb-1 block font-semibold">{correctionSnapshotSaved ? 'علت اصلاح برای Snapshot بعدی (الزامی)' : 'علت اصلاح (الزامی)'}</span>
                   <textarea
                     rows={2}
                     value={correctionReason}
                     onChange={(event) => setCorrectionReason(event.target.value)}
-                    disabled={isSaving || correctionSnapshotSaved}
+                    disabled={isSaving}
                     placeholder="مثلاً اصلاح کارکرد بر اساس لیست تأییدشده واحد منابع انسانی"
                     className="w-full rounded-md border border-indigo-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-600 disabled:bg-slate-100"
                   />
