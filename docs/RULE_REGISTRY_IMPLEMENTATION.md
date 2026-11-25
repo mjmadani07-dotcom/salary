@@ -95,30 +95,30 @@ Files:
 
 ## Current limitations and remaining work
 
-The current 1405 legal-source review register is maintained in [LEGAL_REVIEW_REGISTER.md](./LEGAL_REVIEW_REGISTER.md). The 1405 RuleSet now references SRC-014 for the approved job-classification/seniority schedule, but it does not apply that schedule automatically: employee/workshop approval and job-group evidence are not yet stored. The tax-circular identifier is 200/1405/59 (not 59/1405/200); its 'customary limits' treatment remains pending legal interpretation and approval.
+The 1404/1405 legal-source review and sign-off status is maintained in [LEGAL_REVIEW_REGISTER.md](./LEGAL_REVIEW_REGISTER.md). The implementation is technically testable, but neither RuleSet is legally approved for production until the applicable primary sources and employer-specific applicability are verified.
 
-1. **Legal approval is pending.** The 1404/1405 registry contains source references, but both RuleSets and unresolved legal classifications still require documented review and sign-off.
-2. **Catalog coverage is incomplete.** Welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap, mission expenses and special insurance cases remain review items.
-3. **Dependent eligibility is not implemented.** The current payroll input accepts a child count and a 720-day insurance boolean; it does not retain per-child eligibility evidence or actual insurance history.
-4. **Seniority eligibility remains incomplete.** Employee start dates and effective wage history are available, but the engine still needs legally reviewed seniority eligibility and group-specific progression rules.
-5. **Attendance and leave ledgers are implemented at monthly-total/balance level.** Attendance totals feed matching PayrollRun inputs. Leave balances are stored with carry-forward recalculation. The finance manager must reconcile the monthly work/payroll-day input with the exact unpaid-leave quantity; PayrollRun blocks an employee when that review is missing or stale. No automatic deduction is applied. Daily events, shifts, mission and the legally/contractually controlled conversion between attendance, paid leave, unpaid leave and payable days are not complete.
-6. **Employee debt ledger is implemented for tracking only.** Separate advance/loan accounts, fixed/manual repayment plans, repayment history, outstanding balance, due/overdue installments and separately documented other deductions are stored locally. They are not connected to payroll and no automatic wage deduction occurs. Legal recovery checks, manager authorization in the payroll workflow, duplicate-posting protection and correction/reversal remain future work.
-7. **Approval and payment workflow is not implemented.** PayrollRun calculations and snapshots exist, but approval, payment, close and correction states do not.
-8. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
-9. **Backup/restore and native Windows packaging are not implemented.** New-install data is local to the current browser profile. Existing encrypted-vault records remain supported and require their original passphrase; new installations do not require a vault passphrase.
-10. **The full operational EOS system is deferred.** Existing EOS calculation/simulator features remain in the product, but no Accountability Chart, Scorecard/Rocks operating workflow or EOS administration work is planned in the current scope.
+1. **Legal approval is pending.** Wage, insurance, tax and statutory-benefit sources, interpretation of disputed wage bases and every pending pay-item classification require documented reviewer sign-off.
+2. **Pay-item classification is incomplete.** Tax/insurance/wage treatment of welfare benefits, marriage/child allowances, mission expenses and special insurance cases must be confirmed before the related items are treated as final.
+3. **Dependent and insurance evidence is incomplete.** The current inputs can hold child count and a 720-day insurance confirmation, but per-dependent eligibility evidence and actual insurance history are not fully maintained.
+4. **Seniority/job-group applicability is incomplete.** Employee hire dates and effective wage history exist; approved-plan group assignment, last-seniority-date evidence and applicable progression rules remain to be confirmed for affected workers.
+5. **Attendance and leave are monthly aggregates.** Selected-period attendance and leave data feed PayrollRun; paid leave is reconciled to the leave ledger and unpaid leave requires explicit acknowledgement. The app does not provide daily timekeeping, shift scheduling or a full leave-management system. Detailed daily/weekly evidence must come from the employer's approved external attendance source.
+6. **Debt ledger is optional tracking only.** It records advances/loans, repayments and other proposed deductions, but does not auto-post to payroll. This separation is an intentional lightweight product boundary; monthly payroll deduction amounts are entered explicitly and require a documented legal/contractual basis.
+7. **Payroll review/payment workflow is implemented.** The one-manager lifecycle supports review, approval, payment recording, close and traceable correction snapshots. It is not an enterprise approval chain, multi-user authorization or bank-payment integration.
+8. **No retroactive/YTD multi-source tax engine has been introduced.** Current behavior is the configured monthly progressive tax model; legal review must determine whether YTD or multiple-employer aggregation is required for the actual launch population.
+9. **Backup/restore is implemented in code.** A versioned JSON backup covers current IndexedDB stores, restore uses an atomic full replacement, and a safety copy is downloaded before destructive restore. Clean-profile, schema-upgrade and legacy-vault recovery tests remain operational acceptance gates. Native Windows installer packaging and bank-specific interfaces are outside the current core scope.
+10. **The full operational EOS system is deferred.** Existing EOS calculation/simulator features remain in the product, but no Accountability Chart, Scorecard/Rocks operating workflow or EOS administration work is planned in this release.
 
 ## Required next work
 
-1. Keep the compliance specification, implementation notes and pull-request description synchronized with the actual branch state.
-2. Complete the legal source pack and obtain documented legal review/sign-off for each active annual RuleSet and unresolved pay-item classification. Do not invent legal outcomes in code.
-3. Expand the central catalog and make every formula consume versioned rule/catalog data rather than hardcoded constants.
-4. Complete statutory/contractual eligibility data: employee insurance history, per-dependent evidence, seniority/group classification and employment/wage changes within a period.
-5. Define and test the full semantics of attendance days and payable days. The unpaid-leave review gate is implemented; further daily/shift data and any automatic day/money conversion require a documented legal/contractual policy and double-deduction tests.
-6. Extend the initial employee debt ledger with correction/reversal, legal recovery evidence and approved connection to the payroll approval/payment workflow; never auto-deduct without an explicit authorized payroll posting.
-7. Add the single-operator payroll workflow: validation, review, approval, paid, closed and correction snapshots, with audit trace.
-8. Add YTD/multi-source tax and the remaining acceptance/regression scenarios after legal rules are approved.
-9. Build and test local backup/restore before preparing native Windows packaging. Do not add multi-company/workspace authorization, multi-user access or cloud infrastructure unless the product scope changes.
+1. Keep the compliance specification, implementation notes and roadmap synchronized with the actual branch state.
+2. Archive issuer-authentic primary sources and obtain documented legal review/sign-off for the active RuleSets and each applicable pay-item classification. Do not invent legal outcomes in code.
+3. Complete the central pay-item catalog and versioned RuleSet mappings only after the applicable legal interpretations are approved.
+4. Complete employee evidence for dependent eligibility, insurance history, seniority and job-group applicability where relevant to the actual launch population.
+5. Approve and use an external attendance/leave reconciliation process for monthly totals. Keep daily timekeeping and roster management outside this product; do not infer payable days or statutory compliance from monthly aggregates alone.
+6. Keep the debt ledger standalone and optional for this release. Enter only manually authorized deduction amounts in monthly payroll inputs; automatic debt-ledger posting, repayment reversals and write-off flows are post-launch scope.
+7. Execute a real closed-period correction exercise and confirm the manager review → approval → paid → closed trail with immutable snapshots.
+8. Implement YTD/multi-source tax only if the signed legal review determines it is required for the employer and launch population.
+9. Test backup/restore on a clean browser profile/device, including a legacy encrypted vault and supported database upgrades; define and test the external backup-retention procedure. Native Windows installer packaging is not part of the current scope.
 
 ## Operational warning
 
@@ -129,7 +129,7 @@ Until the legal review is complete and the remaining integration work is closed,
 
 The Excel workbook is now an output adapter only. The single-employee calculation result is generated once by `calculatePayroll`; a batch run delegates every employee to that same function and then serializes the returned PayrollRunResult. Both single-employee and multi-employee XLSX exports contain values only and do not contain independent payroll formulas.
 
-The Payroll Run workspace is a single-finance-user workflow for calculating multiple employees in one payroll period. New installations save employee profiles and payroll snapshots directly to local IndexedDB; an older installation that already has an encrypted vault continues to require its existing passphrase. The current storage is tied to the browser profile on this device and built-in backup/restore is not yet available. No account, company/workspace roles, server or multi-user synchronization is part of the target scope.
+The Payroll Run workspace is a single-finance-user workflow for calculating multiple employees in one payroll period. New installations save employee profiles and payroll snapshots directly to local IndexedDB; an older installation that already has an encrypted vault continues to require its existing passphrase. Versioned JSON backup/restore covers the local database, with a safety copy downloaded before destructive restore; clean-profile and legacy-vault restore tests remain open. No account, company/workspace roles, server or multi-user synchronization is part of the target scope.
 
 
 ## Wage adjustment scope
@@ -161,4 +161,4 @@ File: `src/data/payrollLocalDatabase.ts`
 - Reads, saves, deletes and payroll-run history automatically use the plain local stores when no vault metadata exists; when an older encrypted vault is present, the existing unlock flow is required.
 - No network service, user account, organization workspace or multi-user authorization is introduced by this storage layer.
 
-**Data protection boundary:** the new default local storage is not application-level encrypted. Its protection depends on the operating-system user account, device controls and the browser profile. The current branch does not yet provide a built-in backup/restore workflow or native Windows package. The user should keep a separate backup and prevent unauthorized access to the Windows account. Existing encrypted-vault data remains encrypted and requires its original passphrase.
+**Data protection boundary:** the new default local storage is not application-level encrypted. Its protection depends on the operating-system user account, device controls and the browser profile. Versioned JSON backup/restore is implemented and creates a safety export before destructive restore, but users must still keep a separate copy on another physical storage location. Clean-profile and legacy-vault restore tests remain required before Go-Live. Native Windows installer packaging is outside the current scope. Existing encrypted-vault data remains encrypted and requires its original passphrase.
