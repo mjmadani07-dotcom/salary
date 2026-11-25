@@ -109,7 +109,11 @@ const standardSeed = {
 };
 
 test('loads all employee records, including inactive rows, and marks unconfirmed monthly/statutory facts', () => {
-  const active = makeMaster();
+  const active = makeMaster({
+    costCenter: 'فروش',
+    bankAccountNumber: '0012345678',
+    bankIban: 'IR000000000000000000000000',
+  });
   const inactive = makeMaster({
     employeeId: 'emp-002',
     personnelCode: 'P-002',
@@ -127,6 +131,10 @@ test('loads all employee records, including inactive rows, and marks unconfirmed
   assert.equal(rows[0].payrollInput.dailyBaseWageRial, 8_000_000);
   assert.equal(rows[0].payrollInput.workDays, 31);
   assert.equal(rows[0].payrollInput.annualWorkedDays, 0);
+  assert.equal(rows[0].jobTitle, 'کارشناس');
+  assert.equal(rows[0].costCenter, 'فروش');
+  assert.equal(rows[0].bankAccountNumber, '0012345678');
+  assert.equal(rows[0].bankIban, 'IR000000000000000000000000');
   assert.equal(rows[1].employeeId, 'emp-002');
   assert.equal(rows[1].isActive, false);
 
