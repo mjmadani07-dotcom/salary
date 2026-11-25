@@ -121,6 +121,20 @@ test('overtime base is derived from catalog items and retains aggregate rounding
   );
 });
 
+test('Friday premium uses the same base wage plus seniority hourly basis as overtime', () => {
+  const result = calculatePayroll(makeInput({
+    dailyBaseWageRial: 10_000_000,
+    dailySeniorityRial: 200_000,
+    housingAllowanceRial: 0,
+    workerCouponRial: 0,
+    fridayHours: 2,
+  }));
+
+  const expectedHourlyBasis = Math.round(((10_000_000 + 200_000) * 30) / 220);
+  assert.equal(result.hourlyNormalRateRial, expectedHourlyBasis);
+  assert.equal(result.fridayWorkPayRial, Math.round(2 * expectedHourlyBasis * 0.4));
+});
+
 test('insurance ceiling is applied to the 30-day monthly base', () => {
   const result = calculatePayroll(
     makeInput({ dailyBaseWageRial: 60_000_000 })
