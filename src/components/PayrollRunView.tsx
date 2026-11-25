@@ -73,6 +73,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
   const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
+  const [snapshotEmployeeIds, setSnapshotEmployeeIds] = useState<Set<string>>(() => new Set());
   const [searchText, setSearchText] = useState('');
   const [reloadVersion, setReloadVersion] = useState(0);
   const [isLoadingLocalData, setIsLoadingLocalData] = useState(true);
@@ -111,6 +112,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
       setEmployeeMasters([]);
       setRunResult(null);
       setLastSavedRunId(null);
+      setSnapshotEmployeeIds(new Set());
       setIsLoadingLocalData(false);
       return;
     }
@@ -154,6 +156,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         setEmployees(rows);
         setRunResult(savedRun ?? null);
         setLastSavedRunId(savedRun?.runId ?? null);
+        setSnapshotEmployeeIds(new Set(savedRun?.lines.map((line) => line.employeeId) ?? []));
       } catch (error) {
         if (active) {
           setStorageError(
@@ -165,6 +168,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           setEmployeeMasters([]);
           setRunResult(null);
           setLastSavedRunId(null);
+          setSnapshotEmployeeIds(new Set());
         }
       } finally {
         if (active) setIsLoadingLocalData(false);
@@ -206,6 +210,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     setEmployeeMasters([]);
     setRunResult(null);
     setLastSavedRunId(null);
+    setSnapshotEmployeeIds(new Set());
     setVaultPhase('locked');
   };
 
@@ -301,14 +306,17 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
       const monthlyIssues = (employee.masterDataIssues ?? []).filter((issue) =>
         issue.code.startsWith('MONTHLY_')
       );
+      const isRestoredSnapshotLine = snapshotEmployeeIds.has(employee.employeeId);
       const masterDataIssues = employee.isActive
         ? [
             ...monthlyIssues,
-            ...terms.issues.filter((issue) => issue.code !== 'EMPLOYEE_INACTIVE').map((issue) => ({
-              code: issue.code,
-              message: issue.message,
-              field: issue.field,
-            })),
+            ...(isRestoredSnapshotLine
+              ? (employee.masterDataIssues ?? []).filter((issue) => !issue.code.startsWith('MONTHLY_'))
+              : terms.issues.filter((issue) => issue.code !== 'EMPLOYEE_INACTIVE').map((issue) => ({
+                  code: issue.code,
+                  message: issue.message,
+                  field: issue.field,
+                }))),
           ]
         : [];
 
@@ -316,7 +324,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         completedYears: employee.payrollInput.serviceYearsForSeverance,
         additionalDays: employee.payrollInput.serviceExtraDaysForSeverance,
       };
-      if (employee.isActive) {
+      if (employee.isActive && !isRestoredSnapshotLine) {
         try {
           serviceDuration = calculateServiceDurationJalali(master.hireDateJalali, periodEndJalali);
         } catch (error) {
@@ -336,17 +344,19 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         masterDataIssues: masterDataIssues.filter((issue) =>
           !(employee.isActive && issue.code === 'EMPLOYEE_INACTIVE')
         ),
-        payrollInput: {
-          ...employee.payrollInput,
-          year,
-          monthDays,
-          dailyBaseWageRial: terms.wage?.dailyBaseWageRial ?? employee.payrollInput.dailyBaseWageRial,
-          dailySeniorityRial: terms.wage?.dailySeniorityRial ?? employee.payrollInput.dailySeniorityRial,
-          housingAllowanceRial: rules.housingAllowanceRial,
-          workerCouponRial: rules.workerCouponRial,
-          serviceYearsForSeverance: serviceDuration.completedYears,
-          serviceExtraDaysForSeverance: serviceDuration.additionalDays,
-        },
+        payrollInput: isRestoredSnapshotLine
+          ? employee.payrollInput
+          : {
+              ...employee.payrollInput,
+              year,
+              monthDays,
+              dailyBaseWageRial: terms.wage?.dailyBaseWageRial ?? employee.payrollInput.dailyBaseWageRial,
+              dailySeniorityRial: terms.wage?.dailySeniorityRial ?? employee.payrollInput.dailySeniorityRial,
+              housingAllowanceRial: rules.housingAllowanceRial,
+              workerCouponRial: rules.workerCouponRial,
+              serviceYearsForSeverance: serviceDuration.completedYears,
+              serviceExtraDaysForSeverance: serviceDuration.additionalDays,
+            },
       };
     });
 
@@ -375,6 +385,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     try {
       await savePayrollRunSnapshot(result);
       setLastSavedRunId(result.runId);
+      setSnapshotEmployeeIds(new Set(result.lines.map((line) => line.employeeId)));
       if (employeeSaveErrors.length > 0) {
         setStorageError(
           `Snapshot دوره ذخیره شد، اما ذخیره آخرین ورودی برخی کارکنان ناموفق بود: ${employeeSaveErrors.slice(0, 3).join('؛ ')}`
