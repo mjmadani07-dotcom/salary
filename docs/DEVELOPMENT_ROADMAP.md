@@ -60,7 +60,10 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [x] Complete grouped XLSX outputs from the same PayrollRunResult: detailed A:AN calculation register plus AO:BA supplementary fields, monthly KPIs and cost-centre grouping, printable per-employee payslips, bank transfer register, item/tax details and warnings.
 - [x] Add an explicitly non-final settlement output sheet for engine-calculated Eid/severance and leave balance; missing months-worked, leave-encashment and other-claims inputs stay blank rather than being inferred.
 - [ ] Complete formula-by-formula legal reconciliation for all 22 columns, including tax-base differences and overlap between holiday work, Friday work and overtime.
-- [ ] Complete the settlement workflow inputs (months worked, leave encashment and other claims) and verified final-settlement rules without removing or merging any source input.
+- [x] Add explicit settlement inputs for months and days worked, separate wage bases with source/confirmation, verified leave balance and encashment basis, prior advances/payments, other claims and authorized deductions.
+- [x] Add settlement calculations: Eid pro-rata by actual worked days (not Excel's month shortcut), severance by actual service duration, and unused leave without applying the annual 9-day carryover cap at termination.
+- [x] Add encrypted/local settlement persistence, draft/review/approved/paid transitions, append-only audit events, immutable approved/paid cases and dedicated Excel export.
+- [ ] Complete settlement tax/mandatory deduction rules and obtain legal sign-off for each wage basis and special termination reason.
 
 ### Phase 2 — Legal rules and calculation integrity
 - [x] Create a structured 1405 legal source review register and identify source/implementation gaps.
@@ -107,14 +110,20 @@ Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md]
 - [ ] Add debt correction/reversal, account closure, write-off and termination settlement workflows.
 
 ### Phase 5 — Payroll approval and payment workflow
-- [ ] Implement Draft, Validation Failed, Ready for Review, Approved, Paid, Closed and Corrected states.
+- [ ] Implement monthly payroll-run Draft, Validation Failed, Ready for Review, Approved, Paid, Closed and Corrected states.
+- [x] Persist immutable calculation result snapshots with RuleSet version and employee input/metadata trace.
+- [x] Show blocking issues and legal-review warnings in reports and exports.
+- [ ] Record monthly payroll finance-manager approval, payment date/reference and bank reconciliation.
+- [ ] Protect monthly approved/paid/closed payroll periods from silent recalculation.
+- [ ] Provide monthly payroll correction runs with traceability instead of overwriting historical results.
+- [x] Implement the separate termination-settlement lifecycle Draft → Ready for Review → Approved → Paid, including append-only event history and immutability after approval/payment.
 - [ ] Persist immutable payroll calculation snapshots with RuleSet version and input trace.
 - [ ] Show blocking issues and review warnings before approval.
 - [ ] Record finance-manager approval and payment date/reference.
 - [ ] Protect approved/paid/closed periods from silent recalculation.
 - [ ] Provide correction runs with traceability instead of overwriting historical results.
 - [x] Generate employee payslip worksheets, payroll register, monthly cost-centre summary and bank transfer register from one PayrollRunResult export.
-- [ ] Add approval/paid states, bank-specific transfer file formats, payment references and reconciliation of actual bank transactions.
+- [ ] Add bank-specific transfer file formats, monthly payroll payment approvals/references and reconciliation of actual bank transactions.
 
 ### Phase 6 — Backup, restore and Windows packaging
 - [ ] Define a versioned local backup format covering employee master, contracts, wages, attendance, leave, debts, settings and payroll-run history.
@@ -140,4 +149,4 @@ The current branch is a development baseline, not a legally approved production 
 
 Current work branch: `feat/lightweight-payroll-workbench`.
 
-The 8-sheet Excel input audit and formula-gap review are documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). Excel is the complete input/output coverage baseline, not the final calculation authority. Employee master stores the added fields compatibly, and a full A:V Paste/Import validates period, employee, payslip and leave balance while converting source Toman amounts to internal Rial. Payroll output is now generated from one PayrollRunResult: the detailed A:AN calculation register with AO:BA supplementary columns, monthly KPIs/cost-centre summary, a printable payslip sheet per calculated employee, bank transfer register, pay-item and tax details, and issue/legal-review sheets. Employee title, cost centre, bank details, insurance number and leave balance are retained in snapshots for historical output. The settlement export contains engine-calculated Eid/severance and leave balance, but remains explicitly non-final: months worked, leave encashment and other claims have no dedicated approved inputs yet. The bank register is a payment-preparation export only; approval, bank-specific file formats and actual payment reconciliation remain open. The source workbook itself omits paid leave, sick leave and unpaid absence from its payable-day formula; software does not inherit that omission by guessing. Additional statutory gaps remain for shift/night work, daily overtime, weekly rest/Friday, mission travel, lawful deductions and tax item classification. Negative net-pay lines are blocked from payable totals. CI [45623501362](https://github.com/mjmadani07-dotcom/salary/actions/runs/45623501362) passed 79 regression tests, TypeScript validation and production build at code commit `9eba840b983b7e7803b9b31c9a71669cfbc709fb`. The pull request remains open and unmerged.
+The 8-sheet Excel input audit and formula-gap review are documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). Excel is the complete input/output coverage baseline, not the final calculation authority. Employee master stores the added fields compatibly, and a full A:V Paste/Import validates period, employee, payslip and leave balance while converting source Toman amounts to internal Rial. Payroll output is generated from one PayrollRunResult: detailed A:AN calculations plus AO:BA supplementary fields, monthly KPIs/cost-centre summary, printable per-employee payslips, bank preparation register, pay-item/tax details and warnings. Employee title, cost centre, bank details, insurance number and leave balance are retained in historical snapshots. A separate settlement case module captures all five Excel source inputs plus evidence-backed wage bases, actual worked days and months, leave encashment, prior payments, other claims and authorized deductions. Eid is prorated by worked days; severance uses actual total service duration; termination leave is not capped at the annual 9-day carryover rule. Cases are stored locally (encrypted when the vault is configured), follow Draft → Ready for Review → Approved → Paid, retain append-only event history and cannot be changed after approval except to record payment. Settlement XLSX output includes case details and audit history. **Not production-final:** settlement tax/statutory withholdings, formal approval of wage bases and legal special cases remain open; monthly payroll-run approval/closed-period immutability, bank-specific transfer files and actual bank reconciliation also remain open. Other material legal gaps remain for shift/night work, daily overtime, weekly rest/Friday, mission travel, lawful deductions and tax item classification. The source workbook omits leave/absence effects from its payable-day formula; software does not inherit that omission by guessing. Negative-net-pay lines are blocked from payable totals. The pull request remains open and unmerged.
