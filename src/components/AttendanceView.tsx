@@ -108,7 +108,7 @@ export function AttendanceView() {
       <div>
         <div className="text-xs text-slate-500">Attendance Ledger · کارکرد ماهانه</div>
         <h1 className="mt-1 text-xl font-bold text-slate-900">ثبت کارکرد کارکنان</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">اطلاعات این صفحه برای هر کارمند و هر ماه ذخیره می‌شود و مقادیر آن هنگام محاسبه دوره حقوق خوانده می‌شوند. این دفتر جمع ماهانه است، نه ثبت تردد روزانه.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">اطلاعات این صفحه برای هر کارمند و هر ماه ذخیره می‌شود و مقادیر آن هنگام محاسبه دوره حقوق خوانده می‌شوند. این دفتر جمع ماهانه است، نه ثبت تردد روزانه. مقدار «روزهای مبنای پرداخت» مستقیماً به محاسبه حقوق وارد می‌شود؛ اگر مرخصی بدون حقوق ثبت شده، ابتدا همین مقدار را مطابق اسناد کارکرد اصلاح کنید و سپس بازبینی را تأیید کنید. سامانه کسر خودکار انجام نمی‌دهد.</p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold">{periodLabel}</div>
@@ -131,7 +131,7 @@ export function AttendanceView() {
             </div>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {([
-                ['workedDays','روزهای کارکرد',0,monthDays],
+                ['workedDays','روزهای مبنای پرداخت',0,monthDays],
                 ['overtimeHours','اضافه‌کاری (ساعت)',0,744],
                 ['nightShiftHours','شب‌کاری (ساعت)',0,744],
                 ['holidayHours','کار در تعطیل (ساعت)',0,744],
