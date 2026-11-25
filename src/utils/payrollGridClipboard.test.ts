@@ -36,6 +36,19 @@ test('parses Persian yes/no values for statutory and family facts', () => {
   });
 });
 
+test('recognizes Persian and Arabic digits in boolean cells', () => {
+  assert.deepEqual(parsePayrollGridPasteCell('isMarried', '۱'), {
+    valid: true,
+    empty: false,
+    value: true,
+  });
+  assert.deepEqual(parsePayrollGridPasteCell('has720DaysInsurance', '٠'), {
+    valid: true,
+    empty: false,
+    value: false,
+  });
+});
+
 test('handles empty and invalid clipboard cells explicitly', () => {
   assert.deepEqual(parsePayrollGridPasteCell('workDays', ''), {
     valid: true,
