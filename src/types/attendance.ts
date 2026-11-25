@@ -1,3 +1,10 @@
+export type ShiftWorkPattern =
+  | 'non-shift'
+  | 'morning-evening'
+  | 'morning-evening-night'
+  | 'morning-night'
+  | 'evening-night';
+
 export interface MonthlyAttendanceRecord {
   attendanceId: string;
   employeeId: string;
@@ -8,6 +15,8 @@ export interface MonthlyAttendanceRecord {
   workedDays: number;
   overtimeHours: number;
   nightShiftHours: number;
+  /** Monthly rotation classification under Labour Law articles 55–56. */
+  shiftWorkPattern?: ShiftWorkPattern;
   holidayHours: number;
   variableBonusRial: number;
   annualWorkedDays: number;
