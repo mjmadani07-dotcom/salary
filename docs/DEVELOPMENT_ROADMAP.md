@@ -120,7 +120,7 @@ Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md]
 - [x] Prevent mutation/deletion of approved, paid and closed snapshots through the workflow controls.
 - [x] Show blockers and legal-review warnings in payroll results and exports.
 - [x] Generate employee payslips, payroll register, cost-centre summary and bank-preparation register from the same PayrollRunResult.
-- [ ] Add an explicit correction-run operation/UI that links a new snapshot to the original closed/paid run and records the correction reason; the current model has a correction reference field but this end-to-end path is not yet accepted.
+- [x] Add an explicit correction-run operation/UI for approved/paid/closed periods; validate the original period/status, require a reason, link the new immutable snapshot to the original and preserve the trace on reload.
 - [ ] Add bank-specific transfer files only after the bank's technical format is obtained and tested.
 - [ ] Reconcile the bank's actual paid transactions to the approved employee-level payment register.
 - [ ] Integrate reviewed debt/other-deduction records only after lawful recoverability is approved; require explicit manager confirmation and deterministic duplicate-prevention across recalculation, correction and export.
@@ -160,7 +160,7 @@ This is the terminal milestone for the current product scope. Once every gate be
 **Gate C — release-quality calculations and workflow**
 - [ ] Convert each approved legal interpretation into versioned RuleSet/pay-item metadata and regression tests; no pending legal classification may silently enter a final payable result.
 - [ ] Automate the applicable acceptance scenarios in this document and the coverage matrix, including 29/30/31-day periods and boundary values.
-- [ ] Confirm the approval → payment → close workflow, correction-run traceability and immutable historical snapshots end to end.
+- [ ] Exercise approval → payment → close and a correction of a real closed period with finance-owner acceptance; confirm immutable historical snapshots and the audit trail.
 - [ ] Reconcile web UI, payslips, detailed XLSX, monthly summary and bank-preparation output to the same immutable PayrollRunResult.
 - [ ] Confirm all blockers, legal-review warnings, negative-net-pay exclusions and payment differences are visible to the finance manager before approval.
 
@@ -180,12 +180,12 @@ The current branch is a development baseline, not a legally approved production 
 ## 6. Current status
 
 - Work branch: `feat/lightweight-payroll-workbench`.
-- Latest verified branch commit at this closeout: `afea54f47ebec6656ac36eccf87706f34148b974`.
-- Latest CI run: [`45668763776`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45668763776), completed successfully after the safety-backup and documentation changes: 113 tests passed, TypeScript passed and Vite production build passed.
+- Latest verified branch commit at this closeout: `6e554729f778a0c13cb176bbe190c3f76a2e14f8`.
+- Latest CI run: [`45669674606`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45669674606), completed successfully after the correction-run UI and traceability tests: 115 tests passed, TypeScript passed and Vite production build passed.
 - Monthly shift-pattern capture, period-scoped persistence, Article 56 rate differentiation and suppression of the Article 58 35% non-shift premium for rotating patterns are implemented. The shift allowance wage base and item classification remain legal-review items.
 - Monthly attendance and leave ledgers, paid-leave integration, unpaid-leave acknowledgement, employee debt tracking, employee master/contract history, batch payroll calculation and XLSX reports are implemented to the documented boundaries.
 - The saved-run approval/payment/close workflow and versioned database backup/restore code are implemented. A pre-restore safety backup is now downloaded automatically before destructive restore. Fresh-profile, schema-migration and legacy-vault restore verification remain operational tests.
-- **Still blocks Go-Live:** daily attendance/overtime/weekly-rest evidence; approved payable-day and leave treatment; mission conditions/costs; lawful and non-duplicated deductions; complete wage/insurance/tax/pay-item classification and YTD applicability; job-classification/seniority/dependent evidence; mid-period proration; correction-run UX; bank-specific transfer/reconciliation; signed primary legal sources; restore testing; and real-period parallel reconciliation.
+- **Still blocks Go-Live:** daily attendance/overtime/weekly-rest evidence; approved payable-day and leave treatment; mission conditions/costs; lawful and non-duplicated deductions; complete wage/insurance/tax/pay-item classification and YTD applicability; job-classification/seniority/dependent evidence; mid-period proration; exercising correction-run workflow against an actual closed-period case; bank-specific transfer/reconciliation; signed primary legal sources; restore testing; and real-period parallel reconciliation.
 - No PR has been merged. The open PR #1 targets a different branch; this branch remains unmerged.
 
 ## 7. Change-control rule after the freeze
