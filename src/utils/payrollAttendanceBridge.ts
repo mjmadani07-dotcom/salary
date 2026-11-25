@@ -52,6 +52,21 @@ export function hydratePayrollEmployeeFromAttendance(
       holidayHours: attendance.holidayHours,
       variableBonusRial: attendance.variableBonusRial,
       annualWorkedDays: attendance.annualWorkedDays,
+      paidLeaveDays: leave?.paidLeaveUsedDays ?? attendance.paidLeaveDays ?? 0,
+      sickLeaveDays: attendance.sickLeaveDays ?? 0,
+      unpaidAbsenceDays: attendance.unpaidAbsenceDays ?? 0,
+      fridayHours: attendance.fridayHours ?? 0,
+      missionDays: attendance.missionDays ?? 0,
+      insuredBenefitsRial: attendance.insuredBenefitsRial ?? 0,
+      nonInsuredBenefitsRial: attendance.nonInsuredBenefitsRial ?? 0,
+      loanDeductionRial: attendance.loanDeductionRial ?? 0,
+      advanceDeductionRial: attendance.advanceDeductionRial ?? 0,
+      otherDeductionsRial: attendance.otherDeductionsRial ?? 0,
+      signedCorrectionRial: attendance.signedCorrectionRial ?? 0,
+      payslipId: attendance.payslipId ?? employee.payrollInput.payslipId ??
+        `${attendance.fiscalYear}-${String(attendance.month).padStart(2, '0')}-${employee.personnelCode}`,
+      paymentDate: attendance.paymentDate ?? '',
+      monthlyNotes: attendance.notes,
     },
     masterDataIssues: issues,
   };
@@ -80,9 +95,23 @@ export function createMonthlyAttendanceDraftFromPayrollEmployee(
     holidayHours: employee.payrollInput.holidayHours,
     variableBonusRial: employee.payrollInput.variableBonusRial,
     annualWorkedDays: employee.payrollInput.annualWorkedDays,
+    paidLeaveDays: employee.payrollInput.paidLeaveDays ?? previous?.paidLeaveDays,
+    sickLeaveDays: employee.payrollInput.sickLeaveDays ?? 0,
+    unpaidAbsenceDays: employee.payrollInput.unpaidAbsenceDays ?? 0,
+    fridayHours: employee.payrollInput.fridayHours ?? 0,
+    missionDays: employee.payrollInput.missionDays ?? 0,
+    insuredBenefitsRial: employee.payrollInput.insuredBenefitsRial ?? 0,
+    nonInsuredBenefitsRial: employee.payrollInput.nonInsuredBenefitsRial ?? 0,
+    loanDeductionRial: employee.payrollInput.loanDeductionRial ?? 0,
+    advanceDeductionRial: employee.payrollInput.advanceDeductionRial ?? 0,
+    otherDeductionsRial: employee.payrollInput.otherDeductionsRial ?? 0,
+    signedCorrectionRial: employee.payrollInput.signedCorrectionRial ?? 0,
+    payslipId: employee.payrollInput.payslipId ??
+      `${fiscalYear}-${String(month).padStart(2, '0')}-${employee.personnelCode}`,
+    paymentDate: employee.payrollInput.paymentDate ?? '',
     reviewedUnpaidLeaveDays: workDaysChanged
       ? undefined
       : previous?.reviewedUnpaidLeaveDays,
-    notes: previous?.notes ?? '',
+    notes: employee.payrollInput.monthlyNotes ?? previous?.notes ?? '',
   };
 }
