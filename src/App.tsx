@@ -114,7 +114,7 @@ function AppShell() {
 
       <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         {activeTab === 'employees' && <EmployeeDirectoryView />}
-        {activeTab === 'run' && <PayrollRunView />}
+        {activeTab === 'run' && <PayrollRunView onNavigateToEmployees={() => setActiveTab('employees')} />}
         {activeTab === 'reports' && (
           <PayrollReportsView onNavigateToPayroll={() => setActiveTab('run')} />
         )}
