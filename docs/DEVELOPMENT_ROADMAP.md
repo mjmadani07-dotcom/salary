@@ -66,64 +66,52 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [ ] Complete settlement tax/mandatory deduction rules and obtain legal sign-off for each wage basis and special termination reason.
 
 ### Phase 2 — Legal rules and calculation integrity
-- [x] Create a structured 1405 legal source review register and identify source/implementation gaps.
-- [ ] Complete the primary-source legal pack with issuer-signed copies for wage, insurance, tax and statutory benefits.
-- [ ] Obtain documented review/sign-off for RuleSets 1404 and 1405.
-- [ ] Complete pay-item insurance/tax/wage classifications and special-case handling, including aggregation of all taxable payments and legally exempt items.
-- [x] Add monthly shift-pattern capture, persistence and rate differentiation: non-shift night premium (35%) versus Article 56 rotating-shift allowances (10%, 15%, 22.5%); wage-component basis remains pending legal review.
-- [ ] Add statutory overtime controls (consent, daily limit and prohibited categories) using daily-level attendance evidence; monthly aggregate overtime now produces a clear legal-review warning and is not treated as proof of compliance.
-- [x] Use the same hourly wage basis (base wage + seniority) for Friday premium as overtime; add explicit warnings when monthly overtime/Friday/holiday categories may overlap.
-- [ ] Reconcile Friday premium with weekly-rest scheduling, daily time records and official-holiday overlap; current monthly aggregates cannot prove non-overlap.
-- [ ] Complete mission allowance using the applicable fixed/base wage floor and separate transport/travel costs, including qualifying distance/overnight conditions.
-- [ ] Add the missing seniority, dependent eligibility, job group and actual insurance-history data. The 1405 twenty-group seniority schedule is now listed as SRC-014; the current employee model still lacks approved-plan/group and last-seniority-date evidence.
-- [ ] Complete daily shift/roster evidence, overtime limits, Friday/weekly-rest and public-holiday overlap controls, and mission rules.
-- [ ] Add the legal acceptance scenarios in PAYROLL_RULES_AND_COMPLIANCE.md to automated tests.
-- [ ] Add effective-dated multi-segment proration for mid-period hire, termination, wage and contract changes.
+- [x] Create the 1405 legal source review register and identify source/implementation gaps.
+- [ ] Complete the primary-source legal pack with issuer-authentic copies for wage, insurance, tax and statutory benefits.
+- [ ] Obtain documented reviewer sign-off for RuleSets 1404 and 1405.
+- [ ] Complete pay-item insurance/tax/wage classifications and special-case handling, including aggregation of taxable payments and legally exempt items.
+- [x] Implement monthly shift-pattern capture and Article 56 rate differentiation (10%, 15%, 22.5%) separately from the 35% non-shift night premium; the wage-component basis remains pending legal review.
+- [x] Keep overtime, Friday and holiday inputs as monthly aggregates; calculate configured premiums and expose legal/overlap warnings. Daily clock-in/out, scheduling and roster management are explicitly outside this lightweight product.
+- [x] Keep detailed daily/weekly attendance evidence external to the app. The finance manager must verify consent, daily/weekly limits, prohibited-work restrictions, rest days and overlap from the employer's approved timekeeping records before approving any affected payroll.
+- [x] Use the same hourly wage basis (base wage + seniority) for Friday premium as overtime and emit explicit warnings when monthly overtime/Friday/holiday categories may overlap; detailed legal basis still requires sign-off.
+- [ ] Complete mission allowance rules: qualifying distance/overnight conditions, minimum allowance, transport/travel reimbursement and insurance/tax treatment.
+- [ ] Complete seniority, dependent eligibility, job-group and actual insurance-history evidence where applicable to the launch population.
+- [x] Keep mid-period hire/termination, wage changes and contract changes blocked; multi-segment proration is not part of this release. Such cases must not be included in the launch population unless supported by a separately approved process.
+- [ ] Add automated acceptance scenarios after the legal interpretation is approved; do not encode unresolved interpretations as final rules.
 
-**Gate:** no unresolved P0 legal item may be silently treated as an approved production rule.
+**Gate:** no unresolved P0 legal item may be silently treated as an approved production rule. The application may calculate a monthly aggregate, but it does not certify the external attendance evidence.
 
 ### Phase 3 — Attendance/leave to payroll integration
-- [ ] Define the legal/contractual meanings of actual attendance days, payable days, paid leave, sick leave, unpaid leave, absence and mission days before automatically converting one category into another.
-- [x] Load selected-period attendance and leave records into unsnapshotted PayrollRun workspaces, without overlaying historical saved snapshots.
-- [x] Synchronize monthly payroll inputs with the attendance record through the bridge, preserving each added Excel input as a separate field.
-- [x] Require exact unpaid-leave acknowledgement and invalidate it when payable/worked days change; do not apply an automatic deduction.
-- [x] Read paid-leave usage from the Leave Ledger into the monthly payroll field and retain it in the snapshot; the Excel importer updates the existing monthly leave record only after balance validation, and blocks a positive imported value when no matching leave-ledger record exists.
-- [x] Add distinct monthly sick-leave, unpaid-absence and mission-day inputs; their effect on payable days remains disabled pending an approved rule.
-- [ ] Add a reconciliation control for paid leave, sick leave, unpaid absence and payable days; prevent double counting between ledgers and monthly inputs.
-- [ ] Prevent duplicate deductions between manually entered payroll amounts and employee debt/other-deduction ledgers during recalculation and approval.
-- [ ] Keep daily event capture and shift rosters as separate extensions after the monthly aggregate model is accepted.
+- [x] Keep workdays, paid leave, sick leave, unpaid absence and mission days as separate, independently stored monthly inputs; do not automatically convert one category into another without an approved legal/contractual rule.
+- [x] Load selected-period attendance and leave records into unsnapshotted PayrollRun workspaces without overlaying historical saved snapshots.
+- [x] Synchronize monthly payroll inputs with the attendance record through the bridge, preserving each Excel input as a separate field.
+- [x] Require exact unpaid-leave acknowledgement and invalidate it when payable/worked-day inputs change; do not apply an automatic deduction.
+- [x] Read paid-leave usage from the Leave Ledger into the monthly payroll field and retain it in the snapshot; Excel import updates the existing monthly leave record only after balance validation.
+- [x] Keep sick-leave, unpaid-absence and mission-day effects on payable days disabled until an approved rule is entered in the RuleSet; the finance manager must reconcile monthly totals against the external approved records before approval.
+- [x] Keep daily event capture and shift rosters out of this product. The product accepts manager-reconciled monthly totals; any case lacking external supporting evidence remains unsuitable for approval.
+- [x] Keep the debt ledger separate from payroll. The ledger does not auto-post; monthly payroll deduction fields remain explicit inputs and the finance manager must enter only the single authorized amount from the documented source.
 
-### Phase 4 — Employee debt and deductions ledger
+### Phase 4 — Optional employee debt and deductions tracking
+The standalone ledger is an optional supporting recordkeeping module, not a payroll subledger or a prerequisite for Go-Live. Its scope is intentionally limited; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md](./EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md).
 
-Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md](./EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md).
+- [x] Record advances/loans, principal, purpose, issue date and fixed/manual repayment plans.
+- [x] Record repayments as separate transactions and maintain outstanding balances and due/overdue amounts.
+- [x] Keep other agreed deductions separate with a supporting reference and proposed/reviewed/cancelled status.
+- [x] Preserve legacy encrypted-vault compatibility; new installations use local IndexedDB without a new passphrase.
+- [x] Do not auto-post debt-ledger transactions to payroll. This is a deliberate product boundary, not an unfinished integration.
+- [x] Keep direct ledger-to-payroll posting, automatic installment deduction, duplicate-posting automation, debt write-off/reversal and termination settlement out of the current release; place them in the post-launch backlog.
+- [ ] When a manual deduction is entered in payroll, verify its lawful/contractual basis and source document before approval; this is a legal/finance control, not an automated ledger integration.
 
-- [x] Record advances and loans as independent employee accounts.
-- [x] Record principal, purpose, issue date and fixed-installment/manual repayment plan.
-- [x] Record each repayment as a separate transaction and maintain outstanding balance.
-- [x] Calculate current/overdue installments and show proposed due amounts by period.
-- [x] Keep other agreed deductions separate, with supporting reference and proposed/reviewed/cancelled status.
-- [x] Preserve legacy encrypted-vault compatibility while keeping new installations password-free.
-- [x] Do not auto-post installments or other deductions to payroll.
-- [ ] Obtain/record evidence and review of whether a proposed deduction is lawfully/contractually recoverable from wages.
-- [ ] Require documented legal/contractual basis and review for manual deductions; enforce applicable statutory restrictions before approval.
-- [ ] Connect eligible reviewed deductions to the payroll approval/payment workflow, with explicit manager confirmation.
-- [ ] Prevent duplicate posting when a payroll run is recalculated, corrected or exported.
-- [ ] Add debt correction/reversal, account closure, write-off and termination settlement workflows.
-
-### Phase 5 — Payroll approval and payment workflow
-
+### Phase 5 — Payroll review, payment recording and correction
 - [x] Persist immutable calculation-result snapshots with RuleSet version and employee/input trace.
 - [x] Retain snapshots once they reach finance review; only validation-failed runs may be discarded.
-- [x] Implement the saved-run workflow: Ready for Review → Approved → Paid → Closed; validation-failed runs cannot be approved.
-- [x] Require approver identity/reference and payment date/reference/actual amount; require a reason for payment differences.
-- [x] Append approval, payment and close events to the workflow audit trail.
-- [x] Prevent mutation/deletion of approved, paid and closed snapshots through the workflow controls.
+- [x] Implement the single-manager lifecycle: Ready for Review → Approved → Paid → Closed; validation-failed runs cannot be approved. This is a local recordkeeping workflow, not a multi-user approval chain or separation-of-duties system.
+- [x] Record finance-manager approval reference, payment date/reference/actual amount, reason for a payment difference and close reference.
+- [x] Append approval, payment and close events to the workflow audit trail; prevent mutation/deletion of approved, paid and closed snapshots.
 - [x] Show blockers and legal-review warnings in payroll results and exports.
 - [x] Generate employee payslips, payroll register, cost-centre summary and bank-preparation register from the same PayrollRunResult.
-- [x] Add an explicit correction-run operation/UI for approved/paid/closed periods; validate the original period/status, require a reason, link the new immutable snapshot to the original and preserve the trace on reload.
-- [ ] Add bank-specific transfer files only after the bank's technical format is obtained and tested.
-- [ ] Reconcile the bank's actual paid transactions to the approved employee-level payment register.
-- [ ] Integrate reviewed debt/other-deduction records only after lawful recoverability is approved; require explicit manager confirmation and deterministic duplicate-prevention across recalculation, correction and export.
+- [x] Add a correction-run operation for approved/paid/closed periods: preserve the source snapshot, require a reason, validate period/status, link a new immutable snapshot and retain traceability after reload.
+- [x] Keep bank-specific transfer files, bank-statement import/reconciliation and payment execution integrations outside this release. The app prepares the bank register and records payment metadata entered by the manager.
 - [x] No separate persisted Draft state is required for the one-manager/local-device scope: the unsaved PayrollRun workspace is Draft; a durable, immutable version is created when calculation is saved.
 
 ### Phase 6 — Local backup, restore and data portability
@@ -146,16 +134,16 @@ This is the terminal milestone for the current product scope. Once every gate be
 - [ ] Obtain signed/issuer-verifiable primary copies for the applicable 1405 wage, insurance, tax and statutory-benefit rules, plus amendments effective during the payroll period.
 - [ ] Obtain documented reviewer decisions for all P0 entries in [LEGAL_REVIEW_REGISTER.md](./LEGAL_REVIEW_REGISTER.md), including wage bases, insurance/tax classifications, dependent eligibility, seniority/job-classification applicability, payable-day semantics, and lawful deductions.
 - [ ] Resolve or explicitly exclude special regimes that do not apply to the employer/workers; do not silently use general-case rates for them.
-- [ ] Approve the daily/weekly evidence model for overtime, night work, shift work, Friday/weekly rest and official-holiday overlap. Monthly totals alone do not prove daily consent, limits or non-overlap.
+- [ ] Approve the external attendance-record source and manager verification procedure for overtime, night work, shifts, Friday/weekly rest and official-holiday overlap. The app does not provide daily timekeeping; monthly totals alone do not prove daily consent, limits or non-overlap.
 - [ ] Approve mission eligibility, minimum allowance and separate travel-cost reimbursement.
 - [ ] Approve settlement tax/insurance treatment and wage bases for the applicable termination reasons.
 
 **Gate B — complete and controlled data**
 - [ ] Reconcile all 19 employee fields, 22 monthly input columns, 20 Excel parameters, 5 settlement inputs and report selectors against the current implementation; record any intentional exclusion and its replacement control.
 - [ ] Complete the employee evidence needed for seniority, insured history and eligible dependents, and classify job-classification/fixed-wage applicability where relevant.
-- [ ] Define one approved reconciliation for worked days, payable days, paid leave, sick leave, unpaid absence and mission days; block duplicate or contradictory input.
-- [ ] Define the source of truth for each deduction and prevent the same loan, advance or other deduction from being entered both manually and from a ledger.
-- [ ] Implement/validate multi-segment proration for mid-period hire, termination, wage or contract changes, or document that no affected case exists in the launch population and block such cases.
+- [ ] Obtain an approved monthly reconciliation policy for worked/payable days, paid leave, sick leave, unpaid absence and mission days; until then, keep the categories separate and do not infer payable days automatically.
+- [ ] For every deduction actually used in the launch population, identify one authoritative source and retain its legal/contractual authorization reference. The optional debt ledger is not auto-posted to payroll; the manager enters one final amount in the monthly payroll input.
+- [ ] Confirm that the launch population contains no unsupported mid-period hire, termination, wage or contract change; retain validation blockers for such cases instead of implementing multi-segment proration in this release.
 
 **Gate C — release-quality calculations and workflow**
 - [ ] Convert each approved legal interpretation into versioned RuleSet/pay-item metadata and regression tests; no pending legal classification may silently enter a final payable result.
@@ -180,23 +168,14 @@ The current branch is a development baseline, not a legally approved production 
 ## 6. Current status
 
 - Work branch: `feat/lightweight-payroll-workbench`.
-- Latest verified branch commit at this closeout: `df8285edae52c4f40b1efab043a36fc8fb903f56`.
+- Latest implementation commit verified by CI at this closeout: `df8285edae52c4f40b1efab043a36fc8fb903f56`.
 - Latest CI run: [`45670566020`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45670566020), completed successfully after correction-source validation tests: 117 tests passed, TypeScript passed and Vite production build passed.
 - Monthly shift-pattern capture, period-scoped persistence, Article 56 rate differentiation and suppression of the Article 58 35% non-shift premium for rotating patterns are implemented. The shift allowance wage base and item classification remain legal-review items.
 - Monthly attendance and leave ledgers, paid-leave integration, unpaid-leave acknowledgement, employee debt tracking, employee master/contract history, batch payroll calculation and XLSX reports are implemented to the documented boundaries.
 - The saved-run approval/payment/close workflow and versioned database backup/restore code are implemented. A pre-restore safety backup is now downloaded automatically before destructive restore. Fresh-profile, schema-migration and legacy-vault restore verification remain operational tests.
-- **Still blocks Go-Live:** daily attendance/overtime/weekly-rest evidence; approved payable-day and leave treatment; mission conditions/costs; lawful and non-duplicated deductions; complete wage/insurance/tax/pay-item classification and YTD applicability; job-classification/seniority/dependent evidence; mid-period proration; exercising correction-run workflow against an actual closed-period case; bank-specific transfer/reconciliation; signed primary legal sources; restore testing; and real-period parallel reconciliation.
+- **Still blocks Go-Live:** signed primary legal sources and reviewer approval; approved pay-item tax/insurance/wage classifications and any legally required YTD treatment; an approved payable-day/leave/mission policy; external attendance evidence and manager verification for any overtime/shift/Friday/holiday case; legal authorization for each deduction actually used; job-classification/seniority/dependent evidence where applicable; exclusion/blocking of unsupported mid-period changes; a real closed-period correction exercise; clean-profile/legacy-vault restore testing; and real-period parallel reconciliation.
 - No PR has been merged. The open PR #1 targets a different branch; this branch remains unmerged.
 
 ## 7. Change-control rule after the freeze
 
 From this point, work is limited to: (1) defects or P0 gaps that block the Phase 7 gates, (2) updating tests and documentation required to prove a gate, and (3) narrowly scoped data-safety fixes. New dashboards, convenience screens, architecture expansion, EOS development or speculative enhancements are post-launch backlog items and must not be added to this release.
-## 5. Release boundary
-
-The current branch is a development baseline, not a legally approved production payroll system. Successful tests prove only the currently automated scenarios. Operational use requires legal sign-off, complete P0 validation, verified data backups and a tested restore procedure.
-
-## 6. Current status
-
-Current work branch: `feat/lightweight-payroll-workbench`.
-
-The 8-sheet Excel input audit and formula-gap review are documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). Excel is the complete input/output coverage baseline, not the final calculation authority. Employee master stores the added fields compatibly, and a full A:V Paste/Import validates period, employee, payslip and leave balance while converting source Toman amounts to internal Rial. Payroll output is generated from one PayrollRunResult: detailed A:AN calculations plus AO:BA supplementary fields, monthly KPIs/cost-centre summary, printable per-employee payslips, bank preparation register, pay-item/tax details and warnings. Employee title, cost centre, bank details, insurance number and leave balance are retained in historical snapshots. A separate settlement case module captures all five Excel source inputs plus evidence-backed wage bases, actual worked days and months, leave encashment, prior payments, other claims and authorized deductions. Eid is prorated by worked days; severance uses actual total service duration; termination leave is not capped at the annual 9-day carryover rule. Cases are stored locally (encrypted when the vault is configured), follow Draft → Ready for Review → Approved → Paid, retain append-only event history and cannot be changed after approval except to record payment. Settlement XLSX output includes case details and audit history. **Not production-final:** settlement tax/statutory withholdings, formal approval of wage bases and legal special cases remain open; monthly payroll-run approval/closed-period immutability, bank-specific transfer files and actual bank reconciliation also remain open. Friday premium now uses the same hourly basis as overtime (base wage plus seniority), with explicit warnings when monthly overtime/Friday/holiday categories may overlap; this improves on the Excel formula but remains subject to legal review. Reviewed/approved/paid/closed payroll snapshots cannot be deleted; failed calculations may be discarded. Shift-pattern rate differentiation is now implemented, but its wage-component basis remains pending legal review. Other material gaps remain for daily overtime evidence/consent/limits, weekly rest/Friday, mission travel, lawful deductions and tax item classification. The source workbook omits leave/absence effects from its payable-day formula; software does not inherit that omission by guessing. Negative-net-pay lines are blocked from payable totals. The pull request remains open and unmerged.
