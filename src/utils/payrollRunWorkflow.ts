@@ -34,6 +34,40 @@ export interface PayrollRunWorkflowValidationIssue {
   message: string;
 }
 
+export type PayrollCorrectionSource = Pick<
+  PayrollRunResult,
+  'runId' | 'status' | 'fiscalYear' | 'month' | 'monthDays'
+> & {
+  workflow?: Pick<PayrollRunWorkflow, 'status'>;
+};
+
+export type PayrollCorrectionTarget = Pick<
+  PayrollRunResult,
+  'fiscalYear' | 'month' | 'monthDays'
+>;
+
+export function validatePayrollCorrectionRun(
+  source: PayrollCorrectionSource,
+  target: PayrollCorrectionTarget,
+  reason: string
+): string[] {
+  const issues: string[] = [];
+  if (!reason.trim()) issues.push('برای Snapshot اصلاحی، ثبت علت اصلاح الزامی است.');
+  if (
+    source.fiscalYear !== target.fiscalYear ||
+    source.month !== target.month ||
+    source.monthDays !== target.monthDays
+  ) {
+    issues.push('Snapshot اصلاحی باید دقیقاً به همان سال، ماه و تعداد روز دوره اصلی مربوط باشد.');
+  }
+  const sourceStatus = source.workflow?.status ??
+    (source.status === 'ready-for-review' ? 'ready-for-review' : 'validation-failed');
+  if (!['approved', 'paid', 'closed'].includes(sourceStatus)) {
+    issues.push('فقط دوره تأییدشده، پرداخت‌شده یا بسته‌شده می‌تواند مبنای Snapshot اصلاحی باشد.');
+  }
+  return issues;
+}
+
 /**
  * A failed calculation may be discarded before review. Once a run is ready
  * for review, its snapshot is retained as an audit record and must be
