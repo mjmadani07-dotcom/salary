@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FileSpreadsheet, Printer, RotateCcw } from 'lucide-react';
 import { YEAR_REGULATIONS } from '../data/payrollRegulations';
 import {
@@ -5,12 +6,15 @@ import {
   formatPercentFa,
   toPersianDigits,
 } from '../utils/payrollEngine';
+import { calculateOtherLevelsDailyWage } from '../utils/wageRules';
 import { downloadPayrollExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 
 export function PayrollCalculatorView() {
   const { state, computed, updateState, resetToDefaults } = useUnifiedPayroll();
   const reg = YEAR_REGULATIONS[state.year];
+  const [previousYearDailyBaseWageRial, setPreviousYearDailyBaseWageRial] = useState(0);
+  const [wageAdjustmentMessage, setWageAdjustmentMessage] = useState<string | null>(null);
   const unit = state.unit;
   const year = state.year;
   const result = computed.payrollResult;
@@ -27,6 +31,24 @@ export function PayrollCalculatorView() {
 
   return (
     <div className="space-y-6">
+      {result.ruleSetApprovalStatus !== 'approved' && (
+        <section className="border border-amber-300 bg-amber-50 rounded-xl p-4 space-y-2">
+          <div className="text-sm font-bold text-amber-900">
+            این محاسبه با نسخه قواعد تأییدنشده انجام شده است
+          </div>
+          <p className="text-xs leading-6 text-amber-900">
+            نسخه قواعد {result.ruleSetId} (ویرایش {toPersianDigits(result.ruleSetVersion)}) هنوز تأیید حقوقی نهایی ندارد؛
+            بنابراین ارقام فعلی برای توسعه و بررسی هستند و نباید به‌عنوان محاسبه نهایی تأییدشده حقوق و دستمزد تلقی شوند.
+          </p>
+          {result.legalReviewRequiredItems.filter((item) => !item.startsWith('RuleSet ')).length > 0 && (
+            <div className="text-xs text-amber-900 leading-6">
+              اقلام دارای بررسی حقوقی باز: {result.legalReviewRequiredItems
+                .filter((item) => !item.startsWith('RuleSet '))
+                .join('، ')}
+            </div>
+          )}
+        </section>
+      )}
       {/* Top 4 KPI Summary Strip */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
         <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-1">
@@ -173,6 +195,47 @@ export function PayrollCalculatorView() {
               >
                 حقوق صندلی / توافقی
               </button>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+              <div className="text-xs font-semibold text-slate-700">
+                محاسبه خودکار سایر سطوح مزدی از مزد سال قبل
+              </div>
+              <div className="text-xs text-slate-500 leading-5">
+                نرخ سال {toPersianDigits(year)}: {(reg.otherLevelsIncreaseRate * 100).toFixed(0)}٪ به‌علاوه روزانه {formatMoney(reg.otherLevelsDailyFixedIncreaseRial, unit)}؛ با رعایت کف حداقل مزد.
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={previousYearDailyBaseWageRial > 0 ? Math.round(previousYearDailyBaseWageRial / multiplierToRial) : ''}
+                  onChange={(e) => {
+                    setPreviousYearDailyBaseWageRial(Number(e.target.value) * multiplierToRial);
+                    setWageAdjustmentMessage(null);
+                  }}
+                  placeholder={`مزد روزانه سال ${Number(year) - 1} (${unit})`}
+                  className="min-w-0 px-3 py-2 text-sm tabular-nums bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-teal-700"
+                />
+                <button
+                  type="button"
+                  disabled={previousYearDailyBaseWageRial <= 0}
+                  onClick={() => {
+                    const adjustment = calculateOtherLevelsDailyWage(year, previousYearDailyBaseWageRial);
+                    updateState({
+                      wageMode: 'custom',
+                      customMonthlyBase30Rial: adjustment.adjustedDailyWageRial * 30,
+                    });
+                    setWageAdjustmentMessage(
+                      `مزد روزانه جدید: ${formatMoney(adjustment.adjustedDailyWageRial, unit)}${adjustment.minimumWageFloorApplied ? ' · کف حداقل مزد اعمال شد' : ''}`
+                    );
+                  }}
+                  className="px-3 py-2 text-xs font-semibold bg-teal-700 text-white rounded-lg disabled:opacity-40"
+                >
+                  محاسبه و اعمال
+                </button>
+              </div>
+              {wageAdjustmentMessage && (
+                <div className="text-xs font-medium text-teal-800">{wageAdjustmentMessage}</div>
+              )}
             </div>
             {state.wageMode === 'custom' && (
               <div className="space-y-1.5 pt-1">
@@ -460,17 +523,30 @@ export function PayrollCalculatorView() {
                 <button
                   type="button"
                   onClick={() =>
-                    void downloadPayrollExcelWorkbook(year, input, {
+                    void downloadPayrollExcelWorkbook({
+                    employeeName: state.employeeName || 'پرسنل تنظیم‌شده شما',
+                    periodLabel: `سال ${year} · ماه ${input.monthDays} روزه`,
+                    input,
+                    result,
+                    eos: {
                       seatName: state.employeeName || 'پرسنل تنظیم‌شده شما',
                       isGwcQualified: computed.isGwcQualified,
                       seatMonthlyBaseRial: input.dailyBaseWageRial * 30,
                       scorecardBudgetRial: state.scorecardBudgetRial,
                       scorecardAchievementPct: state.scorecardAchievementPct,
+                      scorecardBonusRial: computed.scorecardBonusRial,
                       quarterlyRockBudgetRial: state.quarterlyRockBudgetRial,
                       companyRocksPct: state.companyRocksPct,
                       individualRocksPct: state.individualRocksPct,
-                      annualProfitShareRial: state.annualProfitShareRial,
-                    })
+                      quarterlyRockEarnedRial: computed.quarterlyRockEarnedRial,
+                      monthlyRockReserveRial: computed.monthlyRockReserveRial,
+                      annualProfitShareRial: computed.annualProfitShareRial,
+                      monthlyProfitReserveRial: computed.monthlyProfitReserveRial,
+                      totalEosReservesRial: computed.totalEosReservesRial,
+                      totalCtcMonthlyRial: computed.totalCtcMonthlyRial,
+                      totalCtcAnnualRial: computed.totalCtcAnnualRial,
+                    },
+                  })
                   }
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
