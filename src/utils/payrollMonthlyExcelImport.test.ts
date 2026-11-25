@@ -78,7 +78,7 @@ test('rejects duplicate personnel, invalid days and wrong column counts', () => 
 
 test('rejects an unexpected header order rather than silently shifting source fields', () => {
   const headers = [...PAYROLL_MONTHLY_EXCEL_HEADERS];
-  [headers[2], headers[3]] = [headers[3], headers[2]];
+  [headers[4], headers[5]] = [headers[5], headers[4]];
   const result = parsePayrollMonthlyExcelPaste([headers.join('\t'), makeRow()].join('\n'));
 
   assert.ok(result.errors.some((message) => message.includes('سرستون‌های فایل')));
