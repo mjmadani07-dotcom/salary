@@ -15,9 +15,13 @@ export function hydratePayrollEmployeeFromAttendance(
 ): PayrollRunEmployee {
   if (!attendance) {
     const unpaidLeaveDays = leave?.unpaidLeaveUsedDays ?? 0;
-    if (unpaidLeaveDays <= 0) return employee;
-    return {
+    const employeeWithLeaveBalance = {
       ...employee,
+      leaveBalanceDays: leave?.closingBalanceDays,
+    };
+    if (unpaidLeaveDays <= 0) return employeeWithLeaveBalance;
+    return {
+      ...employeeWithLeaveBalance,
       masterDataIssues: [
         ...(employee.masterDataIssues ?? []).filter(
           (issue) => issue.code !== MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code,
@@ -69,6 +73,7 @@ export function hydratePayrollEmployeeFromAttendance(
       monthlyNotes: attendance.notes,
     },
     masterDataIssues: issues,
+    leaveBalanceDays: leave?.closingBalanceDays,
   };
 }
 
