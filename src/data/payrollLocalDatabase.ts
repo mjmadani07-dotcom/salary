@@ -90,7 +90,26 @@ interface EncryptedRecord extends VaultCiphertext {
 interface LegacyRecords {
   employees: StoredEmployee[];
   payrollRuns: StoredPayrollRun[];
+  employeeMasters: EmployeeMasterRecord[];
+  attendanceRecords: MonthlyAttendanceRecord[];
+  leaveRecords: MonthlyLeaveRecord[];
+  debtAccounts: EmployeeDebtAccount[];
+  debtRepayments: EmployeeDebtRepayment[];
+  otherDeductions: EmployeeOtherDeduction[];
+  settlements: PayrollSettlementCase[];
 }
+
+const PLAINTEXT_DATA_STORES = [
+  EMPLOYEE_STORE,
+  PAYROLL_RUN_STORE,
+  EMPLOYEE_MASTER_STORE,
+  ATTENDANCE_STORE,
+  LEAVE_STORE,
+  DEBT_ACCOUNT_STORE,
+  DEBT_REPAYMENT_STORE,
+  OTHER_DEDUCTION_STORE,
+  SETTLEMENT_STORE,
+] as const;
 
 export interface PayrollVaultStatus {
   configured: boolean;
@@ -242,21 +261,41 @@ function requireUnlockedKeys(): PayrollVaultKeys {
 }
 
 async function readLegacyRecords(database: IDBDatabase): Promise<LegacyRecords> {
-  const transaction = database.transaction(
-    [EMPLOYEE_STORE, PAYROLL_RUN_STORE],
-    'readonly'
-  );
+  const transaction = database.transaction([...PLAINTEXT_DATA_STORES], 'readonly');
   const completed = transactionComplete(transaction);
-  const [employees, payrollRuns] = await Promise.all([
-    requestResult(
-      transaction.objectStore(EMPLOYEE_STORE).getAll() as IDBRequest<StoredEmployee[]>
-    ),
-    requestResult(
-      transaction.objectStore(PAYROLL_RUN_STORE).getAll() as IDBRequest<StoredPayrollRun[]>
-    ),
+  const [
+    employees,
+    payrollRuns,
+    employeeMasters,
+    attendanceRecords,
+    leaveRecords,
+    debtAccounts,
+    debtRepayments,
+    otherDeductions,
+    settlements,
+  ] = await Promise.all([
+    requestResult(transaction.objectStore(EMPLOYEE_STORE).getAll() as IDBRequest<StoredEmployee[]>),
+    requestResult(transaction.objectStore(PAYROLL_RUN_STORE).getAll() as IDBRequest<StoredPayrollRun[]>),
+    requestResult(transaction.objectStore(EMPLOYEE_MASTER_STORE).getAll() as IDBRequest<EmployeeMasterRecord[]>),
+    requestResult(transaction.objectStore(ATTENDANCE_STORE).getAll() as IDBRequest<MonthlyAttendanceRecord[]>),
+    requestResult(transaction.objectStore(LEAVE_STORE).getAll() as IDBRequest<MonthlyLeaveRecord[]>),
+    requestResult(transaction.objectStore(DEBT_ACCOUNT_STORE).getAll() as IDBRequest<EmployeeDebtAccount[]>),
+    requestResult(transaction.objectStore(DEBT_REPAYMENT_STORE).getAll() as IDBRequest<EmployeeDebtRepayment[]>),
+    requestResult(transaction.objectStore(OTHER_DEDUCTION_STORE).getAll() as IDBRequest<EmployeeOtherDeduction[]>),
+    requestResult(transaction.objectStore(SETTLEMENT_STORE).getAll() as IDBRequest<PayrollSettlementCase[]>),
   ]);
   await completed;
-  return { employees, payrollRuns };
+  return {
+    employees,
+    payrollRuns,
+    employeeMasters,
+    attendanceRecords,
+    leaveRecords,
+    debtAccounts,
+    debtRepayments,
+    otherDeductions,
+    settlements,
+  };
 }
 
 async function readVaultMetadata(
@@ -400,31 +439,32 @@ async function migrateLegacyRecords(
   keys: PayrollVaultKeys
 ): Promise<number> {
   const legacy = await readLegacyRecords(database);
-  if (legacy.employees.length === 0 && legacy.payrollRuns.length === 0) return 0;
+  const plaintextCount = Object.values(legacy).reduce((sum, records) => sum + records.length, 0);
+  if (plaintextCount === 0) return 0;
 
   const encryptedRecords = await Promise.all([
-    ...legacy.employees.map((employee) =>
-      createEncryptedEmployee(keys, employee)
-    ),
-    ...legacy.payrollRuns.map((run) =>
-      createEncryptedPayrollRun(keys, run)
-    ),
+    ...legacy.employees.map((record) => createEncryptedEmployee(keys, record)),
+    ...legacy.payrollRuns.map((record) => createEncryptedPayrollRun(keys, record)),
+    ...legacy.employeeMasters.map((record) => createEncryptedEmployeeMaster(keys, record)),
+    ...legacy.attendanceRecords.map((record) => createEncryptedAttendance(keys, record)),
+    ...legacy.leaveRecords.map((record) => createEncryptedLeave(keys, record)),
+    ...legacy.debtAccounts.map((record) => createEncryptedDebtAccount(keys, record)),
+    ...legacy.debtRepayments.map((record) => createEncryptedDebtRepayment(keys, record)),
+    ...legacy.otherDeductions.map((record) => createEncryptedOtherDeduction(keys, record)),
+    ...legacy.settlements.map((record) => createEncryptedPayrollSettlement(keys, record)),
   ]);
 
   const transaction = database.transaction(
-    [
-      ENCRYPTED_RECORD_STORE,
-      EMPLOYEE_STORE,
-      PAYROLL_RUN_STORE,
-    ],
+    [ENCRYPTED_RECORD_STORE, ...PLAINTEXT_DATA_STORES],
     'readwrite'
   );
   const completed = transactionComplete(transaction);
   const encryptedStore = transaction.objectStore(ENCRYPTED_RECORD_STORE);
 
   for (const record of encryptedRecords) encryptedStore.put(record);
-  transaction.objectStore(EMPLOYEE_STORE).clear();
-  transaction.objectStore(PAYROLL_RUN_STORE).clear();
+  for (const storeName of PLAINTEXT_DATA_STORES) {
+    transaction.objectStore(storeName).clear();
+  }
 
   await completed;
   return encryptedRecords.length;
@@ -440,7 +480,7 @@ export async function getPayrollVaultStatus(): Promise<PayrollVaultStatus> {
   return {
     configured: Boolean(metadata),
     unlocked: Boolean(unlockedVaultKeys),
-    legacyRecordsCount: legacy.employees.length + legacy.payrollRuns.length,
+    legacyRecordsCount: Object.values(legacy).reduce((sum, records) => sum + records.length, 0),
   };
 }
 
@@ -462,13 +502,16 @@ export async function initializePayrollVault(passphrase: string): Promise<void> 
     value: VAULT_VERIFIER_VALUE,
   });
 
-  const [encryptedEmployees, encryptedRuns] = await Promise.all([
-    Promise.all(
-      legacy.employees.map((employee) => createEncryptedEmployee(keys, employee))
-    ),
-    Promise.all(
-      legacy.payrollRuns.map((run) => createEncryptedPayrollRun(keys, run))
-    ),
+  const encryptedRecords = await Promise.all([
+    ...legacy.employees.map((record) => createEncryptedEmployee(keys, record)),
+    ...legacy.payrollRuns.map((record) => createEncryptedPayrollRun(keys, record)),
+    ...legacy.employeeMasters.map((record) => createEncryptedEmployeeMaster(keys, record)),
+    ...legacy.attendanceRecords.map((record) => createEncryptedAttendance(keys, record)),
+    ...legacy.leaveRecords.map((record) => createEncryptedLeave(keys, record)),
+    ...legacy.debtAccounts.map((record) => createEncryptedDebtAccount(keys, record)),
+    ...legacy.debtRepayments.map((record) => createEncryptedDebtRepayment(keys, record)),
+    ...legacy.otherDeductions.map((record) => createEncryptedOtherDeduction(keys, record)),
+    ...legacy.settlements.map((record) => createEncryptedPayrollSettlement(keys, record)),
   ]);
 
   const metadata: VaultMetadata = {
@@ -482,12 +525,7 @@ export async function initializePayrollVault(passphrase: string): Promise<void> 
   };
 
   const transaction = database.transaction(
-    [
-      VAULT_METADATA_STORE,
-      ENCRYPTED_RECORD_STORE,
-      EMPLOYEE_STORE,
-      PAYROLL_RUN_STORE,
-    ],
+    [VAULT_METADATA_STORE, ENCRYPTED_RECORD_STORE, ...PLAINTEXT_DATA_STORES],
     'readwrite'
   );
   const completed = transactionComplete(transaction);
@@ -495,11 +533,10 @@ export async function initializePayrollVault(passphrase: string): Promise<void> 
   // add() makes concurrent first-time setup attempts mutually exclusive.
   transaction.objectStore(VAULT_METADATA_STORE).add(metadata);
   const encryptedStore = transaction.objectStore(ENCRYPTED_RECORD_STORE);
-  for (const record of [...encryptedEmployees, ...encryptedRuns]) {
-    encryptedStore.put(record);
+  for (const record of encryptedRecords) encryptedStore.put(record);
+  for (const storeName of PLAINTEXT_DATA_STORES) {
+    transaction.objectStore(storeName).clear();
   }
-  transaction.objectStore(EMPLOYEE_STORE).clear();
-  transaction.objectStore(PAYROLL_RUN_STORE).clear();
 
   await completed;
   unlockedVaultKeys = keys;
