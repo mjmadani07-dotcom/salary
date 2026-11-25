@@ -3,14 +3,16 @@ import { EmployeeDirectoryView } from './components/EmployeeDirectoryView';
 import { PayrollRunView } from './components/PayrollRunView';
 import { PayrollReportsView } from './components/PayrollReportsView';
 import { PayrollBackupView } from './components/PayrollBackupView';
+import { EmployeeDebtLedgerView } from './components/EmployeeDebtLedgerView';
 import { UnifiedPayrollProvider, useUnifiedPayroll } from './state/UnifiedPayrollContext';
 
-type ActiveTab = 'employees' | 'run' | 'reports' | 'backup';
+type ActiveTab = 'employees' | 'run' | 'reports' | 'debts' | 'backup';
 
 const NAV_ITEMS: Array<{ id: ActiveTab; label: string }> = [
   { id: 'employees', label: 'کارکنان' },
   { id: 'run', label: 'حقوق ماهانه' },
   { id: 'reports', label: 'گزارش و خروجی' },
+  { id: 'debts', label: 'دفتر بدهی و کسورات' },
   { id: 'backup', label: 'پشتیبان‌گیری' },
 ];
 
@@ -120,6 +122,7 @@ function AppShell() {
         {activeTab === 'reports' && (
           <PayrollReportsView onNavigateToPayroll={() => setActiveTab('run')} />
         )}
+        {activeTab === 'debts' && <EmployeeDebtLedgerView />}
         {activeTab === 'backup' && <PayrollBackupView />}
       </main>
 
