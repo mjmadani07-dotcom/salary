@@ -185,8 +185,12 @@ function makeEmployeeFromMaster(
     childrenCount: sourceInput?.childrenCount ?? baseInput?.childrenCount ?? master.eligibleChildrenCount ?? 0,
     has720DaysInsurance:
       sourceInput?.has720DaysInsurance ?? baseInput?.has720DaysInsurance ?? false,
-    insuranceSubject: sourceInput?.insuranceSubject ?? baseInput?.insuranceSubject ?? master.insuranceSubject,
-    taxSubject: sourceInput?.taxSubject ?? baseInput?.taxSubject ?? master.taxSubject,
+    insuranceSubject: snapshotLine
+      ? sourceInput?.insuranceSubject
+      : sourceInput?.insuranceSubject ?? baseInput?.insuranceSubject ?? master.insuranceSubject,
+    taxSubject: snapshotLine
+      ? sourceInput?.taxSubject
+      : sourceInput?.taxSubject ?? baseInput?.taxSubject ?? master.taxSubject,
     overtimeHours: sourceInput?.overtimeHours ?? 0,
     nightShiftHours: sourceInput?.nightShiftHours ?? 0,
     holidayHours: sourceInput?.holidayHours ?? 0,
