@@ -26,6 +26,11 @@ export interface YearRegulation {
   unemploymentInsuranceRate: number;
   insuranceCeilingMultiplier: number;
   fridayWorkPremiumRate: number;
+  hourlyDivisorDefault: number;
+  overtimeMultiplier: number;
+  nonShiftNightPremiumRate: number;
+  annualLeaveCarryoverCapDays: number;
+  monthsPerYear: number;
   shiftWorkMorningEveningRate: number;
   shiftWorkMorningEveningNightRate: number;
   shiftWorkMorningNightRate: number;
@@ -87,6 +92,11 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
       unemploymentInsuranceRate: 0.03,
       insuranceCeilingMultiplier: 7,
       fridayWorkPremiumRate: 0.4,
+      hourlyDivisorDefault: 220,
+      overtimeMultiplier: 1.4,
+      nonShiftNightPremiumRate: 0.35,
+      annualLeaveCarryoverCapDays: 9,
+      monthsPerYear: 12,
       shiftWorkMorningEveningRate: 0.10,
       shiftWorkMorningEveningNightRate: 0.15,
       shiftWorkMorningNightRate: 0.225,
@@ -199,6 +209,11 @@ export function validatePayrollRuleSet(
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
     ['insuranceCeilingMultiplier', reg.insuranceCeilingMultiplier],
     ['fridayWorkPremiumRate', reg.fridayWorkPremiumRate],
+    ['hourlyDivisorDefault', reg.hourlyDivisorDefault],
+    ['overtimeMultiplier', reg.overtimeMultiplier],
+    ['nonShiftNightPremiumRate', reg.nonShiftNightPremiumRate],
+    ['annualLeaveCarryoverCapDays', reg.annualLeaveCarryoverCapDays],
+    ['monthsPerYear', reg.monthsPerYear],
     ['shiftWorkMorningEveningRate', reg.shiftWorkMorningEveningRate],
     ['shiftWorkMorningEveningNightRate', reg.shiftWorkMorningEveningNightRate],
     ['shiftWorkMorningNightRate', reg.shiftWorkMorningNightRate],
@@ -223,6 +238,7 @@ export function validatePayrollRuleSet(
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
     ['otherLevelsIncreaseRate', reg.otherLevelsIncreaseRate],
     ['fridayWorkPremiumRate', reg.fridayWorkPremiumRate],
+    ['nonShiftNightPremiumRate', reg.nonShiftNightPremiumRate],
     ['shiftWorkMorningEveningRate', reg.shiftWorkMorningEveningRate],
     ['shiftWorkMorningEveningNightRate', reg.shiftWorkMorningEveningNightRate],
     ['shiftWorkMorningNightRate', reg.shiftWorkMorningNightRate],
@@ -236,6 +252,19 @@ export function validatePayrollRuleSet(
     }
   }
 
+  if (!Number.isInteger(reg.hourlyDivisorDefault) || reg.hourlyDivisorDefault <= 0) {
+    issues.push({ code: 'INVALID_HOURLY_DIVISOR', message: 'The default hourly divisor must be a positive integer.' });
+  }
+  if (!Number.isFinite(reg.overtimeMultiplier) || reg.overtimeMultiplier < 1) {
+    issues.push({ code: 'INVALID_OVERTIME_MULTIPLIER', message: 'The overtime multiplier must be at least 1.' });
+  }
+  if (!Number.isInteger(reg.annualLeaveCarryoverCapDays) || reg.annualLeaveCarryoverCapDays < 0) {
+    issues.push({ code: 'INVALID_LEAVE_CARRYOVER_CAP', message: 'The annual leave carryover cap must be a non-negative integer.' });
+  }
+  if (!Number.isInteger(reg.monthsPerYear) || reg.monthsPerYear !== 12) {
+    issues.push({ code: 'INVALID_MONTHS_PER_YEAR', message: 'The Jalali fiscal year must contain twelve months.' });
+  }
+
   if (reg.minMonthlyWage30Rial !== reg.minDailyWageRial * 30) {
     issues.push({
       code: 'MINIMUM_MONTHLY_WAGE_MISMATCH',
@@ -243,7 +272,7 @@ export function validatePayrollRuleSet(
     });
   }
 
-  if (reg.taxAnnualExemptionRial !== reg.taxMonthlyExemptionRial * 12) {
+  if (reg.taxAnnualExemptionRial !== reg.taxMonthlyExemptionRial * reg.monthsPerYear) {
     issues.push({
       code: 'ANNUAL_MONTHLY_TAX_EXEMPTION_MISMATCH',
       message: 'Annual tax exemption must equal twelve times the monthly exemption.',
