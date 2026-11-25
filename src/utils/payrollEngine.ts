@@ -360,12 +360,15 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     { itemId: 'non-insured-benefit', amountRial: nonInsuredBenefitsRial },
     { itemId: 'variable-bonus', amountRial: variableBonusRial },
     { itemId: 'signed-correction', amountRial: signedCorrectionRial },
+    { itemId: 'loan-installment', amountRial: Math.round(input.loanDeductionRial ?? 0) },
+    { itemId: 'salary-advance', amountRial: Math.round(input.advanceDeductionRial ?? 0) },
+    { itemId: 'other-payroll-deduction', amountRial: Math.round(input.otherDeductionsRial ?? 0) },
   ];
 
   const grossEarningsRial = payItemLines.reduce((total, line) => {
     const definition = getPayrollPayItem(line.itemId);
     return definition.includedInMonthlyGross
-      ? total + Math.max(0, Math.round(line.amountRial))
+      ? total + Math.round(line.amountRial)
       : total;
   }, 0);
 
@@ -467,20 +470,22 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
 
   const payItemBreakdown = payItemLines.map((line) => {
     const definition = getPayrollPayItem(line.itemId);
+    const isSignedCorrection = line.itemId === 'signed-correction';
+    const lineAmountRial = Math.round(line.amountRial);
     const insuranceBasisRial =
       definition.insuranceTreatment === 'included'
-        ? Math.max(0, Math.round(line.amountRial))
+        ? isSignedCorrection ? lineAmountRial : Math.max(0, lineAmountRial)
         : 0;
     const taxableBasisRial =
       definition.taxTreatment === 'taxable'
-        ? Math.max(0, Math.round(line.amountRial))
+        ? isSignedCorrection ? lineAmountRial : Math.max(0, lineAmountRial)
         : definition.taxTreatment === 'taxable-excess'
           ? Math.max(0, Math.round(line.taxableAmountRial ?? 0))
           : 0;
 
     return {
       itemId: line.itemId,
-      amountRial: Math.max(0, Math.round(line.amountRial)),
+      amountRial: isSignedCorrection ? lineAmountRial : Math.max(0, lineAmountRial),
       insuranceBasisRial,
       taxableBasisRial,
     };
