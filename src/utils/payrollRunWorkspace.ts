@@ -49,6 +49,10 @@ function makeEmployeeFromMaster(
 ): PayrollRunEmployee {
   const periodStart = periodDate(seed.year, seed.month, 1);
   const periodEnd = periodDate(seed.year, seed.month, seed.monthDays);
+  const shiftPatternPeriod = `${seed.year}-${String(seed.month).padStart(2, '0')}`;
+  const hasConfirmedShiftPatternForPeriod =
+    saved?.payrollInput.shiftWorkPatternPeriod === shiftPatternPeriod &&
+    Boolean(saved.payrollInput.shiftWorkPattern);
   const terms = resolveEmployeeTerms(master, periodStart, periodEnd);
   const isActiveForPeriod = snapshotLine ? snapshotLine.status !== 'excluded' : master.status === 'active';
   const masterDataIssues: PayrollRunLineIssue[] = [];
@@ -70,13 +74,15 @@ function makeEmployeeFromMaster(
         'تعداد روزهای کارکرد سال برای محاسبه عیدی را وارد یا تأیید کنید.'
       )
     );
-    masterDataIssues.push(
-      monthlyIssue(
-        'MONTHLY_SHIFT_PATTERN_UNCONFIRMED',
-        'shiftWorkPattern',
-        'الگوی نوبت‌کاری این کارمند را برای همین ماه مشخص کنید؛ انتخاب ماه قبل به‌صورت خودکار فرض نمی‌شود.'
-      )
-    );
+    if (!hasConfirmedShiftPatternForPeriod) {
+      masterDataIssues.push(
+        monthlyIssue(
+          'MONTHLY_SHIFT_PATTERN_UNCONFIRMED',
+          'shiftWorkPattern',
+          'الگوی نوبت‌کاری این کارمند را برای همین ماه مشخص کنید؛ انتخاب ماه قبل به‌صورت خودکار فرض نمی‌شود.'
+        )
+      );
+    }
 
     for (const issue of saved?.masterDataIssues ?? []) {
       if (STABLE_CONFIRMATION_CODES.has(issue.code)) masterDataIssues.push(issue);
@@ -200,7 +206,10 @@ function makeEmployeeFromMaster(
       : sourceInput?.taxSubject ?? baseInput?.taxSubject ?? master.taxSubject,
     overtimeHours: sourceInput?.overtimeHours ?? 0,
     nightShiftHours: sourceInput?.nightShiftHours ?? 0,
-    shiftWorkPattern: sourceInput?.shiftWorkPattern,
+    shiftWorkPattern: sourceInput?.shiftWorkPattern ??
+      (hasConfirmedShiftPatternForPeriod ? saved?.payrollInput.shiftWorkPattern : undefined),
+    shiftWorkPatternPeriod: sourceInput?.shiftWorkPatternPeriod ??
+      (hasConfirmedShiftPatternForPeriod ? saved?.payrollInput.shiftWorkPatternPeriod : undefined),
     holidayHours: sourceInput?.holidayHours ?? 0,
     variableBonusRial: sourceInput?.variableBonusRial ?? 0,
     annualWorkedDays: sourceInput?.annualWorkedDays ?? 0,
