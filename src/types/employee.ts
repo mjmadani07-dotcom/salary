@@ -1,5 +1,6 @@
 export type EmployeeStatus = 'active' | 'inactive';
 export type EmploymentContractType = 'permanent' | 'fixed-term' | 'temporary' | 'project' | 'other';
+export type EmployeeWageType = 'minimum' | 'custom';
 
 export interface EmploymentContract {
   contractId: string;
@@ -18,6 +19,10 @@ export interface WageHistoryEntry {
   effectiveFromJalali: string;
   dailyBaseWageRial: number;
   dailySeniorityRial: number;
+  /** Whether this wage entry is the statutory minimum or an individually agreed/custom wage. */
+  wageType?: EmployeeWageType;
+  /** Whether seniority allowance is applicable under the employee's terms. */
+  seniorityEligible?: boolean;
   notes: string;
 }
 
@@ -31,6 +36,17 @@ export interface EmployeeMasterRecord {
   terminationDateJalali: string | null;
   status: EmployeeStatus;
   insuranceNumber: string;
+  /** Optional payment details; digits are preserved as text to retain leading zeroes. */
+  bankAccountNumber?: string;
+  bankIban?: string;
+  /** Stable family facts; period snapshots may still override them where needed. */
+  isMarried?: boolean;
+  eligibleChildrenCount?: number;
+  /** Employee-level flags from the Excel source; not yet overrides for pay-item classifications. */
+  insuranceSubject?: boolean;
+  taxSubject?: boolean;
+  costCenter?: string;
+  notes?: string;
   contracts: EmploymentContract[];
   wageHistory: WageHistoryEntry[];
   createdAt: string;
@@ -46,6 +62,14 @@ export interface EmployeeMasterDraft {
   terminationDateJalali: string;
   status: EmployeeStatus;
   insuranceNumber: string;
+  bankAccountNumber: string;
+  bankIban: string;
+  isMarried: 'yes' | 'no' | '';
+  eligibleChildrenCount: string;
+  insuranceSubject: 'yes' | 'no' | '';
+  taxSubject: 'yes' | 'no' | '';
+  costCenter: string;
+  notes: string;
   contractNumber: string;
   contractType: EmploymentContractType;
   jobTitle: string;
@@ -55,5 +79,7 @@ export interface EmployeeMasterDraft {
   weeklyHours: string;
   dailyBaseWageRial: string;
   dailySeniorityRial: string;
+  wageType: EmployeeWageType;
+  seniorityEligible: 'yes' | 'no' | '';
   wageFromJalali: string;
 }
