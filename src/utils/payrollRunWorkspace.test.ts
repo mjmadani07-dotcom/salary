@@ -274,6 +274,39 @@ test('requires an explicit shift-work pattern for a new payroll period', () => {
   ));
 });
 
+test('restores a confirmed shift pattern only in the same payroll period', () => {
+  const samePeriod = makeSavedEmployee({
+    payrollInput: {
+      ...makeSavedEmployee().payrollInput,
+      shiftWorkPattern: 'morning-evening-night',
+      shiftWorkPatternPeriod: '1405-01',
+    },
+  });
+  const samePeriodRows = createPayrollWorkspaceEmployees({
+    ...standardSeed,
+    month: 1,
+    savedEmployees: [samePeriod],
+  });
+  const samePeriodEmployee = samePeriodRows.find((row) => row.employeeId === 'emp-001');
+  assert.ok(samePeriodEmployee);
+  assert.equal(samePeriodEmployee.payrollInput.shiftWorkPattern, 'morning-evening-night');
+  assert.equal(samePeriodEmployee.masterDataIssues?.some((issue) =>
+    issue.code === 'MONTHLY_SHIFT_PATTERN_UNCONFIRMED'
+  ), false);
+
+  const nextPeriodRows = createPayrollWorkspaceEmployees({
+    ...standardSeed,
+    month: 2,
+    savedEmployees: [samePeriod],
+  });
+  const nextPeriodEmployee = nextPeriodRows.find((row) => row.employeeId === 'emp-001');
+  assert.ok(nextPeriodEmployee);
+  assert.equal(nextPeriodEmployee.payrollInput.shiftWorkPattern, undefined);
+  assert.ok(nextPeriodEmployee.masterDataIssues?.some((issue) =>
+    issue.code === 'MONTHLY_SHIFT_PATTERN_UNCONFIRMED'
+  ));
+});
+
 test('keeps a historically calculated employee active when the current master record is now inactive', () => {
   const snapshot = makeSnapshot([{
     employeeId: 'emp-001',
