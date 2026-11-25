@@ -609,13 +609,13 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                   {filteredEmployees.map((employee) => {
                     const disabled = !employee.isActive || isSaving;
                     const rowIssues = employee.masterDataIssues ?? [];
+                    const calculatedLine = runResult?.lines.find((line) => line.employeeId === employee.employeeId);
                     const displayedIssues = rowIssues.length > 0 ? rowIssues : calculatedLine?.issues ?? [];
                     const workDaysMissing = hasIssue(employee, 'MONTHLY_WORK_DAYS_UNCONFIRMED');
                     const annualDaysMissing = hasIssue(employee, 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED');
                     const maritalMissing = hasIssue(employee, 'MONTHLY_MARITAL_STATUS_UNCONFIRMED');
                     const childrenMissing = hasIssue(employee, 'MONTHLY_CHILDREN_COUNT_UNCONFIRMED');
                     const insuranceMissing = hasIssue(employee, 'MONTHLY_720_DAY_INSURANCE_UNCONFIRMED');
-                    const calculatedLine = runResult?.lines.find((line) => line.employeeId === employee.employeeId);
                     const cellClass = 'border-l border-slate-100 px-2 py-2 align-middle';
                     const requiredInputClass = (missing: boolean, width = 'w-20') =>
                       `${inputClass(width)} ${missing ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : ''}`;
