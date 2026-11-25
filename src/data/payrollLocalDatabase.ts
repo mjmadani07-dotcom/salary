@@ -2,7 +2,8 @@ import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEn
 import type { EmployeeMasterRecord } from '../types/employee';
 import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/attendance';
 import type { MonthlyLeaveRecord, MonthlyLeaveDraft } from '../types/leave';
-import type { PayrollSettlementCase } from '../types/payrollSettlement';
+import type { PayrollSettlementCase, PayrollSettlementAuditEventType } from '../types/payrollSettlement';
+import { validatePayrollSettlementTransition } from '../utils/payrollSettlement';
 import type {
   EmployeeDebtAccount,
   EmployeeDebtAccountDraft,
@@ -744,6 +745,66 @@ export async function deleteEmployeeMasterRecord(employeeId: string): Promise<vo
 }
 
 
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return '[' + value.map((item) => stableStringify(item)).join(',') + ']';
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return '{' + Object.keys(record).sort().map((key) =>
+      JSON.stringify(key) + ':' + stableStringify(record[key])
+    ).join(',') + '}';
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+function assertApprovedSettlementImmutable(
+  current: PayrollSettlementCase,
+  next: PayrollSettlementCase
+): void {
+  const allowedPaymentFields = new Set([
+    'status',
+    'updatedAt',
+    'paymentDate',
+    'paymentReference',
+    'paidAmountRial',
+    'paymentDifferenceReason',
+    'auditTrail',
+  ]);
+  const snapshot = (value: PayrollSettlementCase) =>
+    Object.fromEntries(Object.entries(value).filter(([key]) => !allowedPaymentFields.has(key)));
+  if (stableStringify(snapshot(current)) !== stableStringify(snapshot(next))) {
+    throw new Error('پس از تأیید، مبانی و ارقام پرونده قابل تغییر نیستند؛ در صورت نیاز باید پرونده اصلاحی مستقل ایجاد شود.');
+  }
+}
+
+function createSettlementAuditEvent(
+  eventType: PayrollSettlementAuditEventType,
+  status: PayrollSettlementCase['status'],
+  occurredAt: string,
+  input: PayrollSettlementCase
+) {
+  return {
+    eventId: crypto.randomUUID(),
+    eventType,
+    status,
+    occurredAt,
+    ...(eventType === 'approved' && input.approverName
+      ? { actorName: input.approverName.trim() }
+      : {}),
+    ...(eventType === 'approved' && input.approvalReference
+      ? { reference: input.approvalReference.trim() }
+      : {}),
+    ...(eventType === 'paid' && input.paymentReference
+      ? { reference: input.paymentReference.trim() }
+      : {}),
+    ...(eventType === 'paid'
+      ? { note: 'پرداخت با تاریخ و مبلغ ثبت‌شده در پرونده تسویه' }
+      : {}),
+  };
+}
+
 export async function savePayrollSettlementCase(
   input: PayrollSettlementCase
 ): Promise<PayrollSettlementCase> {
@@ -762,21 +823,76 @@ export async function savePayrollSettlementCase(
 
   const database = await openDatabase();
   const metadata = await readVaultMetadata(database);
+  let current: PayrollSettlementCase | undefined;
+  let keys: PayrollVaultKeys | undefined;
+
   if (metadata) {
-    const keys = requireUnlockedKeys();
-    const record = await createEncryptedPayrollSettlement(keys, normalized);
+    keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'settlement', normalized.settlementId);
+    const encrypted = await getEncryptedRecord(id);
+    if (encrypted) {
+      current = await decryptVaultPayload<PayrollSettlementCase>(keys, encrypted.id, encrypted);
+    }
+  } else {
+    const readTransaction = database.transaction(SETTLEMENT_STORE, 'readonly');
+    const readCompleted = transactionComplete(readTransaction);
+    current = await requestResult(
+      readTransaction.objectStore(SETTLEMENT_STORE).get(normalized.settlementId) as IDBRequest<PayrollSettlementCase | undefined>
+    );
+    await readCompleted;
+  }
+
+  const transitionIssues = validatePayrollSettlementTransition(current?.status ?? null, normalized.status);
+  if (transitionIssues.length > 0) throw new Error(transitionIssues.join(' '));
+  if (current?.status === 'approved') {
+    if (normalized.status !== 'paid') {
+      throw new Error('پرونده تأییدشده فقط با ثبت پرداخت قابل تغییر است.');
+    }
+    assertApprovedSettlementImmutable(current, normalized);
+  }
+  if (current?.status === 'paid') {
+    throw new Error('پرونده پرداخت‌شده غیرقابل‌ویرایش است.');
+  }
+
+  const eventType: PayrollSettlementAuditEventType | null = !current
+    ? 'created'
+    : current.status !== normalized.status
+      ? normalized.status === 'ready-for-review'
+        ? 'submitted-for-review'
+        : normalized.status === 'draft'
+          ? 'returned-to-draft'
+          : normalized.status === 'approved'
+            ? 'approved'
+            : normalized.status === 'paid'
+              ? 'paid'
+              : normalized.status === 'cancelled'
+                ? 'cancelled'
+                : null
+      : normalized.status === 'draft'
+        ? 'draft-updated'
+        : null;
+  const previousAudit = current?.auditTrail ?? [];
+  const normalizedWithAudit: PayrollSettlementCase = {
+    ...normalized,
+    auditTrail: eventType
+      ? [...previousAudit, createSettlementAuditEvent(eventType, normalized.status, now, normalized)]
+      : previousAudit,
+  };
+
+  if (metadata && keys) {
+    const record = await createEncryptedPayrollSettlement(keys, normalizedWithAudit);
     const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
     const completed = transactionComplete(transaction);
     transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
     await completed;
-    return normalized;
+    return normalizedWithAudit;
   }
 
   const transaction = database.transaction(SETTLEMENT_STORE, 'readwrite');
   const completed = transactionComplete(transaction);
-  transaction.objectStore(SETTLEMENT_STORE).put(normalized);
+  transaction.objectStore(SETTLEMENT_STORE).put(normalizedWithAudit);
   await completed;
-  return normalized;
+  return normalizedWithAudit;
 }
 
 export async function listPayrollSettlementCases(
