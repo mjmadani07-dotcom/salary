@@ -183,7 +183,6 @@ export function createPayrollWorkspaceEmployees(
   const seen = new Set<string>();
 
   const masterRows = seed.employeeMasters
-    .filter((master) => master.status === 'active')
     .map((master) => {
       seen.add(master.employeeId);
       return makeEmployeeFromMaster(
