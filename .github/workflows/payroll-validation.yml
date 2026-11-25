@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/payroll-rule-registry-engine
+      - feat/lightweight-payroll-workbench
   pull_request:
     branches:
       - main
