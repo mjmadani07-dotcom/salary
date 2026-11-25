@@ -64,7 +64,7 @@ export function parsePayrollGridPasteCell(
   const parsed = parseNumber(rawValue);
   if (parsed === undefined) {
     return rawValue.trim().length === 0
-      ? { valid: true, empty: true, value: field === 'variableBonusRial' || field !== 'variableBonusRial' ? 0 : 0 }
+      ? { valid: true, empty: true, value: 0 }
       : { valid: false, empty: false };
   }
 
