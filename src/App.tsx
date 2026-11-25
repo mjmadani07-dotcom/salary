@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { EmployeeDirectoryView } from './components/EmployeeDirectoryView';
 import { PayrollRunView } from './components/PayrollRunView';
 import { PayrollReportsView } from './components/PayrollReportsView';
@@ -8,16 +9,15 @@ import { UnifiedPayrollProvider, useUnifiedPayroll } from './state/UnifiedPayrol
 
 type ActiveTab = 'employees' | 'run' | 'reports' | 'debts' | 'backup';
 
-const NAV_ITEMS: Array<{ id: ActiveTab; label: string }> = [
+const NAV_ITEMS: Array<{ id: Exclude<ActiveTab, 'debts' | 'backup'>; label: string }> = [
   { id: 'employees', label: 'کارکنان' },
   { id: 'run', label: 'حقوق ماهانه' },
   { id: 'reports', label: 'گزارش و خروجی' },
-  { id: 'debts', label: 'دفتر بدهی و کسورات' },
-  { id: 'backup', label: 'پشتیبان‌گیری' },
 ];
 
 function AppShell() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('run');
+  const [utilitiesOpen, setUtilitiesOpen] = useState(false);
   const { state, updateState } = useUnifiedPayroll();
   const { year, unit } = state;
 
@@ -43,7 +43,10 @@ function AppShell() {
               <button
                 key={id}
                 type="button"
-                onClick={() => setActiveTab(id)}
+                onClick={() => {
+                  setActiveTab(id);
+                  setUtilitiesOpen(false);
+                }}
                 aria-current={activeTab === id ? 'page' : undefined}
                 className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                   activeTab === id
@@ -54,6 +57,53 @@ function AppShell() {
                 {label}
               </button>
             ))}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setUtilitiesOpen((open) => !open)}
+                aria-expanded={utilitiesOpen}
+                aria-controls="secondary-utilities-menu"
+                className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  activeTab === 'debts' || activeTab === 'backup'
+                    ? 'bg-slate-200 text-slate-900'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                ابزارهای جانبی
+                <ChevronDown className={`h-4 w-4 transition-transform ${utilitiesOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {utilitiesOpen && (
+                <div
+                  id="secondary-utilities-menu"
+                  className="absolute left-0 top-full z-30 mt-2 min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('debts');
+                      setUtilitiesOpen(false);
+                    }}
+                    className={`block w-full rounded-md px-3 py-2 text-right text-sm hover:bg-slate-100 ${
+                      activeTab === 'debts' ? 'bg-slate-100 font-semibold text-slate-900' : 'text-slate-700'
+                    }`}
+                  >
+                    دفتر بدهی و کسورات
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('backup');
+                      setUtilitiesOpen(false);
+                    }}
+                    className={`block w-full rounded-md px-3 py-2 text-right text-sm hover:bg-slate-100 ${
+                      activeTab === 'backup' ? 'bg-slate-100 font-semibold text-slate-900' : 'text-slate-700'
+                    }`}
+                  >
+                    پشتیبان‌گیری و بازیابی
+                  </button>
+                </div>
+              )}
+            </div>
           </nav>
         </div>
       </header>
