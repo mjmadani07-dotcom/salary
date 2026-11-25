@@ -50,6 +50,7 @@ function makeEmployeeFromMaster(
   const periodStart = periodDate(seed.year, seed.month, 1);
   const periodEnd = periodDate(seed.year, seed.month, seed.monthDays);
   const terms = resolveEmployeeTerms(master, periodStart, periodEnd);
+  const isActiveForPeriod = snapshotLine ? snapshotLine.status !== 'excluded' : master.status === 'active';
   const masterDataIssues: PayrollRunLineIssue[] = [];
 
   if (snapshotLine) {
@@ -95,29 +96,30 @@ function makeEmployeeFromMaster(
     }
   }
 
-  const periodRelevantTermIssues = terms.issues.filter((issue) =>
-    !(snapshotLine && snapshotLine.status !== 'excluded' && issue.code === 'EMPLOYEE_INACTIVE')
-  );
-  masterDataIssues.push(
-    ...periodRelevantTermIssues.map((issue) => ({
-      code: issue.code,
-      message: issue.message,
-      field: issue.field,
-    }))
-  );
+  if (isActiveForPeriod) {
+    masterDataIssues.push(
+      ...terms.issues.filter((issue) => issue.code !== 'EMPLOYEE_INACTIVE').map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        field: issue.field,
+      }))
+    );
+  }
 
   let serviceYears = saved?.payrollInput.serviceYearsForSeverance ?? 0;
   let serviceExtraDays = saved?.payrollInput.serviceExtraDaysForSeverance ?? 0;
-  try {
-    const duration = calculateServiceDurationJalali(master.hireDateJalali, periodEnd);
-    serviceYears = duration.completedYears;
-    serviceExtraDays = duration.additionalDays;
-  } catch (error) {
-    masterDataIssues.push({
-      code: 'INVALID_SERVICE_DURATION',
-      message: error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.',
-      field: 'hireDateJalali',
-    });
+  if (isActiveForPeriod) {
+    try {
+      const duration = calculateServiceDurationJalali(master.hireDateJalali, periodEnd);
+      serviceYears = duration.completedYears;
+      serviceExtraDays = duration.additionalDays;
+    } catch (error) {
+      masterDataIssues.push({
+        code: 'INVALID_SERVICE_DURATION',
+        message: error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.',
+        field: 'hireDateJalali',
+      });
+    }
   }
 
   const sourceInput = snapshotLine?.payrollInput;
@@ -160,7 +162,7 @@ function makeEmployeeFromMaster(
     employeeId: master.employeeId,
     personnelCode: master.personnelCode,
     fullName: `${master.firstName} ${master.lastName}`.trim(),
-    isActive: snapshotLine ? snapshotLine.status !== 'excluded' : master.status === 'active',
+    isActive: isActiveForPeriod,
     payrollInput,
     masterDataIssues,
   };
