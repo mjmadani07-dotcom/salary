@@ -468,7 +468,7 @@ export async function buildPayrollExcelWorkbook(
     10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
     26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 41, 50, 51, 52,
   ]);
-  calculations.autoFilter = { from: 'A1', to: 'AZ1' };
+  calculations.autoFilter = { from: 'A1', to: 'BA1' };
 
   // Period management summary and cost-center consolidation.
   const monthlySummary = workbook.addWorksheet('خلاصه ماهانه', {
@@ -722,6 +722,35 @@ export async function buildPayrollExcelWorkbook(
     styleHeaderRow(sheet.getRow(1));
     sheet.views = [{ rightToLeft: true, state: 'frozen', ySplit: 1 }];
   }
+
+  const monthlySummaryOutput = workbook.getWorksheet('خلاصه ماهانه');
+  if (monthlySummaryOutput) {
+    monthlySummaryOutput.eachRow((row) => {
+      if (row.getCell(1).value === 'تفکیک مرکز هزینه') {
+        styleHeaderRow(row, 'FF334155');
+      }
+    });
+  }
+
+  const settlementOutput = workbook.getWorksheet('عیدی و تسویه');
+  if (settlementOutput) {
+    const noteRow = settlementOutput.getRow(1);
+    noteRow.font = { name: 'Tahoma', size: 10, bold: true, color: { argb: 'FF9A3412' } };
+    noteRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+    noteRow.alignment = { vertical: 'middle', horizontal: 'right', wrapText: true };
+    noteRow.height = 38;
+    styleHeaderRow(settlementOutput.getRow(2), 'FF334155');
+  }
+
+  workbook.worksheets.forEach((sheet) => {
+    if (sheet.name.startsWith('فیش ')) {
+      sheet.eachRow((row) => {
+        const firstCell = row.getCell(1).value;
+        if (firstCell === 'خلاصه کارکرد') styleHeaderRow(row, 'FF334155');
+        if (firstCell === 'اقلام پرداختی') styleHeaderRow(row, 'FF0F766E');
+      });
+    }
+  });
 
   return workbook;
 }
