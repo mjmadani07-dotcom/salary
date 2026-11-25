@@ -108,7 +108,7 @@ const standardSeed = {
   minDailyWageRial: 5_541_850,
 };
 
-test('loads every active employee and marks unconfirmed monthly/statutory facts', () => {
+test('loads all employee records, including inactive rows, and marks unconfirmed monthly/statutory facts', () => {
   const active = makeMaster();
   const inactive = makeMaster({
     employeeId: 'emp-002',
@@ -205,6 +205,33 @@ test('restores period-specific inputs from the matching saved snapshot and inclu
   assert.equal(restored.payrollInput.annualWorkedDays, 220);
   assert.equal(restored.masterDataIssues?.some((issue) => issue.code === 'MONTHLY_WORK_DAYS_UNCONFIRMED'), false);
   assert.ok(newlyAdded.masterDataIssues?.some((issue) => issue.code === 'MONTHLY_WORK_DAYS_UNCONFIRMED'));
+});
+
+test('keeps a historically calculated employee active when the current master record is now inactive', () => {
+  const snapshot = makeSnapshot([{
+    employeeId: 'emp-001',
+    personnelCode: 'P-001',
+    fullName: 'علی رضایی',
+    status: 'calculated',
+    issues: [],
+    payrollInput: { ...makeSavedEmployee().payrollInput, monthDays: 30 },
+  }]);
+
+  const rows = createPayrollWorkspaceEmployees({
+    ...standardSeed,
+    month: 2,
+    monthDays: 30,
+    employeeMasters: [makeMaster({
+      status: 'inactive',
+      terminationDateJalali: '1405-05-01',
+    })],
+    savedEmployees: [],
+    savedRun: snapshot,
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].isActive, true);
+  assert.equal(rows[0].masterDataIssues?.some((issue) => issue.code === 'EMPLOYEE_INACTIVE'), false);
 });
 
 test('preserves legacy employee rows that do not yet have an employee master record', () => {
