@@ -54,6 +54,14 @@ export function validateEmployeeDebtAccount(input: EmployeeDebtAccountDraft): De
         (!Number.isInteger(input.installmentLimit) || input.installmentLimit <= 0)) {
       add('INVALID_INSTALLMENT_LIMIT', 'installmentLimit', 'تعداد اقساط باید عدد صحیح و بزرگ‌تر از صفر باشد.');
     }
+    if (input.installmentLimit !== null &&
+        Number.isInteger(input.installmentLimit) && input.installmentLimit > 0 &&
+        Number.isSafeInteger(input.monthlyInstallmentRial) &&
+        (input.monthlyInstallmentRial ?? 0) > 0 &&
+        Number.isSafeInteger(input.principalRial) &&
+        input.installmentLimit * input.monthlyInstallmentRial! < input.principalRial) {
+      add('INSTALLMENT_SCHEDULE_SHORTFALL', 'installmentLimit', 'مجموع مبلغ اقساط ثبت‌شده از اصل بدهی کمتر است؛ مبلغ قسط یا تعداد اقساط را اصلاح کنید.');
+    }
     if (isJalaliDate(input.issueDateJalali) && input.firstDueFiscalYear &&
         isValidPeriod(input.firstDueFiscalYear, input.firstDueMonth ?? 0)) {
       const firstIssuePeriod = datePeriod(input.issueDateJalali);
@@ -93,8 +101,8 @@ export function validateDebtRepayment(
   }
   if (!['cash', 'bank', 'other'].includes(repayment.paymentMethod)) add('INVALID_PAYMENT_METHOD', 'paymentMethod', 'روش وصول معتبر نیست.');
   if (isJalaliDate(repayment.repaymentDateJalali) &&
-      periodIndex(datePeriod(repayment.repaymentDateJalali)) <
-      periodIndex(datePeriod(account.issueDateJalali))) {
+      isJalaliDate(account.issueDateJalali) &&
+      repayment.repaymentDateJalali < account.issueDateJalali) {
     add('REPAYMENT_BEFORE_ISSUE', 'repaymentDateJalali', 'تاریخ وصول نمی‌تواند قبل از تاریخ پرداخت اصل بدهی باشد.');
   }
   const totalPaid = priorRepayments
