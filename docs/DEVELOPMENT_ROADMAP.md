@@ -110,4 +110,4 @@ The current branch is a development baseline, not a legally approved production 
 
 Last verified development branch: `feat/payroll-rule-registry-engine`.
 
-The attendance/leave reconciliation review gate is implemented. Latest verified CI run [45562922476](https://github.com/mjmadani07-dotcom/salary/actions/runs/45562922476) passed 43 tests, TypeScript validation and production build. The pull request remains open and unmerged.
+The attendance/leave reconciliation review gate is implemented. Latest verified CI runs [45563290173](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563290173) and [45563284500](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563284500) both passed 44 tests, TypeScript validation and production build. The pull request remains open and unmerged.
