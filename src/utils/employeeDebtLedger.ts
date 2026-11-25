@@ -86,6 +86,11 @@ export function validateDebtRepayment(
     add('INVALID_REPAYMENT_AMOUNT', 'amountRial', 'مبلغ وصول باید مبلغ ریالی صحیح و بزرگ‌تر از صفر باشد.');
   }
   if (!isJalaliDate(repayment.repaymentDateJalali)) add('INVALID_REPAYMENT_DATE', 'repaymentDateJalali', 'تاریخ وصول معتبر نیست.');
+  if (isJalaliDate(repayment.repaymentDateJalali) &&
+      (repayment.fiscalYear !== repayment.repaymentDateJalali.slice(0, 4) ||
+       repayment.month !== Number(repayment.repaymentDateJalali.slice(5, 7)))) {
+    add('REPAYMENT_PERIOD_MISMATCH', 'fiscalYear', 'سال و ماه وصول باید با تاریخ شمسی وصول مطابقت داشته باشد.');
+  }
   if (!['cash', 'bank', 'other'].includes(repayment.paymentMethod)) add('INVALID_PAYMENT_METHOD', 'paymentMethod', 'روش وصول معتبر نیست.');
   if (isJalaliDate(repayment.repaymentDateJalali) &&
       periodIndex(datePeriod(repayment.repaymentDateJalali)) <
