@@ -147,6 +147,8 @@ test('multi-employee export contains calculation, payslip, monthly summary, bank
     payslipId: 'PAY-1405-01-P001',
     paymentDate: '1405-02-01',
     monthlyNotes: 'یادداشت خروجی',
+    shiftWorkPattern: 'morning-evening-night',
+    shiftWorkPatternPeriod: '1405-01',
   });
   const run = calculatePayrollRun(
     { runId: 'PAY-1405-01-OUTPUT', fiscalYear: '1405', month: 1, monthDays: 30 },
@@ -173,12 +175,14 @@ test('multi-employee export contains calculation, payslip, monthly summary, bank
   const summary = workbook.getWorksheet('خلاصه ماهانه');
   const bank = workbook.getWorksheet('لیست پرداخت بانکی');
   const settlement = workbook.getWorksheet('عیدی و تسویه');
+  const register = workbook.getWorksheet('لیست حقوق');
   const payslip = workbook.getWorksheet('فیش P-001');
 
   assert.ok(calculations);
   assert.ok(summary);
   assert.ok(bank);
   assert.ok(settlement);
+  assert.ok(register);
   assert.ok(payslip);
 
   assert.equal(calculations.getCell('A2').value, 'PAY-1405-01-P001');
@@ -191,6 +195,10 @@ test('multi-employee export contains calculation, payslip, monthly summary, bank
   assert.equal(calculations.getCell('Y2').value, result.grossEarningsRial);
   assert.equal(calculations.getCell('AN2').value, 'محاسبه شد - نیازمند بررسی و تأیید');
   assert.equal(calculations.getCell('BA2').value, 'یادداشت خروجی');
+  assert.equal(calculations.getCell('BB2').value, 'صبح و عصر و شب');
+  assert.equal(calculations.getCell('BC2').value, result.shiftWorkPremiumRial);
+  assert.equal(register.getCell('AA2').value, 'صبح و عصر و شب');
+  assert.equal(register.getCell('AB2').value, result.shiftWorkPremiumRial);
 
   assert.equal(bank.getCell('C2').value, '0012345678');
   assert.equal(bank.getCell('E2').value, result.netPayRial);
@@ -205,6 +213,9 @@ test('multi-employee export contains calculation, payslip, monthly summary, bank
 
   assert.equal(payslip.getCell('A1').value, 'فیش حقوق و دستمزد');
   assert.ok(payslip.rowCount > 20);
+  const payslipValues: unknown[] = [];
+  payslip.eachRow((row) => row.eachCell((cell) => payslipValues.push(cell.value)));
+  assert.ok(payslipValues.includes('فوق‌العاده نوبت‌کاری'));
   assert.equal(settlement.getCell('A1').value?.toString().startsWith('توجه:'), true);
   assert.equal(settlement.getCell('D3').value, firstInput.annualWorkedDays);
   assert.equal(settlement.getCell('K3').value, 7.5);
