@@ -111,3 +111,15 @@ test('rejects a repayment dated before the issue date even within the same month
   assert.ok(validateDebtRepayment(earlierRepayment, accountIssuedLater, [])
     .some(item => item.code === 'REPAYMENT_BEFORE_ISSUE'));
 });
+
+test('reports no remaining installments after the principal is fully repaid', () => {
+  const settled = calculateDebtScheduleSummary(account, [
+    repayment(250_000, '1405-01-15'),
+    repayment(250_000, '1405-02-15'),
+    repayment(250_000, '1405-03-15'),
+    repayment(250_000, '1405-04-15'),
+  ], { fiscalYear: '1405', month: 4 });
+  assert.equal(settled.outstandingRial, 0);
+  assert.equal(settled.totalDueRial, 0);
+  assert.equal(settled.installmentsRemaining, 0);
+});
