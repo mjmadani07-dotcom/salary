@@ -70,7 +70,7 @@ Where this repository currently links a re-publication or news report rather tha
 | Leave | Monthly leave balance; unpaid-leave reconciliation gate blocks mismatches | Legal conversion to payable days, daily approval and automatic entitlement policy |
 | Insurance | General rates and 7x cap in the calculation engine | Special regimes and complete item classification |
 | Tax | Annual RuleSet values with monthly progressive calculation | YTD/multiple-source reconciliation, fully reviewed allowances and one-off payment treatment |
-| Employee deductions | Not implemented | Separate advance/loan/repayment and agreed-deduction ledger |
+| Employee deductions | Initial local tracking ledger implemented | Separate advance/loan/repayment and reviewed other-deduction records exist; lawful recovery review and approved payroll posting remain open. No automatic payroll deduction occurs. |
 
 ## 5. Implementation rule
 
