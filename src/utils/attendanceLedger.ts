@@ -27,6 +27,38 @@ export function validateMonthlyAttendance(record: MonthlyAttendanceDraft): Atten
       add('INVALID_' + field.toUpperCase(), field, 'مقدار این قلم نمی‌تواند منفی یا نامعتبر باشد.');
     }
   }
+  for (const field of [
+    'paidLeaveDays',
+    'sickLeaveDays',
+    'unpaidAbsenceDays',
+    'fridayHours',
+    'missionDays',
+    'insuredBenefitsRial',
+    'nonInsuredBenefitsRial',
+    'loanDeductionRial',
+    'advanceDeductionRial',
+    'otherDeductionsRial',
+  ] as const) {
+    const value = record[field];
+    if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+      add('INVALID_' + field.toUpperCase(), field, 'مقدار این ورودی باید عددی و غیرمنفی باشد.');
+    }
+  }
+  if (
+    record.signedCorrectionRial !== undefined &&
+    !Number.isFinite(record.signedCorrectionRial)
+  ) {
+    add('INVALID_SIGNED_CORRECTION', 'signedCorrectionRial', 'اصلاح حقوق باید عددی معتبر و می‌تواند مثبت یا منفی باشد.');
+  }
+  for (const field of ['paidLeaveDays', 'sickLeaveDays', 'unpaidAbsenceDays', 'missionDays'] as const) {
+    const value = record[field];
+    if (value !== undefined && value > record.monthDays) {
+      add('INVALID_' + field.toUpperCase(), field, 'تعداد روز این ورودی نمی‌تواند از طول ماه بیشتر باشد.');
+    }
+  }
+  if (record.payslipId !== undefined && record.payslipId.trim().length > 80) {
+    add('INVALID_PAYSLIP_ID', 'payslipId', 'شناسه فیش نمی‌تواند بیش از ۸۰ نویسه باشد.');
+  }
   if (record.reviewedUnpaidLeaveDays !== undefined &&
       (!Number.isFinite(record.reviewedUnpaidLeaveDays) || record.reviewedUnpaidLeaveDays < 0 || record.reviewedUnpaidLeaveDays > record.monthDays)) {
     add('INVALID_REVIEWED_UNPAID_LEAVE_DAYS', 'reviewedUnpaidLeaveDays', 'روزهای مرخصی بدون حقوق تأییدشده باید بین صفر و طول ماه باشد.');
