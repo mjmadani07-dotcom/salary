@@ -79,7 +79,7 @@ export interface EmployeeMasterDraft {
   weeklyHours: string;
   dailyBaseWageRial: string;
   dailySeniorityRial: string;
-  wageType: EmployeeWageType;
+  wageType: EmployeeWageType | '';
   seniorityEligible: 'yes' | 'no' | '';
   wageFromJalali: string;
 }
