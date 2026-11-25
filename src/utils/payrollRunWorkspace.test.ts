@@ -122,11 +122,13 @@ test('loads every active employee and marks unconfirmed monthly/statutory facts'
     savedEmployees: [],
   });
 
-  assert.equal(rows.length, 1);
+  assert.equal(rows.length, 2);
   assert.equal(rows[0].employeeId, 'emp-001');
   assert.equal(rows[0].payrollInput.dailyBaseWageRial, 8_000_000);
   assert.equal(rows[0].payrollInput.workDays, 31);
   assert.equal(rows[0].payrollInput.annualWorkedDays, 0);
+  assert.equal(rows[1].employeeId, 'emp-002');
+  assert.equal(rows[1].isActive, false);
 
   const issueCodes = rows[0].masterDataIssues?.map((issue) => issue.code) ?? [];
   assert.ok(issueCodes.includes('MONTHLY_WORK_DAYS_UNCONFIRMED'));
