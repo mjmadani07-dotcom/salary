@@ -129,6 +129,97 @@ test('Excel detail sheet includes central pay-item classifications', async () =>
   );
 });
 
+test('multi-employee export contains calculation, payslip, monthly summary, bank and settlement outputs', async () => {
+  const firstInput = makeInput({
+    paidLeaveDays: 2,
+    sickLeaveDays: 1,
+    unpaidAbsenceDays: 1,
+    fridayHours: 3,
+    missionDays: 1,
+    insuredBenefitsRial: 1_200_000,
+    nonInsuredBenefitsRial: 800_000,
+    loanDeductionRial: 300_000,
+    advanceDeductionRial: 150_000,
+    otherDeductionsRial: 50_000,
+    signedCorrectionRial: -25_000,
+    payslipId: 'PAY-1405-01-P001',
+    paymentDate: '1405-02-01',
+    monthlyNotes: 'یادداشت خروجی',
+  });
+  const run = calculatePayrollRun(
+    { runId: 'PAY-1405-01-OUTPUT', fiscalYear: '1405', month: 1, monthDays: 30 },
+    [{
+      employeeId: 'emp-001',
+      personnelCode: 'P-001',
+      fullName: 'کارمند اول',
+      isActive: true,
+      payrollInput: firstInput,
+      jobTitle: 'کارشناس مالی',
+      costCenter: 'اداری',
+      bankAccountNumber: '0012345678',
+      bankIban: 'IR000000000000000000000000',
+      insuranceNumber: 'INS-001',
+      hireDateJalali: '1400-01-01',
+      leaveBalanceDays: 7.5,
+    }],
+  );
+  const result = run.lines[0].result;
+  assert.ok(result);
+
+  const workbook = await buildPayrollRunExcelWorkbook(run);
+  const calculations = workbook.getWorksheet('محاسبات حقوق');
+  const summary = workbook.getWorksheet('خلاصه ماهانه');
+  const bank = workbook.getWorksheet('لیست پرداخت بانکی');
+  const settlement = workbook.getWorksheet('عیدی و تسویه');
+  const payslip = workbook.getWorksheet('فیش P-001');
+
+  assert.ok(calculations);
+  assert.ok(summary);
+  assert.ok(bank);
+  assert.ok(settlement);
+  assert.ok(payslip);
+
+  assert.equal(calculations.getCell('A2').value, 'PAY-1405-01-P001');
+  assert.equal(calculations.getCell('F2').value, 'کارشناس مالی');
+  assert.equal(calculations.getCell('G2').value, 'اداری');
+  assert.equal(calculations.getCell('S2').value, result.fridayWorkPayRial);
+  assert.equal(calculations.getCell('T2').value, result.missionPayRial);
+  assert.equal(calculations.getCell('U2').value, result.insuredBenefitsRial);
+  assert.equal(calculations.getCell('X2').value, result.signedCorrectionRial);
+  assert.equal(calculations.getCell('Y2').value, result.grossEarningsRial);
+  assert.equal(calculations.getCell('AN2').value, 'محاسبه شد - نیازمند بررسی و تأیید');
+  assert.equal(calculations.getCell('BA2').value, 'یادداشت خروجی');
+
+  assert.equal(bank.getCell('C2').value, '0012345678');
+  assert.equal(bank.getCell('E2').value, result.netPayRial);
+  assert.equal(bank.getCell('F2').value, 'PAY-1405-01-P001');
+
+  let costCenterRow: number | undefined;
+  summary.eachRow((row, rowNumber) => {
+    if (row.getCell(3).value === 'اداری') costCenterRow = rowNumber;
+  });
+  assert.ok(costCenterRow);
+  assert.equal(summary.getCell(costCenterRow, 5).value, result.grossEarningsRial);
+
+  assert.equal(payslip.getCell('A1').value, 'فیش حقوق و دستمزد');
+  assert.ok(payslip.rowCount > 20);
+  assert.equal(settlement.getCell('C1').value?.toString().startsWith('توجه:'), true);
+  assert.equal(settlement.getCell('D3').value, firstInput.annualWorkedDays);
+  assert.equal(settlement.getCell('K3').value, 7.5);
+  assert.equal(settlement.getCell('N3').value, result.eidPayableRial + result.severancePayableRial);
+
+  let formulaCount = 0;
+  workbook.worksheets.forEach((sheet) => {
+    sheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        const value = cell.value;
+        if (value && typeof value === 'object' && 'formula' in value) formulaCount += 1;
+      });
+    });
+  });
+  assert.equal(formulaCount, 0);
+});
+
 test('multi-employee Excel register exports every PayrollRunResult without formulas', async () => {
   const firstInput = makeInput();
   const secondInput = makeInput({ dailyBaseWageRial: 10_000_000 });
@@ -141,6 +232,13 @@ test('multi-employee Excel register exports every PayrollRunResult without formu
         fullName: 'کارمند اول',
         isActive: true,
         payrollInput: firstInput,
+        jobTitle: 'کارشناس مالی',
+        costCenter: 'اداری',
+        bankAccountNumber: '0012345678',
+        bankIban: 'IR000000000000000000000000',
+        insuranceNumber: 'INS-001',
+        hireDateJalali: '1400-01-01',
+        leaveBalanceDays: 7.5,
       },
       {
         employeeId: 'emp-002',
