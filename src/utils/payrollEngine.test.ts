@@ -44,6 +44,11 @@ test('1405 RuleSet is explicitly pending legal approval', () => {
   assert.equal(ruleSet.version, 1);
   assert.equal(ruleSet.approvalStatus, 'pending-legal-review');
   assert.equal(ruleSet.regulations.fridayWorkPremiumRate, 0.4);
+  assert.equal(ruleSet.regulations.hourlyDivisorDefault, 220);
+  assert.equal(ruleSet.regulations.overtimeMultiplier, 1.4);
+  assert.equal(ruleSet.regulations.nonShiftNightPremiumRate, 0.35);
+  assert.equal(ruleSet.regulations.annualLeaveCarryoverCapDays, 9);
+  assert.equal(ruleSet.regulations.monthsPerYear, 12);
   assert.equal(ruleSet.regulations.shiftWorkMorningEveningRate, 0.10);
   assert.equal(ruleSet.regulations.shiftWorkMorningEveningNightRate, 0.15);
   assert.equal(ruleSet.regulations.shiftWorkMorningNightRate, 0.225);
