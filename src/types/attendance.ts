@@ -11,6 +11,8 @@ export interface MonthlyAttendanceRecord {
   holidayHours: number;
   variableBonusRial: number;
   annualWorkedDays: number;
+  /** Exact unpaid-leave days reviewed by the finance manager and reflected in the payroll-day input. */
+  reviewedUnpaidLeaveDays?: number;
   notes: string;
   updatedAt: string;
 }
