@@ -113,6 +113,7 @@ Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md]
 ### Phase 5 — Payroll approval and payment workflow
 - [ ] Implement monthly payroll-run Draft, Validation Failed, Ready for Review, Approved, Paid, Closed and Corrected states.
 - [x] Persist immutable calculation result snapshots with RuleSet version and employee input/metadata trace.
+- [x] Prevent deletion of payroll snapshots once they are ready for finance review; failed calculations may be discarded, while reviewed/approved/paid/closed records are retained for audit.
 - [x] Show blocking issues and legal-review warnings in reports and exports.
 - [ ] Record monthly payroll finance-manager approval, payment date/reference and bank reconciliation.
 - [ ] Protect monthly approved/paid/closed payroll periods from silent recalculation.
