@@ -35,7 +35,7 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - PayrollRun selection from employee master and resolution of effective contract/wage at period start.
 - Blockers for mid-period hire/termination, wage changes and contract changes until segmented proration is implemented.
 - Local IndexedDB storage for employees and payroll-run snapshots.
-- Monthly attendance totals ledger and monthly leave balance ledger exist as separate modules. In the current lightweight workbench branch, the PayrollRunView does not yet load these records into the payroll calculation; end-to-end ingestion and reconciliation remain open work.
+- Monthly attendance and leave ledgers are loaded into the matching unsnapshotted PayrollRun workspace. Paid leave is read from the leave ledger; unpaid leave requires an exact acknowledgement that clears when work/payable-day inputs change. Sick leave, unpaid absence and mission days are stored separately, but their payable-day and legal effects remain intentionally disabled until an approved rule is supplied. This is a monthly aggregate model, not daily timekeeping.
 - Compatibility with records stored in the legacy encrypted vault.
 - CI tests, TypeScript validation and production build.
 
@@ -124,7 +124,7 @@ Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md]
 - [ ] Add bank-specific transfer files only after the bank's technical format is obtained and tested.
 - [ ] Reconcile the bank's actual paid transactions to the approved employee-level payment register.
 - [ ] Integrate reviewed debt/other-deduction records only after lawful recoverability is approved; require explicit manager confirmation and deterministic duplicate-prevention across recalculation, correction and export.
-- [ ] Decide whether a separate persisted Draft state is required; the current workflow begins when a calculation snapshot is saved.
+- [x] No separate persisted Draft state is required for the one-manager/local-device scope: the unsaved PayrollRun workspace is Draft; a durable, immutable version is created when calculation is saved.
 
 ### Phase 6 — Local backup, restore and data portability
 
