@@ -55,10 +55,12 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
     effectiveFromJalali: '1405-01-01',
     effectiveToJalali: null,
     approvalStatus: 'pending-legal-review',
-    sourceRefs: ['SRC-001', 'SRC-003', 'SRC-004', 'SRC-005', 'SRC-008', 'SRC-009', 'SRC-010', 'SRC-011'],
+    sourceRefs: ['SRC-001', 'SRC-003', 'SRC-004', 'SRC-005', 'SRC-008', 'SRC-009', 'SRC-010', 'SRC-011', 'SRC-014'],
     reviewNotes: [
       'Amounts and brackets are the current application baseline and must be reconciled against the final official circulars before operational approval.',
       'Tax treatment of welfare benefits must follow the applicable 1405 tax circular and its limits; see SRC-008.',
+      'The 1405 job-classification seniority table (SRC-014) applies only when an approved job-classification plan and the employee group are established; the current employee master does not yet carry that evidence.',
+      'The 1405 base-seniority daily amount in this RuleSet is a general baseline, not an automatic substitute for the approved 20-group table.',
       'Eid tax treatment, non-cash benefits, special insurance groups and employer exemptions require separate legal review.',
       'The 1405 RuleSet is not legally approved by this application release.',
     ],
