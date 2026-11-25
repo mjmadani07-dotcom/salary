@@ -90,6 +90,7 @@ test('hydrates period payroll inputs from the selected monthly attendance record
   assert.equal(hydrated.payrollInput.holidayHours, 2);
   assert.equal(hydrated.payrollInput.variableBonusRial, 5_000_000);
   assert.equal(hydrated.payrollInput.annualWorkedDays, 180);
+  assert.equal(hydrated.leaveBalanceDays, 1.5);
   assert.equal(hydrated.masterDataIssues?.some((issue) => issue.code === 'MONTHLY_WORK_DAYS_UNCONFIRMED'), false);
   assert.equal(hydrated.masterDataIssues?.some((issue) => issue.code === 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED'), false);
   assert.ok(hydrated.masterDataIssues?.some((issue) => issue.code === MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code));
@@ -169,6 +170,7 @@ test('requires a review when unpaid leave exists but no attendance record is pre
   assert.ok(
     hydrated.masterDataIssues?.some((issue) => issue.code === MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code),
   );
+  assert.equal(hydrated.leaveBalanceDays, 1.5);
 });
 
 test('a changed payable-day value invalidates the previous unpaid-leave acknowledgement', () => {
