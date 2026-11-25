@@ -23,6 +23,8 @@ import {
 } from '../utils/employeeDebtLedger';
 import { createAttendanceId, validateMonthlyAttendance } from '../utils/attendanceLedger';
 import { calculateLeaveClosingBalance, createLeaveId, validateMonthlyLeave } from '../utils/leaveLedger';
+import { PAYROLL_BACKUP_FORMAT, PAYROLL_BACKUP_FORMAT_VERSION, PAYROLL_BACKUP_STORE_NAMES, validatePayrollDatabaseBackup } from '../utils/payrollDatabaseBackup';
+import type { PayrollDatabaseBackup } from '../utils/payrollDatabaseBackup';
 import {
   createOpaqueRecordId,
   createPersonnelCodeToken,
@@ -803,6 +805,68 @@ function createSettlementAuditEvent(
       ? { note: 'پرداخت با تاریخ و مبلغ ثبت‌شده در پرونده تسویه' }
       : {}),
   };
+}
+
+
+export async function exportPayrollDatabaseBackup(): Promise<PayrollDatabaseBackup> {
+  const database = await openDatabase();
+  const transaction = database.transaction([...PAYROLL_BACKUP_STORE_NAMES], 'readonly');
+  const completed = transactionComplete(transaction);
+  const storeEntries = await Promise.all(
+    PAYROLL_BACKUP_STORE_NAMES.map(async (name) => [
+      name,
+      await requestResult(
+        transaction.objectStore(name).getAll() as IDBRequest<unknown[]>
+      ),
+    ] as const)
+  );
+  await completed;
+
+  const stores = Object.fromEntries(storeEntries) as PayrollDatabaseBackup['stores'];
+  const backup = {
+    format: PAYROLL_BACKUP_FORMAT,
+    formatVersion: PAYROLL_BACKUP_FORMAT_VERSION,
+    sourceDatabaseVersion: database.version,
+    createdAt: new Date().toISOString(),
+    vaultConfigured: stores.vaultMetadata.length > 0,
+    stores,
+  };
+
+  return validatePayrollDatabaseBackup(backup, DATABASE_VERSION);
+}
+
+/**
+ * Full restore replaces every local object store atomically. On success the
+ * in-memory Vault key is discarded; encrypted backups must be unlocked again.
+ */
+export async function restorePayrollDatabaseBackup(
+  input: unknown
+): Promise<PayrollDatabaseBackup> {
+  const backup = validatePayrollDatabaseBackup(input, DATABASE_VERSION);
+  const database = await openDatabase();
+  const transaction = database.transaction([...PAYROLL_BACKUP_STORE_NAMES], 'readwrite');
+  const completed = transactionComplete(transaction);
+
+  try {
+    for (const name of PAYROLL_BACKUP_STORE_NAMES) {
+      const store = transaction.objectStore(name);
+      store.clear();
+      for (const record of backup.stores[name]) {
+        store.put(record);
+      }
+    }
+    await completed;
+  } catch (error) {
+    try { transaction.abort(); } catch { /* The transaction may already be complete. */ }
+    throw new Error(
+      error instanceof Error
+        ? `بازیابی انجام نشد و تغییری ذخیره نشد: ${error.message}`
+        : 'بازیابی فایل پشتیبان ناموفق بود؛ تراکنش پایگاه داده لغو شد.'
+    );
+  }
+
+  unlockedVaultKeys = null;
+  return backup;
 }
 
 export async function savePayrollSettlementCase(
