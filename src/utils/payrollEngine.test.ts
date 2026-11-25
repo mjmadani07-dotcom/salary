@@ -136,6 +136,79 @@ test('housing and coupon are taxed only above their configured exemption caps', 
   assert.equal(result.taxableIncomeRial, 468_000_000);
 });
 
+test('calculates separate Friday work, mission, benefit and signed correction inputs', () => {
+  const result = calculatePayroll(makeInput({
+    dailyBaseWageRial: 10_000_000,
+    dailySeniorityRial: 0,
+    housingAllowanceRial: 0,
+    workerCouponRial: 0,
+    fridayHours: 2,
+    missionDays: 1,
+    insuredBenefitsRial: 1_000_000,
+    nonInsuredBenefitsRial: 2_000_000,
+    signedCorrectionRial: -300_000,
+    insuranceSubject: true,
+    taxSubject: true,
+  }));
+
+  assert.equal(result.fridayWorkPayRial, 1_090_909);
+  assert.equal(result.missionPayRial, 10_000_000);
+  assert.equal(result.insuredBenefitsRial, 1_000_000);
+  assert.equal(result.nonInsuredBenefitsRial, 2_000_000);
+  assert.equal(result.signedCorrectionRial, -300_000);
+  assert.equal(result.grossEarningsRial, 313_790_909);
+  assert.equal(result.insuranceSubjectEarningsRial, 311_790_909);
+  assert.equal(result.employeeInsuranceRial, 21_825_364);
+  assert.equal(result.loanDeductionRial, 0);
+  assert.equal(result.netPayRial, 291_965_545);
+  assert.equal(
+    result.payItemBreakdown.find((line) => line.itemId === 'signed-correction')?.amountRial,
+    -300_000,
+  );
+});
+
+test('applies employee-level insurance and tax exclusions without removing gross earnings', () => {
+  const result = calculatePayroll(makeInput({
+    dailyBaseWageRial: 10_000_000,
+    dailySeniorityRial: 0,
+    housingAllowanceRial: 0,
+    workerCouponRial: 0,
+    insuredBenefitsRial: 1_000_000,
+    nonInsuredBenefitsRial: 2_000_000,
+    loanDeductionRial: 100_000,
+    advanceDeductionRial: 50_000,
+    otherDeductionsRial: 25_000,
+    insuranceSubject: false,
+    taxSubject: false,
+  }));
+
+  assert.equal(result.grossEarningsRial, 303_000_000);
+  assert.equal(result.insuranceSubjectEarningsRial, 0);
+  assert.equal(result.employeeInsuranceRial, 0);
+  assert.equal(result.totalEmployerInsuranceRial, 0);
+  assert.equal(result.taxableIncomeRial, 0);
+  assert.equal(result.totalPayrollTaxRial, 0);
+  assert.equal(result.manualDeductionsRial, 175_000);
+  assert.equal(result.totalDeductionsRial, 175_000);
+  assert.equal(result.netPayRial, 302_825_000);
+});
+
+test('validates monthly day and deduction inputs while allowing a signed correction', () => {
+  assert.equal(validatePayrollInput(makeInput({
+    sickLeaveDays: 4,
+    unpaidAbsenceDays: 2,
+    paidLeaveDays: 3,
+    missionDays: 1,
+    signedCorrectionRial: -500_000,
+    loanDeductionRial: 100_000,
+  })).length, 0);
+
+  assert.ok(validatePayrollInput(makeInput({ sickLeaveDays: 31 }))
+    .some((issue) => issue.code === 'INVALID_MONTHLY_DAY_COUNT'));
+  assert.ok(validatePayrollInput(makeInput({ loanDeductionRial: -1 }))
+    .some((issue) => issue.code === 'INVALID_NON_NEGATIVE_NUMBER'));
+});
+
 test('calculation result carries RuleSet identity and legal-review warnings', () => {
   const result = calculatePayroll(
     makeInput({
