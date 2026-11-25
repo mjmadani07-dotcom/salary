@@ -20,6 +20,7 @@ import {
   listMonthlyAttendance,
   listAnnualLeaveRecords,
   saveMonthlyAttendance,
+  saveMonthlyLeave,
   listSavedEmployees,
   listSavedPayrollRuns,
   loadSavedPayrollRun,
@@ -30,6 +31,8 @@ import {
 } from '../data/payrollLocalDatabase';
 import type { EmployeeMasterRecord } from '../types/employee';
 import type { MonthlyAttendanceRecord } from '../types/attendance';
+import type { MonthlyLeaveDraft, MonthlyLeaveRecord } from '../types/leave';
+import { validateMonthlyLeave } from '../utils/leaveLedger';
 import {
   calculateServiceDurationJalali,
   resolveEmployeeTerms,
@@ -41,6 +44,7 @@ import {
   MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE,
 } from '../utils/payrollAttendanceBridge';
 import { PAYROLL_GRID_PASTE_FIELDS, parsePayrollGridPasteCell } from '../utils/payrollGridClipboard';
+import { parsePayrollMonthlyExcelPaste } from '../utils/payrollMonthlyExcelImport';
 import type { PayrollGridPasteField } from '../utils/payrollGridClipboard';
 import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
@@ -85,6 +89,10 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, MonthlyAttendanceRecord>>({});
   const [unpaidLeaveByEmployee, setUnpaidLeaveByEmployee] = useState<Record<string, number>>({});
+  const [leaveRecordsByEmployee, setLeaveRecordsByEmployee] = useState<Record<string, MonthlyLeaveRecord>>({});
+  const [monthlyExcelPasteText, setMonthlyExcelPasteText] = useState('');
+  const [monthlyExcelImportFeedback, setMonthlyExcelImportFeedback] = useState<string | null>(null);
+  const [isMonthlyExcelImporting, setIsMonthlyExcelImporting] = useState(false);
   const [expandedDetailsEmployeeIds, setExpandedDetailsEmployeeIds] = useState<Set<string>>(() => new Set());
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
   const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
@@ -127,6 +135,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
       setEmployeeMasters([]);
       setAttendanceRecords({});
       setUnpaidLeaveByEmployee({});
+      setLeaveRecordsByEmployee({});
       setRunResult(null);
       setLastSavedRunId(null);
       setSnapshotEmployeeIds(new Set());
@@ -198,6 +207,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
             record.unpaidLeaveUsedDays,
           ]),
         ));
+        setLeaveRecordsByEmployee(selectedLeaveByEmployee);
         setEmployees(hydratedRows);
         setRunResult(savedRun ?? null);
         setLastSavedRunId(savedRun?.runId ?? null);
@@ -213,6 +223,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           setEmployeeMasters([]);
           setAttendanceRecords({});
           setUnpaidLeaveByEmployee({});
+          setLeaveRecordsByEmployee({});
           setRunResult(null);
           setLastSavedRunId(null);
           setSnapshotEmployeeIds(new Set());
@@ -257,6 +268,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     setEmployeeMasters([]);
     setAttendanceRecords({});
     setUnpaidLeaveByEmployee({});
+    setLeaveRecordsByEmployee({});
     setRunResult(null);
     setLastSavedRunId(null);
     setSnapshotEmployeeIds(new Set());
@@ -483,6 +495,174 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
 
     event.preventDefault();
     void applyClipboardMatrix(rowIndex, field, text);
+  };
+
+
+  const importMonthlyExcelRows = async () => {
+    if (!monthlyExcelPasteText.trim() || isMonthlyExcelImporting || isSaving) return;
+    setIsMonthlyExcelImporting(true);
+    setMonthlyExcelImportFeedback(null);
+
+    try {
+      const parsed = parsePayrollMonthlyExcelPaste(monthlyExcelPasteText);
+      const errors = [...parsed.errors];
+      const employeesByCode = new Map(
+        employees.map((employee) => [employee.personnelCode.trim().toLocaleLowerCase(), employee])
+      );
+      const incomingEmployeeIds = new Set<string>();
+      const prepared: Array<{
+        employee: PayrollRunEmployee;
+        leaveDraft?: MonthlyLeaveDraft;
+      }> = [];
+
+      for (const row of parsed.rows) {
+        if (row.year !== year || row.month !== month || row.monthDays !== periodMonthDays) {
+          errors.push(
+            `ردیف ${row.sourceRow} (${row.personnelCode}): دوره فایل با دوره انتخاب‌شده نرم‌افزار مطابقت ندارد.`
+          );
+          continue;
+        }
+
+        const employee = employeesByCode.get(row.personnelCode.trim().toLocaleLowerCase());
+        if (!employee || !employee.isActive) {
+          errors.push(`ردیف ${row.sourceRow}: کارمند فعال با کد «${row.personnelCode}» پیدا نشد.`);
+          continue;
+        }
+        if (incomingEmployeeIds.has(employee.employeeId)) {
+          errors.push(`کد پرسنلی «${row.personnelCode}» بیش از یک‌بار در فایل آمده است.`);
+          continue;
+        }
+        incomingEmployeeIds.add(employee.employeeId);
+
+        const duplicatePayslip = employees.find((other) =>
+          other.employeeId !== employee.employeeId &&
+          (other.payrollInput.payslipId ?? '').trim() === row.payslipId
+        );
+        if (duplicatePayslip) {
+          errors.push(`ردیف ${row.sourceRow}: شناسه فیش «${row.payslipId}» برای کارمند دیگری ثبت شده است.`);
+          continue;
+        }
+
+        const leaveRecord = leaveRecordsByEmployee[employee.employeeId];
+        let leaveDraft: MonthlyLeaveDraft | undefined;
+        if (leaveRecord) {
+          leaveDraft = {
+            employeeId: leaveRecord.employeeId,
+            personnelCode: leaveRecord.personnelCode,
+            fiscalYear: leaveRecord.fiscalYear,
+            month: leaveRecord.month,
+            openingBalanceDays: leaveRecord.openingBalanceDays,
+            accruedDays: leaveRecord.accruedDays,
+            paidLeaveUsedDays: row.paidLeaveDays,
+            unpaidLeaveUsedDays: leaveRecord.unpaidLeaveUsedDays,
+            adjustmentDays: leaveRecord.adjustmentDays,
+            notes: leaveRecord.notes,
+          };
+          const leaveIssues = validateMonthlyLeave(leaveDraft);
+          if (leaveIssues.length > 0) {
+            errors.push(
+              `ردیف ${row.sourceRow} (${row.personnelCode}): ${leaveIssues.map((issue) => issue.message).join(' ')}`
+            );
+            continue;
+          }
+          if (row.paidLeaveDays === leaveRecord.paidLeaveUsedDays) leaveDraft = undefined;
+        } else if (row.paidLeaveDays > 0) {
+          errors.push(
+            `ردیف ${row.sourceRow} (${row.personnelCode}): مرخصی استحقاقی در فایل ثبت شده، اما دفتر مرخصی این ماه وجود ندارد؛ ابتدا مانده و مصرف مرخصی را در دفتر مرخصی ثبت کنید.`
+          );
+          continue;
+        }
+
+        let issues = [...(employee.masterDataIssues ?? [])]
+          .filter((issue) => issue.code !== 'MONTHLY_WORK_DAYS_UNCONFIRMED');
+        if (employee.payrollInput.workDays !== row.workDays) {
+          issues = issues.filter((issue) => issue.code !== MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code);
+          if ((unpaidLeaveByEmployee[employee.employeeId] ?? 0) > 0) {
+            issues.push(MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE);
+          }
+        }
+
+        const updatedEmployee: PayrollRunEmployee = {
+          ...employee,
+          payrollInput: {
+            ...employee.payrollInput,
+            year: row.year,
+            monthDays: row.monthDays,
+            workDays: row.workDays,
+            paidLeaveDays: row.paidLeaveDays,
+            sickLeaveDays: row.sickLeaveDays,
+            unpaidAbsenceDays: row.unpaidAbsenceDays,
+            overtimeHours: row.overtimeHours,
+            nightShiftHours: row.nightShiftHours,
+            fridayHours: row.fridayHours,
+            missionDays: row.missionDays,
+            insuredBenefitsRial: row.insuredBenefitsRial,
+            nonInsuredBenefitsRial: row.nonInsuredBenefitsRial,
+            variableBonusRial: row.variableBonusRial,
+            loanDeductionRial: row.loanDeductionRial,
+            advanceDeductionRial: row.advanceDeductionRial,
+            otherDeductionsRial: row.otherDeductionsRial,
+            signedCorrectionRial: row.signedCorrectionRial,
+            payslipId: row.payslipId,
+            paymentDate: row.paymentDate,
+            monthlyNotes: row.notes,
+          },
+          masterDataIssues: issues,
+        };
+
+        prepared.push({ employee: updatedEmployee, leaveDraft });
+      }
+
+      if (errors.length > 0) {
+        setMonthlyExcelImportFeedback(`ورود انجام نشد؛ هیچ ردیفی ثبت نشد. ${errors.slice(0, 6).join(' ')}`);
+        return;
+      }
+
+      const nextAttendance = { ...attendanceRecords };
+      const nextLeaveRecords = { ...leaveRecordsByEmployee };
+      const savedEmployees: PayrollRunEmployee[] = [];
+
+      for (const item of prepared) {
+        if (item.leaveDraft) {
+          const savedLeave = await saveMonthlyLeave(item.leaveDraft);
+          nextLeaveRecords[item.employee.employeeId] = savedLeave;
+        }
+        await saveEmployee(item.employee);
+        const attendanceDraft = createMonthlyAttendanceDraftFromPayrollEmployee(
+          item.employee,
+          year,
+          month,
+          periodMonthDays,
+          nextAttendance[item.employee.employeeId],
+        );
+        const savedAttendance = await saveMonthlyAttendance(attendanceDraft);
+        nextAttendance[item.employee.employeeId] = savedAttendance;
+        savedEmployees.push(item.employee);
+      }
+
+      const updatedById = new Map(savedEmployees.map((employee) => [employee.employeeId, employee]));
+      setEmployees((current) => current.map((employee) =>
+        updatedById.get(employee.employeeId) ?? employee
+      ));
+      setAttendanceRecords(nextAttendance);
+      setLeaveRecordsByEmployee(nextLeaveRecords);
+      setRunResult(null);
+      setLastSavedRunId(null);
+      setMonthlyExcelPasteText('');
+      setMonthlyExcelImportFeedback(
+        `ورود ${toPersianDigits(savedEmployees.length)} ردیف انجام شد. ${parsed.ignoredBlankRows > 0 ? `${toPersianDigits(parsed.ignoredBlankRows)} ردیف خالی نادیده گرفته شد. ` : ''}مبالغ فایل اکسل که بر حسب تومان هستند، به ریال تبدیل شدند.`
+      );
+      setStorageError(null);
+    } catch (error) {
+      setMonthlyExcelImportFeedback(
+        error instanceof Error
+          ? `ثبت کامل نشد: ${error.message}. اطلاعات دوره را بارگذاری مجدد و ردیف‌های ثبت‌شده را کنترل کنید.`
+          : 'ثبت کامل نشد؛ اطلاعات دوره را بارگذاری مجدد و ردیف‌های ثبت‌شده را کنترل کنید.'
+      );
+      setReloadVersion((value) => value + 1);
+    } finally {
+      setIsMonthlyExcelImporting(false);
+    }
   };
 
   const updateNumber = (
@@ -863,6 +1043,40 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                   {isSaving ? 'در حال محاسبه و ذخیره…' : 'محاسبه و ذخیره دوره'}
                 </button>
               </div>
+            </div>
+
+
+            <div className="border-b border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                <label className="min-w-0 flex-1 space-y-1 text-xs text-slate-600">
+                  <span className="font-semibold text-slate-800">ورود مستقیم فایل اکسل کارکرد ماهانه (ستون‌های A تا V)</span>
+                  <textarea
+                    rows={3}
+                    value={monthlyExcelPasteText}
+                    onChange={(event) => setMonthlyExcelPasteText(event.target.value)}
+                    placeholder="محدوده ۲۲ ستونی شیت «کارکرد ماهانه» را در اکسل انتخاب و کپی کنید، سپس اینجا بچسبانید."
+                    disabled={isMonthlyExcelImporting || isSaving}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void importMonthlyExcelRows()}
+                  disabled={!monthlyExcelPasteText.trim() || isMonthlyExcelImporting || isSaving}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  {isMonthlyExcelImporting ? 'در حال ورود اطلاعات…' : 'ورود ۲۲ ستون اکسل'}
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                سرستون و ردیف‌ها را با هم کپی کنید. مبالغ این فایل بر حسب تومان‌اند و هنگام ورود به ریال تبدیل می‌شوند. در صورت وجود دفتر مرخصی، مصرف مرخصی استحقاقی نیز با کنترل مانده در همان دفتر به‌روزرسانی می‌شود.
+              </p>
+              {monthlyExcelImportFeedback && (
+                <div className={`mt-3 rounded-lg border p-3 text-xs leading-6 ${monthlyExcelImportFeedback.startsWith('ورود انجام نشد') || monthlyExcelImportFeedback.startsWith('ثبت کامل نشد') ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-teal-200 bg-teal-50 text-teal-800'}`}>
+                  {monthlyExcelImportFeedback}
+                </div>
+              )}
             </div>
 
             <div className="overflow-x-auto" onPaste={handleGridPaste}>
