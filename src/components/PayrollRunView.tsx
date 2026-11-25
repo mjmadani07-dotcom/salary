@@ -257,9 +257,10 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     field: 'workDays' | 'overtimeHours' | 'nightShiftHours' | 'holidayHours' |
       'variableBonusRial' | 'annualWorkedDays' | 'childrenCount',
     rawValue: string,
-    confirmation?: Omit<RequiredMonthlyIssue, 'confirmed'>
+    confirmation?: Omit<RequiredMonthlyIssue, 'confirmed'>,
+    multiplier = 1
   ) => {
-    const value = numberValue(rawValue);
+    const value = numberValue(rawValue) * multiplier;
     const patch = { [field]: value } as Partial<PayrollInput>;
     const next = updateEmployee(
       employee,
@@ -698,7 +699,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             disabled={disabled}
                             value={Math.round(employee.payrollInput.variableBonusRial / unitMultiplier)}
                             className={inputClass('w-28')}
-                            onChange={(event) => updateNumber(employee, 'variableBonusRial', numberValue(event.target.value) * unitMultiplier + (event.target.value.trim() === '' ? 0 : 0))}
+                            onChange={(event) => updateNumber(employee, 'variableBonusRial', event.target.value, undefined, unitMultiplier)}
                             onBlur={() => void persistEmployee(employee)}
                           />
                         </td>
