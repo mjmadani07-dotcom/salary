@@ -111,6 +111,26 @@ test('minimum wage, gross pay, insurance and tax use catalog classifications', (
   assert.equal(childItem.taxableBasisRial, 0);
 });
 
+test('29/30/31-day payroll periods prorate monthly allowances and retain the correct insurance ceiling', () => {
+  for (const monthDays of [29, 30, 31] as const) {
+    const result = calculatePayroll(makeInput({
+      monthDays,
+      workDays: monthDays,
+      dailyBaseWageRial: 1_000_000,
+      dailySeniorityRial: 100_000,
+    }));
+
+    assert.equal(result.basePayRial, 1_000_000 * monthDays);
+    assert.equal(result.seniorityPayRial, 100_000 * monthDays);
+    assert.equal(result.housingPayRial, 30_000_000);
+    assert.equal(result.couponPayRial, 22_000_000);
+    assert.equal(
+      result.insuranceMonthlyCeilingRial,
+      getPayrollRuleSet('1405').regulations.minDailyWageRial * 7 * monthDays,
+    );
+  }
+});
+
 test('overtime base is derived from catalog items and retains aggregate rounding', () => {
   const result = calculatePayroll(
     makeInput({
