@@ -70,6 +70,13 @@ function makeEmployeeFromMaster(
         'تعداد روزهای کارکرد سال برای محاسبه عیدی را وارد یا تأیید کنید.'
       )
     );
+    masterDataIssues.push(
+      monthlyIssue(
+        'MONTHLY_SHIFT_PATTERN_UNCONFIRMED',
+        'shiftWorkPattern',
+        'الگوی نوبت‌کاری این کارمند را برای همین ماه مشخص کنید؛ انتخاب ماه قبل به‌صورت خودکار فرض نمی‌شود.'
+      )
+    );
 
     for (const issue of saved?.masterDataIssues ?? []) {
       if (STABLE_CONFIRMATION_CODES.has(issue.code)) masterDataIssues.push(issue);
@@ -193,6 +200,7 @@ function makeEmployeeFromMaster(
       : sourceInput?.taxSubject ?? baseInput?.taxSubject ?? master.taxSubject,
     overtimeHours: sourceInput?.overtimeHours ?? 0,
     nightShiftHours: sourceInput?.nightShiftHours ?? 0,
+    shiftWorkPattern: sourceInput?.shiftWorkPattern,
     holidayHours: sourceInput?.holidayHours ?? 0,
     variableBonusRial: sourceInput?.variableBonusRial ?? 0,
     annualWorkedDays: sourceInput?.annualWorkedDays ?? 0,
