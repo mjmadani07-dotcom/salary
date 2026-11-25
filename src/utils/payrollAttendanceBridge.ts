@@ -36,6 +36,7 @@ export function hydratePayrollEmployeeFromAttendance(
     (issue) =>
       issue.code !== 'MONTHLY_WORK_DAYS_UNCONFIRMED' &&
       issue.code !== 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED' &&
+      !(issue.code === 'MONTHLY_SHIFT_PATTERN_UNCONFIRMED' && attendance.shiftWorkPattern !== undefined) &&
       issue.code !== MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code,
   );
 
@@ -53,6 +54,7 @@ export function hydratePayrollEmployeeFromAttendance(
       workDays: attendance.workedDays,
       overtimeHours: attendance.overtimeHours,
       nightShiftHours: attendance.nightShiftHours,
+      shiftWorkPattern: attendance.shiftWorkPattern ?? employee.payrollInput.shiftWorkPattern,
       holidayHours: attendance.holidayHours,
       variableBonusRial: attendance.variableBonusRial,
       annualWorkedDays: attendance.annualWorkedDays,
@@ -97,6 +99,7 @@ export function createMonthlyAttendanceDraftFromPayrollEmployee(
     workedDays: employee.payrollInput.workDays,
     overtimeHours: employee.payrollInput.overtimeHours,
     nightShiftHours: employee.payrollInput.nightShiftHours,
+    shiftWorkPattern: employee.payrollInput.shiftWorkPattern ?? previous?.shiftWorkPattern,
     holidayHours: employee.payrollInput.holidayHours,
     variableBonusRial: employee.payrollInput.variableBonusRial,
     annualWorkedDays: employee.payrollInput.annualWorkedDays,
