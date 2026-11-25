@@ -54,6 +54,22 @@ test('rejects a newer database backup, unknown store and missing store data', ()
   assert.throws(() => validatePayrollDatabaseBackup(missing, 7), /payrollRuns/);
 });
 
+test('rejects any plaintext payroll record inside a Vault-configured backup', () => {
+  const backup = makeBackup({
+    vaultConfigured: true,
+    stores: {
+      ...makeBackup().stores as Record<string, unknown>,
+      vaultMetadata: [{ id: 'vault', formatVersion: 1 }],
+      encryptedRecords: [{ id: 'payrollRun:opaque', kind: 'payrollRun', iv: 'iv', ciphertext: 'data' }],
+      employeeMasters: [{ employeeId: 'emp-1', personnelCode: 'P-001' }],
+    },
+  });
+  assert.throws(
+    () => validatePayrollDatabaseBackup(backup, 7),
+    /اطلاعات خوانا/
+  );
+});
+
 test('rejects inconsistent encryption state and malformed record arrays', () => {
   const inconsistent = makeBackup({
     stores: { ...makeBackup().stores as object, encryptedRecords: [{ id: 'x' }] },
