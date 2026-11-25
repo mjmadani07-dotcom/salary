@@ -21,8 +21,10 @@ import {
   saveEmployee,
   savePayrollRunSnapshot,
   listMonthlyAttendance,
+  listAnnualLeaveRecords,
 } from '../data/payrollLocalDatabase';
 import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
+import { getUnpaidLeavePayrollReviewIssue } from '../utils/attendanceLedger';
 import { listEmployeeMasterRecords } from '../data/payrollLocalDatabase';
 import type { EmployeeMasterRecord } from '../types/employee';
 import { calculateServiceDurationJalali, resolveEmployeeTerms } from '../utils/employeeMaster';
@@ -316,21 +318,32 @@ export function PayrollRunView() {
 
     const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
     const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
-    let attendanceRecords;
+    let attendanceRecords: Awaited<ReturnType<typeof listMonthlyAttendance>>;
+    let leaveRecords: Awaited<ReturnType<typeof listAnnualLeaveRecords>>;
     try {
-      attendanceRecords = await listMonthlyAttendance(year, month);
+      [attendanceRecords, leaveRecords] = await Promise.all([
+        listMonthlyAttendance(year, month),
+        listAnnualLeaveRecords(year),
+      ]);
     } catch (error) {
-      setStorageError(error instanceof Error ? error.message : 'خواندن کارکرد ماهانه ناموفق بود.');
+      setStorageError(error instanceof Error ? error.message : 'خواندن کارکرد یا دفتر مرخصی ماهانه ناموفق بود.');
       setIsSaving(false);
       return;
     }
     const attendanceByEmployee = new Map(attendanceRecords.map((record) => [record.employeeId, record]));
+    const leaveByEmployee = new Map(leaveRecords.filter(record => record.month === month).map(record => [record.employeeId, record]));
+    const getLeaveReviewIssues = (employeeId: string, attendance: (typeof attendanceRecords)[number] | undefined) => {
+      const unpaidLeaveDays = leaveByEmployee.get(employeeId)?.unpaidLeaveUsedDays ?? 0;
+      const issue = getUnpaidLeavePayrollReviewIssue(unpaidLeaveDays, attendance?.reviewedUnpaidLeaveDays);
+      return issue ? [{ code: issue.code, message: issue.message, field: String(issue.field) }] : [];
+    };
     const periodEmployees = employees.map((employee) => {
       const attendance = attendanceByEmployee.get(employee.employeeId);
       const master = employeeMasters.find((item) => item.employeeId === employee.employeeId);
       if (!master) {
         return {
           ...employee,
+          masterDataIssues: [...(employee.masterDataIssues ?? []), ...getLeaveReviewIssues(employee.employeeId, attendance)],
           payrollInput: {
             ...employee.payrollInput,
             year,
@@ -372,7 +385,7 @@ export function PayrollRunView() {
         personnelCode: master.personnelCode,
         fullName: `${master.firstName} ${master.lastName}`,
         isActive: master.status === 'active',
-        masterDataIssues,
+        masterDataIssues: [...masterDataIssues, ...getLeaveReviewIssues(employee.employeeId, attendance)],
         payrollInput: {
           ...employee.payrollInput,
           year,
