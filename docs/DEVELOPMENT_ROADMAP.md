@@ -169,7 +169,7 @@ The current branch is a development baseline, not a legally approved production 
 
 - Work branch: `feat/lightweight-payroll-workbench`.
 - Latest implementation commit verified by CI at this closeout: `17e4687734faf1247f01e03e8c51296c550e6064`.
-- Latest CI run covering the current code and scope-aligned documents: [`45672164736`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45672164736), completed successfully: 117 tests passed, TypeScript passed and Vite production build passed.
+- Latest CI run covering the current code and Windows-local product scope: [`45672793817`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45672793817), completed successfully: 117 tests passed, TypeScript passed and Vite production build passed.
 - Monthly shift-pattern capture, period-scoped persistence, Article 56 rate differentiation and suppression of the Article 58 35% non-shift premium for rotating patterns are implemented. The shift allowance wage base and item classification remain legal-review items.
 - Monthly attendance and leave ledgers, paid-leave integration, unpaid-leave acknowledgement, employee debt tracking, employee master/contract history, batch payroll calculation and XLSX reports are implemented to the documented boundaries.
 - The saved-run approval/payment/close workflow and versioned database backup/restore code are implemented. A pre-restore safety backup is now downloaded automatically before destructive restore. Fresh-profile, schema-migration and legacy-vault restore verification remain operational tests.
