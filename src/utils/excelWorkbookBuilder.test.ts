@@ -306,7 +306,7 @@ test('settlement export preserves inputs, calculation results, legal warnings an
   assert.equal(sheet.getCell('A2').value, 'SET-001');
   assert.equal(sheet.getCell('H2').value, 6);
   assert.equal(sheet.getCell('I2').value, 184);
-  assert.equal(sheet.getCell('R2').value, settlementCase.calculation.eidEntitlementRial);
+  assert.equal(sheet.getCell('R2').value, settlementCase.calculation!.eidEntitlementRial);
   assert.equal(sheet.getCell('AF2').value, 108_000_000);
   assert.equal(sheet.getCell('AM2').value, 'تأییدشده');
   assert.equal(audit.getCell('A2').value, 'SET-001');
