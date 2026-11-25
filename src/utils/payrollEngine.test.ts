@@ -174,6 +174,21 @@ test('housing and coupon are taxed only above their configured exemption caps', 
   assert.equal(result.taxableIncomeRial, 468_000_000);
 });
 
+test('flags possible double counting when premium hour categories overlap', () => {
+  const result = calculatePayroll(makeInput({
+    overtimeHours: 4,
+    holidayHours: 2,
+    fridayHours: 3,
+  }));
+
+  assert.ok(result.legalReviewRequiredItems.some((item) =>
+    item.includes('هم‌پوشانی زمانی')
+  ));
+  assert.ok(result.legalReviewRequiredItems.some((item) =>
+    item.includes('تعطیل‌کاری عمومی همراه')
+  ));
+});
+
 test('calculates separate Friday work, mission, benefit and signed correction inputs', () => {
   const result = calculatePayroll(makeInput({
     dailyBaseWageRial: 10_000_000,
