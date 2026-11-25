@@ -168,8 +168,8 @@ The current branch is a development baseline, not a legally approved production 
 ## 6. Current status
 
 - Work branch: `feat/lightweight-payroll-workbench`.
-- Latest implementation commit verified by CI at this closeout: `17e4687734faf1247f01e03e8c51296c550e6064`.
-- Latest CI run covering the current code and Windows-local product scope: [`45672793817`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45672793817), completed successfully: 117 tests passed, TypeScript passed and Vite production build passed.
+- Baseline commit at the start of the finalization pass: `721746e99e13233fab684fd908f909d57b0143be` (`Clarify local Windows browser deployment in product scope`).
+- CI run for that baseline: [`45672793817`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45672793817), completed successfully. Regression-test, TypeScript-check and production-build jobs all passed. The preceding verified test summary recorded 117 passing tests; this is not a substitute for operational acceptance.
 - Monthly shift-pattern capture, period-scoped persistence, Article 56 rate differentiation and suppression of the Article 58 35% non-shift premium for rotating patterns are implemented. The shift allowance wage base and item classification remain legal-review items.
 - Monthly attendance and leave ledgers, paid-leave integration, unpaid-leave acknowledgement, employee debt tracking, employee master/contract history, batch payroll calculation and XLSX reports are implemented to the documented boundaries.
 - The saved-run approval/payment/close workflow and versioned database backup/restore code are implemented. A pre-restore safety backup is now downloaded automatically before destructive restore. Fresh-profile, schema-migration and legacy-vault restore verification remain operational tests.
@@ -179,3 +179,32 @@ The current branch is a development baseline, not a legally approved production 
 ## 7. Change-control rule after the freeze
 
 From this point, work is limited to: (1) defects or P0 gaps that block the Phase 7 gates, (2) updating tests and documentation required to prove a gate, and (3) narrowly scoped data-safety fixes. New dashboards, convenience screens, architecture expansion, EOS development or speculative enhancements are post-launch backlog items and must not be added to this release.
+
+## 8. Finalization execution plan — scope is frozen
+
+The Phase 7 milestone above is the sole finish line. The following execution order governs the remaining work; it is not permission to add product features.
+
+| Order | Work package | Owner / evidence | Completion rule |
+|---|---|---|---|
+| F0 | Freeze feature scope | Development | No new screens, modules, integrations or architecture changes. Only defects, release blockers, proof tests and data-safety fixes are allowed. |
+| F1 | Reconcile implementation against the Excel coverage matrix and all 22 monthly inputs | Development + finance owner | Every field has a code destination, calculation/output destination or a documented external/manual control. Differences from Excel formulas are explained and tested; Excel formulas are not presumed legally correct. |
+| F2 | Close technical calculation gaps that can be decided from approved rules | Development | Add regression tests only after the applicable interpretation is approved. Unapproved wage bases, tax/insurance classifications, leave/day rules and mission rules remain blocked or visibly pending; they are not guessed. |
+| F3 | Close data-safety and recovery proof | Development + device operator | Test backup/export and restore on a clean browser profile; verify record counts, open restored periods, legacy Vault compatibility and schema migration; document second-location backup procedure. |
+| F4 | Run end-to-end acceptance | Development + finance owner | Verify a complete period from employee selection through calculation, payslips, XLSX, approval, payment, close and correction run. All views must reconcile to the same immutable result. |
+| F5 | Parallel payroll pilot | Finance owner | Run at least one real period in parallel with the currently approved process; reconcile every employee and pay item; resolve every unexplained difference. |
+| F6 | Legal/finance release authorization | Authorized company reviewers | Archive primary legal sources, item-level decisions, employee evidence, signed reconciliation and written approval for the exact launch population and effective period. |
+| F7 | Go-Live and stop | Finance owner + product owner | Archive a known-good backup and acceptance pack. Declare Go-Live only when all Phase 7 exit rules pass; otherwise keep the affected cases blocked and label the app technical-preview only. |
+
+### 8.1 Work that can be completed in code versus external decisions
+
+**Development-owned closeout work:** documentation/code consistency; exact Excel-field traceability; calculation and export regression coverage; validation blockers and warnings; correction-run acceptance; backup/restore tests and migration safety; fixing reproducible defects found by those tests.
+
+**Not solvable by adding code:** issuer-authentic legal circulars, legal interpretation/sign-off, employer-specific job-classification and insurance applicability, employee evidence (dependents/seniority/insured history), approval of the external attendance/timekeeping source, lawful authorization for actual deductions, finance-owner reconciliation against a real payroll period, and written Go-Live authorization. These require source documents, company data or decisions from authorized people.
+
+### 8.2 Explicit exclusions for this release
+
+Daily time-clock/roster management, automatic debt-ledger posting, bank API/payment execution, multi-user approvals, multi-company/workspace support, cloud sync, a full desktop installer and expanded EOS workflows remain outside this release. They must not be implemented merely to make the remaining checklist look shorter. Where daily attendance evidence is required, the approved external source and the manager's verification record are the control.
+
+### 8.3 Closeout reporting rule
+
+Every remaining item must be reported as one of: **implemented and tested**, **implemented but operationally unverified**, **blocked on legal/finance evidence**, or **excluded by product boundary**. Do not mark an item complete solely because a UI field, formula or test stub exists.
