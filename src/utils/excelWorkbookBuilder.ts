@@ -38,6 +38,17 @@ export interface PayrollExcelSnapshot {
   eos?: EosExcelConfig;
 }
 
+function shiftWorkPatternLabel(pattern: PayrollInput['shiftWorkPattern']): string {
+  const labels: Record<NonNullable<PayrollInput['shiftWorkPattern']>, string> = {
+    'non-shift': 'غیرنوبتی',
+    'morning-evening': 'صبح و عصر',
+    'morning-evening-night': 'صبح و عصر و شب',
+    'morning-night': 'صبح و شب',
+    'evening-night': 'عصر و شب',
+  };
+  return pattern ? labels[pattern] : 'نامشخص (داده قدیمی)';
+}
+
 function styleHeaderRow(row: ExcelJS.Row, bgColor = 'FF0F172A') {
   row.height = 30;
   row.eachCell((cell) => {
@@ -143,6 +154,7 @@ export async function buildPayrollExcelWorkbook(
   addKeyValue(summary, 'وضعیت تأیید حقوقی', result.ruleSetApprovalStatus);
   addKeyValue(summary, 'روزهای تقویمی ماه', input.monthDays);
   addKeyValue(summary, 'روزهای کارکرد ورودی', input.workDays);
+  addKeyValue(summary, 'الگوی نوبت‌کاری', shiftWorkPatternLabel(input.shiftWorkPattern));
   addKeyValue(summary, 'شناسه فیش', input.payslipId ?? 'ثبت نشده');
   addKeyValue(summary, 'تاریخ پرداخت', input.paymentDate ?? 'ثبت نشده');
   addKeyValue(summary, 'مرخصی باحقوق (روز)', input.paidLeaveDays ?? 0);
@@ -157,7 +169,8 @@ export async function buildPayrollExcelWorkbook(
   addKeyValue(summary, 'حق تأهل', result.marriagePayRial);
   addKeyValue(summary, 'حق اولاد', result.childAllowancePayRial);
   addKeyValue(summary, 'اضافه‌کاری', result.overtimePayRial);
-  addKeyValue(summary, 'شب‌کاری غیرنوبتی (ورودی فعلی)', result.nightShiftPayRial);
+  addKeyValue(summary, 'شب‌کاری غیرنوبتی', result.nightShiftPayRial);
+  addKeyValue(summary, 'فوق‌العاده نوبت‌کاری ماده ۵۶', result.shiftWorkPremiumRial);
   addKeyValue(summary, 'تعطیل‌کاری عمومی', result.holidayPayRial);
   addKeyValue(summary, 'جمعه‌کاری مستقل', result.fridayWorkPayRial);
   addKeyValue(summary, 'مأموریت', result.missionPayRial);
@@ -470,6 +483,8 @@ export async function buildPayrollRunExcelWorkbook(
     { header: 'ذخایر ماهانه', width: 20 },
     { header: 'CTC ماهانه', width: 20 },
     { header: 'CTC سالانه', width: 20 },
+    { header: 'الگوی نوبت‌کاری', width: 22 },
+    { header: 'فوق‌العاده نوبت‌کاری', width: 22 },
   ];
   styleHeaderRow(register.getRow(1), 'FF0F766E');
 
@@ -503,11 +518,13 @@ export async function buildPayrollRunExcelWorkbook(
       result?.totalMonthlyReservesRial ?? null,
       result?.ctcMonthlyRial ?? null,
       result?.ctcAnnualRial ?? null,
+      shiftWorkPatternLabel(input.shiftWorkPattern),
+      result?.shiftWorkPremiumRial ?? null,
     ]);
     styleDataRow(row);
   });
   setRialFormat(register, Array.from({ length: 22 }, (_, index) => index + 5));
-  register.autoFilter = { from: 'A1', to: 'Z1' };
+  register.autoFilter = { from: 'A1', to: 'AB1' };
 
   const detail = workbook.addWorksheet('جزئیات اقلام', {
     views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
@@ -657,6 +674,8 @@ export async function buildPayrollRunExcelWorkbook(
     { header: 'CTC ماهانه', width: 20 },
     { header: 'CTC سالانه‌شده', width: 22 },
     { header: 'یادداشت ماهانه', width: 42 },
+    { header: 'الگوی نوبت‌کاری', width: 22 },
+    { header: 'فوق‌العاده نوبت‌کاری (مبلغ)', width: 24 },
   ];
   styleHeaderRow(calculations.getRow(1), 'FF0F766E');
   run.lines.forEach((line) => {
@@ -721,13 +740,15 @@ export async function buildPayrollRunExcelWorkbook(
       result?.ctcMonthlyRial ?? null,
       result?.ctcAnnualRial ?? null,
       input.monthlyNotes ?? '',
+      shiftWorkPatternLabel(input.shiftWorkPattern),
+      result?.shiftWorkPremiumRial ?? null,
     ]);
   });
   setRialFormat(calculations, [
     10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-    26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 41, 50, 51, 52,
+    26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 41, 50, 51, 52, 55,
   ]);
-  calculations.autoFilter = { from: 'A1', to: 'BA1' };
+  calculations.autoFilter = { from: 'A1', to: 'BC1' };
 
   // Period management summary and cost-center consolidation.
   const monthlySummary = workbook.addWorksheet('خلاصه ماهانه', {
@@ -865,6 +886,7 @@ export async function buildPayrollRunExcelWorkbook(
     [
       ['روز ماه', run.monthDays],
       ['روز کارکرد مبنای محاسبه', line.payrollInput.workDays],
+      ['الگوی نوبت‌کاری', shiftWorkPatternLabel(line.payrollInput.shiftWorkPattern)],
       ['مرخصی استحقاقی', line.payrollInput.paidLeaveDays ?? 0],
       ['مرخصی استعلاجی', line.payrollInput.sickLeaveDays ?? 0],
       ['غیبت بدون حقوق', line.payrollInput.unpaidAbsenceDays ?? 0],
