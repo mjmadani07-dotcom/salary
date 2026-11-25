@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { CheckCircle2, ClipboardCheck, FilePlus2, Save } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Download, FilePlus2, Save } from 'lucide-react';
 import type { PayrollRunResult } from '../utils/payrollRunEngine';
 import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
 import {
@@ -16,6 +16,7 @@ import {
   validatePayrollSettlementWorkflow,
 } from '../utils/payrollSettlement';
 import { formatMoney } from '../utils/payrollEngine';
+import { downloadPayrollSettlementExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import type { CurrencyUnit } from '../data/payrollRegulations';
 
 interface PayrollSettlementPanelProps {
@@ -130,6 +131,17 @@ export function PayrollSettlementPanel({ run, unit }: PayrollSettlementPanelProp
     void load();
     return () => { active = false; };
   }, [run.runId]);
+
+
+  const exportSettlementCases = async () => {
+    if (cases.length === 0) return;
+    try {
+      await downloadPayrollSettlementExcelWorkbook(cases);
+      setFeedback('خروجی Excel پرونده‌های تسویه و گردش رویدادها آماده شد.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'ساخت خروجی Excel تسویه ناموفق بود.');
+    }
+  };
 
   const updateField = <K extends keyof PayrollSettlementCase>(
     key: K,
@@ -293,9 +305,19 @@ export function PayrollSettlementPanel({ run, unit }: PayrollSettlementPanelProp
             مبنای مزد عیدی، سنوات و بازخرید مرخصی جداست و باید با سند تأیید شود. مانده مرخصیِ پایان کار به‌صورت خودکار به سقف ۹ روز محدود نمی‌شود. مبلغ نهایی این صفحه قبل از مالیات و کسورات قانونی احتمالی است.
           </p>
         </div>
-        <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-          دوره مبنا: {run.fiscalYear} · ماه {run.month}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+            دوره مبنا: {run.fiscalYear} · ماه {run.month}
+          </span>
+          <button
+            type="button"
+            className={`${buttonClass} border border-slate-300 text-slate-700 hover:bg-slate-50`}
+            onClick={() => void exportSettlementCases()}
+            disabled={loading || cases.length === 0}
+          >
+            <Download className="h-4 w-4" /> خروجی Excel تسویه
+          </button>
+        </div>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -516,6 +538,29 @@ export function PayrollSettlementPanel({ run, unit }: PayrollSettlementPanelProp
                 <input className={inputClass} value={form.paymentDifferenceReason ?? ''} disabled={saving}
                   onChange={(event) => updateWorkflowField('paymentDifferenceReason', event.target.value)} />
               </Field>
+            </div>
+          )}
+
+          {form.auditTrail && form.auditTrail.length > 0 && (
+            <div className="mt-5 border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-bold text-slate-800">سابقه تغییر وضعیت پرونده</h3>
+              <div className="mt-2 space-y-2">
+                {[...form.auditTrail].reverse().map((event) => (
+                  <div key={event.eventId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                    <span className="font-semibold text-slate-800">
+                      {event.eventType === 'created' ? 'ایجاد پرونده'
+                        : event.eventType === 'draft-updated' ? 'ویرایش پیش‌نویس'
+                        : event.eventType === 'submitted-for-review' ? 'ارسال برای بازبینی'
+                        : event.eventType === 'returned-to-draft' ? 'بازگشت به پیش‌نویس'
+                        : event.eventType === 'approved' ? 'تأیید پرونده'
+                        : event.eventType === 'paid' ? 'ثبت پرداخت'
+                        : 'لغو پرونده'}
+                    </span>
+                    <span>{event.actorName ?? ''} {event.reference ? `· ${event.reference}` : ''}</span>
+                    <span dir="ltr">{new Date(event.occurredAt).toLocaleString('fa-IR')}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
