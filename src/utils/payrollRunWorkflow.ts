@@ -3,7 +3,8 @@ import type { PayrollRunResult } from './payrollRunEngine';
 
 export function createInitialPayrollRunWorkflow(
   run: Pick<PayrollRunResult, 'status' | 'runId'>,
-  occurredAt = new Date().toISOString()
+  occurredAt = new Date().toISOString(),
+  correctionOfRunId?: string
 ): PayrollRunWorkflow {
   const status: PayrollRunWorkflowStatus = run.status === 'ready-for-review'
     ? 'ready-for-review'
@@ -15,8 +16,11 @@ export function createInitialPayrollRunWorkflow(
       eventType: 'calculated',
       occurredAt,
       status,
-      note: `Snapshot ${run.runId} created from the central payroll engine`,
+      note: correctionOfRunId
+        ? `Correction snapshot ${run.runId} replaces review of ${correctionOfRunId}`
+        : `Snapshot ${run.runId} created from the central payroll engine`,
     }],
+    ...(correctionOfRunId ? { correctionOfRunId } : {}),
   };
 }
 
