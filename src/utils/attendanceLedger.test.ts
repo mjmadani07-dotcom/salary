@@ -33,3 +33,29 @@ test('validates the exact unpaid-leave quantity acknowledged for payroll', () =>
   assert.ok(validateMonthlyAttendance({ ...valid, reviewedUnpaidLeaveDays: 31 }).some(x => x.code === 'INVALID_REVIEWED_UNPAID_LEAVE_DAYS'));
   assert.ok(validateMonthlyAttendance({ ...valid, reviewedUnpaidLeaveDays: -1 }).some(x => x.code === 'INVALID_REVIEWED_UNPAID_LEAVE_DAYS'));
 });
+
+test('validates distinct monthly Excel inputs and permits signed corrections', () => {
+  assert.deepEqual(validateMonthlyAttendance({
+    ...valid,
+    paidLeaveDays: 3,
+    sickLeaveDays: 2,
+    unpaidAbsenceDays: 1,
+    fridayHours: 6,
+    missionDays: 2,
+    insuredBenefitsRial: 1_000_000,
+    nonInsuredBenefitsRial: 500_000,
+    loanDeductionRial: 200_000,
+    advanceDeductionRial: 100_000,
+    otherDeductionsRial: 50_000,
+    signedCorrectionRial: -250_000,
+    payslipId: 'PAY-1405-02-P001',
+    paymentDate: '1405-03-01',
+  }), []);
+
+  assert.ok(validateMonthlyAttendance({ ...valid, sickLeaveDays: -1 })
+    .some((issue) => issue.code === 'INVALID_SICKLEAVEDAYS'));
+  assert.ok(validateMonthlyAttendance({ ...valid, missionDays: 31 })
+    .some((issue) => issue.code === 'INVALID_MISSIONDAYS'));
+  assert.ok(validateMonthlyAttendance({ ...valid, signedCorrectionRial: Number.NaN })
+    .some((issue) => issue.code === 'INVALID_SIGNED_CORRECTION'));
+});
