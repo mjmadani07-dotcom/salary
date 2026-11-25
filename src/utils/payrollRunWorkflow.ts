@@ -32,6 +32,19 @@ export interface PayrollRunWorkflowValidationIssue {
   message: string;
 }
 
+/**
+ * A failed calculation may be discarded before review. Once a run is ready
+ * for review, its snapshot is retained as an audit record and must be
+ * corrected through a new, separately identified run.
+ */
+export function validatePayrollRunSnapshotDeletion(
+  status: PayrollRunWorkflowStatus
+): string[] {
+  return status === 'validation-failed'
+    ? []
+    : ['Snapshot آماده بررسی، تأییدشده، پرداخت‌شده یا بسته‌شده قابل حذف نیست؛ برای اصلاح، Snapshot مستقل بسازید.'];
+}
+
 export function validatePayrollRunWorkflowTransition(
   currentStatus: PayrollRunWorkflowStatus,
   nextStatus: PayrollRunWorkflowStatus
