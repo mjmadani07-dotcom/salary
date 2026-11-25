@@ -111,38 +111,86 @@ Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md]
 - [ ] Add debt correction/reversal, account closure, write-off and termination settlement workflows.
 
 ### Phase 5 — Payroll approval and payment workflow
-- [ ] Implement monthly payroll-run Draft, Validation Failed, Ready for Review, Approved, Paid, Closed and Corrected states.
-- [x] Persist immutable calculation result snapshots with RuleSet version and employee input/metadata trace.
-- [x] Prevent deletion of payroll snapshots once they are ready for finance review; failed calculations may be discarded, while reviewed/approved/paid/closed records are retained for audit.
-- [x] Show blocking issues and legal-review warnings in reports and exports.
-- [ ] Record monthly payroll finance-manager approval, payment date/reference and bank reconciliation.
-- [ ] Protect monthly approved/paid/closed payroll periods from silent recalculation.
-- [ ] Provide monthly payroll correction runs with traceability instead of overwriting historical results.
-- [x] Implement the separate termination-settlement lifecycle Draft → Ready for Review → Approved → Paid, including append-only event history and immutability after approval/payment.
-- [ ] Persist immutable payroll calculation snapshots with RuleSet version and input trace.
-- [ ] Show blocking issues and review warnings before approval.
-- [ ] Record finance-manager approval and payment date/reference.
-- [ ] Protect approved/paid/closed periods from silent recalculation.
-- [ ] Provide correction runs with traceability instead of overwriting historical results.
-- [x] Generate employee payslip worksheets, payroll register, monthly cost-centre summary and bank transfer register from one PayrollRunResult export.
-- [ ] Add bank-specific transfer file formats, monthly payroll payment approvals/references and reconciliation of actual bank transactions.
 
-### Phase 6 — Backup, restore and Windows packaging
-- [ ] Define a versioned local backup format covering employee master, contracts, wages, attendance, leave, debts, settings and payroll-run history.
-- [ ] Validate backup integrity and detect incomplete/corrupt files.
-- [ ] Implement full restore with a clear overwrite/merge policy and pre-restore safety backup.
-- [ ] Test restore onto a fresh browser/device profile and test database schema upgrades.
-- [ ] Verify legacy encrypted records are preserved and continue to work.
-- [ ] Package the application as a standalone Windows desktop app only after backup/restore and local persistence tests pass.
-- [ ] Provide a simple installer/update/uninstall and data-location guide.
+- [x] Persist immutable calculation-result snapshots with RuleSet version and employee/input trace.
+- [x] Retain snapshots once they reach finance review; only validation-failed runs may be discarded.
+- [x] Implement the saved-run workflow: Ready for Review → Approved → Paid → Closed; validation-failed runs cannot be approved.
+- [x] Require approver identity/reference and payment date/reference/actual amount; require a reason for payment differences.
+- [x] Append approval, payment and close events to the workflow audit trail.
+- [x] Prevent mutation/deletion of approved, paid and closed snapshots through the workflow controls.
+- [x] Show blockers and legal-review warnings in payroll results and exports.
+- [x] Generate employee payslips, payroll register, cost-centre summary and bank-preparation register from the same PayrollRunResult.
+- [ ] Add an explicit correction-run operation/UI that links a new snapshot to the original closed/paid run and records the correction reason; the current model has a correction reference field but this end-to-end path is not yet accepted.
+- [ ] Add bank-specific transfer files only after the bank's technical format is obtained and tested.
+- [ ] Reconcile the bank's actual paid transactions to the approved employee-level payment register.
+- [ ] Integrate reviewed debt/other-deduction records only after lawful recoverability is approved; require explicit manager confirmation and deterministic duplicate-prevention across recalculation, correction and export.
+- [ ] Decide whether a separate persisted Draft state is required; the current workflow begins when a calculation snapshot is saved.
 
-### Phase 7 — Final operational readiness
-- [ ] Close all P0 legal and calculation issues.
-- [ ] Pass unit, integration, migration, backup/restore and end-to-end payroll acceptance tests.
-- [ ] Reconcile web UI, payslips, XLSX and bank/payment exports against the same payroll snapshot.
-- [ ] Verify closed-period immutability and correction audit trail.
-- [ ] Update the product documentation and only then assess operational readiness.
+### Phase 6 — Local backup, restore and data portability
 
+- [x] Define a versioned JSON backup format (format v1) covering all current IndexedDB stores: employee master, contracts/wage history, attendance, leave, debts/repayments, other deductions, payroll snapshots, settlements and vault records.
+- [x] Validate format/version, required stores, record-array shape, unknown stores and encryption-state consistency before restore.
+- [x] Export a complete local database backup.
+- [x] Restore all included stores in one IndexedDB read/write transaction with full-replacement semantics.
+- [x] Create and download a separate safety backup of the current database automatically before an accepted restore; do not begin restore if the safety export fails.
+- [ ] Verify restore on a fresh browser profile/device, including record counts and the ability to open and use restored payroll periods.
+- [ ] Test upgrades from supported historical database schemas (including legacy encrypted-vault data) and verify no record loss.
+- [ ] Confirm whether any app settings are persisted outside IndexedDB and include them in the backup or document why they are intentionally excluded.
+- [ ] Define a simple offline procedure for storing, retaining and periodically testing backup files on a second physical storage location.
+
+### Phase 7 — Finalization & Go-Live (hard-stop milestone)
+
+This is the terminal milestone for the current product scope. Once every gate below is accepted, development of this version stops; new ideas move to a separate post-launch backlog. Do not add convenience features or broaden the architecture while a release gate remains open.
+
+**Gate A — legal and payroll-rule approval**
+- [ ] Obtain signed/issuer-verifiable primary copies for the applicable 1405 wage, insurance, tax and statutory-benefit rules, plus amendments effective during the payroll period.
+- [ ] Obtain documented reviewer decisions for all P0 entries in [LEGAL_REVIEW_REGISTER.md](./LEGAL_REVIEW_REGISTER.md), including wage bases, insurance/tax classifications, dependent eligibility, seniority/job-classification applicability, payable-day semantics, and lawful deductions.
+- [ ] Resolve or explicitly exclude special regimes that do not apply to the employer/workers; do not silently use general-case rates for them.
+- [ ] Approve the daily/weekly evidence model for overtime, night work, shift work, Friday/weekly rest and official-holiday overlap. Monthly totals alone do not prove daily consent, limits or non-overlap.
+- [ ] Approve mission eligibility, minimum allowance and separate travel-cost reimbursement.
+- [ ] Approve settlement tax/insurance treatment and wage bases for the applicable termination reasons.
+
+**Gate B — complete and controlled data**
+- [ ] Reconcile all 19 employee fields, 22 monthly input columns, 20 Excel parameters, 5 settlement inputs and report selectors against the current implementation; record any intentional exclusion and its replacement control.
+- [ ] Complete the employee evidence needed for seniority, insured history and eligible dependents, and classify job-classification/fixed-wage applicability where relevant.
+- [ ] Define one approved reconciliation for worked days, payable days, paid leave, sick leave, unpaid absence and mission days; block duplicate or contradictory input.
+- [ ] Define the source of truth for each deduction and prevent the same loan, advance or other deduction from being entered both manually and from a ledger.
+- [ ] Implement/validate multi-segment proration for mid-period hire, termination, wage or contract changes, or document that no affected case exists in the launch population and block such cases.
+
+**Gate C — release-quality calculations and workflow**
+- [ ] Convert each approved legal interpretation into versioned RuleSet/pay-item metadata and regression tests; no pending legal classification may silently enter a final payable result.
+- [ ] Automate the applicable acceptance scenarios in this document and the coverage matrix, including 29/30/31-day periods and boundary values.
+- [ ] Confirm the approval → payment → close workflow, correction-run traceability and immutable historical snapshots end to end.
+- [ ] Reconcile web UI, payslips, detailed XLSX, monthly summary and bank-preparation output to the same immutable PayrollRunResult.
+- [ ] Confirm all blockers, legal-review warnings, negative-net-pay exclusions and payment differences are visible to the finance manager before approval.
+
+**Gate D — recoverability and operational acceptance**
+- [ ] Pass restore tests on a clean browser profile/device, with and without a legacy Vault, and document the tested schema-upgrade path.
+- [ ] Verify that the safety backup is produced before destructive restore and that a failed backup prevents restore.
+- [ ] Complete at least one real payroll-period parallel run against the approved Excel process; reconcile every employee and every pay-item difference, not just grand totals.
+- [ ] Obtain written finance-owner acceptance and legal/payroll reviewer sign-off for the launch population and effective period.
+- [ ] Archive the signed rule pack, reconciliation evidence, approved test results and a known-good backup before declaring Go-Live.
+
+**Exit rule:** no unresolved P0 item, no unexplained reconciliation difference, no untested restore path and no missing owner approval. If an external legal or operational decision is unavailable, the affected scenario remains blocked and Go-Live is not declared. The application may be called technically test-passing, but not a legally approved production payroll system.
+
+## 5. Release boundary
+
+The current branch is a development baseline, not a legally approved production payroll system. Green CI proves only the automated scenarios present in the repository. Final operational use requires the Phase 7 gates above, including human legal/finance approval, real-period reconciliation and a demonstrated recovery procedure. The application remains a single-finance-manager, single-local-device product; multi-company, multi-user, cloud sync and full operational EOS are outside this release.
+
+## 6. Current status
+
+- Work branch: `feat/lightweight-payroll-workbench`.
+- The last verified implementation baseline before this documentation closeout is commit `bdba8b7e707e1d2df7afb69fbd9787510ff173d8`; the following documentation/safety-backup commits are being validated by CI.
+- The last fully verified CI run at that baseline was run `45666123405`: 113 tests passed, TypeScript passed and Vite production build passed.
+- Monthly shift-pattern capture, period-scoped persistence, Article 56 rate differentiation and suppression of the Article 58 35% non-shift premium for rotating patterns are implemented. The shift allowance wage base and item classification remain legal-review items.
+- Monthly attendance and leave ledgers, paid-leave integration, unpaid-leave acknowledgement, employee debt tracking, employee master/contract history, batch payroll calculation and XLSX reports are implemented to the documented boundaries.
+- The saved-run approval/payment/close workflow and versioned database backup/restore code are implemented. A pre-restore safety backup is now downloaded automatically before destructive restore. Fresh-profile, schema-migration and legacy-vault restore verification remain operational tests.
+- **Still blocks Go-Live:** daily attendance/overtime/weekly-rest evidence; approved payable-day and leave treatment; mission conditions/costs; lawful and non-duplicated deductions; complete wage/insurance/tax/pay-item classification and YTD applicability; job-classification/seniority/dependent evidence; mid-period proration; correction-run UX; bank-specific transfer/reconciliation; signed primary legal sources; restore testing; and real-period parallel reconciliation.
+- No PR has been merged. The open PR #1 targets a different branch; this branch remains unmerged.
+
+## 7. Change-control rule after the freeze
+
+From this point, work is limited to: (1) defects or P0 gaps that block the Phase 7 gates, (2) updating tests and documentation required to prove a gate, and (3) narrowly scoped data-safety fixes. New dashboards, convenience screens, architecture expansion, EOS development or speculative enhancements are post-launch backlog items and must not be added to this release.
 ## 5. Release boundary
 
 The current branch is a development baseline, not a legally approved production payroll system. Successful tests prove only the currently automated scenarios. Operational use requires legal sign-off, complete P0 validation, verified data backups and a tested restore procedure.
