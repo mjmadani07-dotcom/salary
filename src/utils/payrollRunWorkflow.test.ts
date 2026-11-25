@@ -91,6 +91,55 @@ test('payment requires a Jalali date, bank reference, exact amount or documented
   assert.deepEqual(validatePayrollRunWorkflowUpdate(run, current, valid), []);
 });
 
+test('approval and payment records become immutable as the payroll run advances', () => {
+  const run = makeRun();
+  const ready = createInitialPayrollRunWorkflow(run);
+  const approved = {
+    ...ready,
+    status: 'approved' as const,
+    approverName: 'مدیر مالی',
+    approvalReference: 'FIN-001',
+    approvedAt: '2026-11-25T15:00:00.000Z',
+  };
+  const mutatedApproval = {
+    ...approved,
+    status: 'paid' as const,
+    approverName: 'کاربر دیگر',
+    paymentDate: '1405-01-31',
+    paymentReference: 'BANK-001',
+    paidAmountRial: 930,
+    paidAt: '2026-11-25T15:10:00.000Z',
+  };
+  assert.ok(validatePayrollRunWorkflowUpdate(run, approved, mutatedApproval)
+    .some((issue) => issue.code === 'APPROVAL_METADATA_IMMUTABLE'));
+
+  const paid = {
+    ...approved,
+    status: 'paid' as const,
+    paymentDate: '1405-01-31',
+    paymentReference: 'BANK-001',
+    paidAmountRial: 930,
+    paidAt: '2026-11-25T15:10:00.000Z',
+  };
+  const mutatedPayment = {
+    ...paid,
+    status: 'closed' as const,
+    paidAmountRial: 900,
+    closeReference: 'ARCHIVE-001',
+    closedAt: '2026-11-25T15:20:00.000Z',
+  };
+  assert.ok(validatePayrollRunWorkflowUpdate(run, paid, mutatedPayment)
+    .some((issue) => issue.code === 'PAYMENT_METADATA_IMMUTABLE'));
+
+  const validClose = {
+    ...paid,
+    status: 'closed' as const,
+    closeReference: 'ARCHIVE-001',
+    closedAt: '2026-11-25T15:20:00.000Z',
+  };
+  assert.deepEqual(validatePayrollRunWorkflowUpdate(run, paid, validClose), []);
+});
+
 test('closing requires a close reference', () => {
   const run = makeRun();
   const current = {
