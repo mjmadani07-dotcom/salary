@@ -171,7 +171,7 @@ async function hmacToken(keys: PayrollVaultKeys, value: string): Promise<string>
 
 export function createOpaqueRecordId(
   keys: PayrollVaultKeys,
-  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance' | 'leave',
+  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance' | 'leave' | 'employeeDebt' | 'debtRepayment' | 'otherDeduction',
   identifier: string
 ): Promise<string> {
   return hmacToken(keys, 'record:' + kind + ':' + identifier).then(
