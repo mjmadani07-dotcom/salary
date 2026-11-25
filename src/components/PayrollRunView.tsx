@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ClipboardEvent, FormEvent } from 'react';
 import {
   Calculator,
   FileSpreadsheet,
@@ -31,6 +31,8 @@ import {
   resolveEmployeeTerms,
 } from '../utils/employeeMaster';
 import { createPayrollWorkspaceEmployees } from '../utils/payrollRunWorkspace';
+import { PAYROLL_GRID_PASTE_FIELDS, parsePayrollGridPasteCell } from '../utils/payrollGridClipboard';
+import type { PayrollGridPasteField } from '../utils/payrollGridClipboard';
 import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 
@@ -255,6 +257,146 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           : `ذخیره تغییرات ${employee.fullName} ناموفق بود.`
       );
     }
+  };
+
+  const applyClipboardMatrix = async (
+    startRowIndex: number,
+    startField: PayrollGridPasteField,
+    clipboardText: string
+  ) => {
+    const rows = clipboardText.replace(/\r/g, '').split('\n');
+    if (rows[rows.length - 1] === '') rows.pop();
+
+    const startColumn = PAYROLL_GRID_PASTE_FIELDS.indexOf(startField);
+    if (startColumn < 0 || rows.length === 0) return;
+
+    const nextEmployees = [...employees];
+    const changedRows = new Map<string, PayrollRunEmployee>();
+    const invalidCells: string[] = [];
+    const confirmationRules: Partial<Record<PayrollGridPasteField, Omit<RequiredMonthlyIssue, 'confirmed'>>> = {
+      workDays: {
+        code: 'MONTHLY_WORK_DAYS_UNCONFIRMED',
+        field: 'workDays',
+        message: 'روزهای کارکرد این دوره را تأیید یا اصلاح کنید.',
+      },
+      annualWorkedDays: {
+        code: 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED',
+        field: 'annualWorkedDays',
+        message: 'تعداد روزهای کارکرد سال برای محاسبه عیدی را وارد یا تأیید کنید.',
+      },
+      isMarried: {
+        code: 'MONTHLY_MARITAL_STATUS_UNCONFIRMED',
+        field: 'isMarried',
+        message: 'وضعیت تأهل این کارمند را مشخص کنید.',
+      },
+      childrenCount: {
+        code: 'MONTHLY_CHILDREN_COUNT_UNCONFIRMED',
+        field: 'childrenCount',
+        message: 'تعداد فرزندان واجد شرایط را مشخص کنید؛ در صورت نداشتن فرزند، عدد صفر را وارد کنید.',
+      },
+      has720DaysInsurance: {
+        code: 'MONTHLY_720_DAY_INSURANCE_UNCONFIRMED',
+        field: 'has720DaysInsurance',
+        message: 'وضعیت احراز حداقل ۷۲۰ روز سابقه بیمه را مشخص کنید.',
+      },
+    };
+
+    rows.forEach((line, rowOffset) => {
+      const targetEmployee = filteredEmployees[startRowIndex + rowOffset];
+      if (!targetEmployee) return;
+      const employeeIndex = nextEmployees.findIndex((item) => item.employeeId === targetEmployee.employeeId);
+      if (employeeIndex < 0 || !nextEmployees[employeeIndex].isActive) return;
+
+      let updated = nextEmployees[employeeIndex];
+      const cells = line.split('\t');
+      cells.forEach((rawValue, columnOffset) => {
+        const field = PAYROLL_GRID_PASTE_FIELDS[startColumn + columnOffset];
+        if (!field) return;
+
+        const parsed = parsePayrollGridPasteCell(field, rawValue, unitMultiplier);
+        if (!parsed.valid) {
+          invalidCells.push(`${updated.personnelCode} · ستون ${field}: مقدار «${rawValue}» قابل تشخیص نیست.`);
+          return;
+        }
+
+        const confirmation = confirmationRules[field];
+        let issues = [...(updated.masterDataIssues ?? [])];
+        if (confirmation) {
+          issues = issues.filter((issue) => issue.code !== confirmation.code);
+          if (parsed.empty) {
+            issues.push({
+              code: confirmation.code,
+              field: confirmation.field,
+              message: confirmation.message,
+            });
+          }
+        }
+
+        if (!parsed.empty || typeof parsed.value === 'number') {
+          if (parsed.value !== undefined) {
+            const patch = { [field]: parsed.value } as Partial<PayrollInput>;
+            updated = {
+              ...updated,
+              payrollInput: { ...updated.payrollInput, ...patch },
+              masterDataIssues: issues,
+            };
+          } else {
+            updated = { ...updated, masterDataIssues: issues };
+          }
+        } else {
+          updated = { ...updated, masterDataIssues: issues };
+        }
+      });
+
+      nextEmployees[employeeIndex] = updated;
+      changedRows.set(updated.employeeId, updated);
+    });
+
+    if (changedRows.size === 0) {
+      if (invalidCells.length > 0) setStorageError(invalidCells.slice(0, 4).join(' '));
+      return;
+    }
+
+    setEmployees(nextEmployees);
+    setRunResult(null);
+    setLastSavedRunId(null);
+
+    const saveErrors = (await Promise.all(
+      [...changedRows.values()].map(async (employee) => {
+        try {
+          await saveEmployee(employee);
+          return null;
+        } catch (error) {
+          return error instanceof Error
+            ? `${employee.personnelCode}: ${error.message}`
+            : `ذخیره ${employee.personnelCode} ناموفق بود.`;
+        }
+      })
+    )).filter((message): message is string => message !== null);
+
+    const messages = [
+      ...invalidCells.slice(0, 4),
+      ...saveErrors.slice(0, 4),
+    ];
+    setStorageError(messages.length > 0 ? messages.join(' ') : null);
+  };
+
+  const handleGridPaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    const field = target.dataset.gridField as PayrollGridPasteField | undefined;
+    const rowIndex = Number(target.dataset.gridRow);
+    const text = event.clipboardData.getData('text/plain');
+
+    if (
+      !field ||
+      !Number.isInteger(rowIndex) ||
+      (!text.includes('\t') && !text.includes('\n'))
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    void applyClipboardMatrix(rowIndex, field, text);
   };
 
   const updateNumber = (
@@ -601,7 +743,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" onPaste={handleGridPaste}>
               <table className="w-full min-w-[1660px] text-right text-sm">
                 <thead className="bg-slate-100 text-xs text-slate-700">
                   <tr>
@@ -621,7 +763,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {filteredEmployees.map((employee) => {
+                  {filteredEmployees.map((employee, rowIndex) => {
                     const disabled = !employee.isActive || isSaving;
                     const rowIssues = employee.masterDataIssues ?? [];
                     const calculatedLine = runResult?.lines.find((line) => line.employeeId === employee.employeeId);
@@ -657,6 +799,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             max={monthDays}
                             step={0.5}
                             aria-label={`روز کارکرد ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="workDays"
                             disabled={disabled}
                             value={workDaysMissing ? '' : employee.payrollInput.workDays}
                             placeholder="روز"
@@ -675,6 +819,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             min={0}
                             step={0.5}
                             aria-label={`اضافه‌کاری ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="overtimeHours"
                             disabled={disabled}
                             value={employee.payrollInput.overtimeHours}
                             className={inputClass()}
@@ -688,6 +834,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             min={0}
                             step={0.5}
                             aria-label={`شب‌کاری ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="nightShiftHours"
                             disabled={disabled}
                             value={employee.payrollInput.nightShiftHours}
                             className={inputClass()}
@@ -701,6 +849,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             min={0}
                             step={0.5}
                             aria-label={`تعطیل‌کاری ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="holidayHours"
                             disabled={disabled}
                             value={employee.payrollInput.holidayHours}
                             className={inputClass()}
@@ -714,6 +864,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             min={0}
                             step={1}
                             aria-label={`پاداش متغیر ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="variableBonusRial"
                             disabled={disabled}
                             value={Math.round(employee.payrollInput.variableBonusRial / unitMultiplier)}
                             className={inputClass('w-28')}
@@ -724,6 +876,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                         <td className={cellClass}>
                           <select
                             aria-label={`وضعیت تأهل ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="isMarried"
                             disabled={disabled}
                             value={maritalMissing ? '' : employee.payrollInput.isMarried ? 'yes' : 'no'}
                             className={`w-24 rounded-md border px-2 py-2 text-xs ${maritalMissing ? 'border-amber-400 bg-amber-50' : 'border-slate-300 bg-white'}`}
@@ -750,6 +904,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             min={0}
                             step={1}
                             aria-label={`تعداد فرزند واجد شرایط ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="childrenCount"
                             disabled={disabled}
                             value={childrenMissing ? '' : employee.payrollInput.childrenCount}
                             placeholder="۰"
@@ -765,6 +921,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                         <td className={cellClass}>
                           <select
                             aria-label={`سابقه بیمه ۷۲۰ روز ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="has720DaysInsurance"
                             disabled={disabled}
                             value={insuranceMissing ? '' : employee.payrollInput.has720DaysInsurance ? 'yes' : 'no'}
                             className={`w-28 rounded-md border px-2 py-2 text-xs ${insuranceMissing ? 'border-amber-400 bg-amber-50' : 'border-slate-300 bg-white'}`}
@@ -792,6 +950,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                             max={366}
                             step={1}
                             aria-label={`روزهای کارکرد سالانه ${employee.fullName}`}
+                            data-grid-row={rowIndex}
+                            data-grid-field="annualWorkedDays"
                             disabled={disabled}
                             value={annualDaysMissing ? '' : employee.payrollInput.annualWorkedDays}
                             placeholder="روز"
