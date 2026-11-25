@@ -49,6 +49,8 @@ export interface PayrollInput {
   insuranceSubject?: boolean;
   taxSubject?: boolean;
   hourlyDivisor?: 220 | 191.6;
+  /** Current month's rotating-shift classification; undefined is retained only for legacy snapshots. */
+  shiftWorkPattern?: import('../types/attendance').ShiftWorkPattern;
   // Annual Eid & Severance inputs
   annualWorkedDays: number;
   serviceYearsForSeverance: number;
@@ -162,6 +164,10 @@ export function validatePayrollInput(input: PayrollInput): PayrollInputIssue[] {
     add('serviceExtraDaysForSeverance', 'INVALID_SERVICE_EXTRA_DAYS', 'Extra service days must be a whole number between zero and 364.');
   }
 
+  if (input.shiftWorkPattern !== undefined && !['non-shift', 'morning-evening', 'morning-evening-night', 'morning-night', 'evening-night'].includes(input.shiftWorkPattern)) {
+    add('shiftWorkPattern', 'INVALID_SHIFT_WORK_PATTERN', 'Shift-work pattern is not a supported value.');
+  }
+
   if (input.hourlyDivisor !== undefined && input.hourlyDivisor !== 220 && input.hourlyDivisor !== 191.6) {
     add('hourlyDivisor', 'INVALID_HOURLY_DIVISOR', 'Hourly divisor must be one of the configured calculation bases.');
   }
@@ -199,6 +205,7 @@ export interface PayrollResult {
   hourlyNormalRateRial: number;
   overtimePayRial: number;
   nightShiftPayRial: number;
+  shiftWorkPremiumRial: number;
   holidayPayRial: number;
   fridayWorkPayRial: number;
   missionPayRial: number;
@@ -329,8 +336,25 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const overtimePayRial = Math.round(
     input.overtimeHours * hourlyNormalRateRial * 1.4
   );
-  const nightShiftPayRial = Math.round(
-    input.nightShiftHours * hourlyNormalRateRial * 0.35
+  const shiftWorkPremiumRate = input.shiftWorkPattern === 'morning-evening'
+    ? reg.shiftWorkMorningEveningRate
+    : input.shiftWorkPattern === 'morning-evening-night'
+      ? reg.shiftWorkMorningEveningNightRate
+      : input.shiftWorkPattern === 'morning-night'
+        ? reg.shiftWorkMorningNightRate
+        : input.shiftWorkPattern === 'evening-night'
+          ? reg.shiftWorkEveningNightRate
+          : 0;
+  const isRotatingShiftWorker = shiftWorkPremiumRate > 0;
+  // Article 58's 35% hourly night premium applies to non-shift workers only.
+  // Undefined pattern retains the historical 35% behavior for old snapshots.
+  const nightShiftPayRial = isRotatingShiftWorker
+    ? 0
+    : Math.round(input.nightShiftHours * hourlyNormalRateRial * 0.35);
+  // Article 56 is a monthly percentage. Current wage proxy is the period's
+  // base salary plus seniority; the exact wage-component map remains under review.
+  const shiftWorkPremiumRial = Math.round(
+    (basePayRial + seniorityPayRial) * shiftWorkPremiumRate
   );
   const holidayPayRial = Math.round(
     input.holidayHours * hourlyNormalRateRial * 1.4
@@ -375,6 +399,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     { itemId: 'child-allowance', amountRial: childAllowancePayRial },
     { itemId: 'overtime', amountRial: overtimePayRial },
     { itemId: 'night-shift', amountRial: nightShiftPayRial },
+    { itemId: 'shift-work-premium', amountRial: shiftWorkPremiumRial },
     { itemId: 'holiday-work', amountRial: holidayPayRial },
     { itemId: 'friday-work-premium', amountRial: fridayWorkPayRial },
     { itemId: 'mission-allowance', amountRial: missionPayRial },
@@ -484,6 +509,21 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     netPayRial > 0 ? ctcMonthlyRial / netPayRial : 0;
 
   const legalReviewRequiredItems = getPendingLegalReviewItems(payItemLines);
+  if (isRotatingShiftWorker) {
+    legalReviewRequiredItems.push(
+      'فوق‌العاده نوبت‌کاری با نرخ ماده ۵۶ و بر مبنای مزد پایه + پایه سنوات محاسبه شده است؛ اجزای دقیق مزد و طبقه‌بندی بیمه/مالیات هنوز باید تأیید حقوقی شود.'
+    );
+  }
+  if (input.overtimeHours > 0) {
+    legalReviewRequiredItems.push(
+      'اضافه‌کاری فقط به‌صورت جمع ماهانه ثبت شده است؛ رضایت کارگر، سقف معمول ۴ ساعت در هر روز و ممنوعیت‌های ماده ۶۱ برای کار شبانه/سخت و زیان‌آور با این داده قابل تأیید نیست و به مستند روزانه نیاز دارد.'
+    );
+  }
+  if (input.overtimeHours > 0 && input.nightShiftHours > 0) {
+    legalReviewRequiredItems.push(
+      'هم‌زمانی اضافه‌کاری و ساعات شب‌کاری ثبت شده است؛ باید با ریزکارکرد روزانه بررسی شود که اضافه‌کاری در ساعات مشمول ممنوعیت ماده ۶۱ انجام نشده باشد.'
+    );
+  }
   if (
     input.overtimeHours > 0 &&
     (input.fridayHours ?? 0) > 0
@@ -544,6 +584,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     hourlyNormalRateRial,
     overtimePayRial,
     nightShiftPayRial,
+    shiftWorkPremiumRial,
     holidayPayRial,
     fridayWorkPayRial,
     missionPayRial,
