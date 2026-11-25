@@ -36,4 +36,6 @@ export interface PayrollRunWorkflow {
   closedAt?: string;
   /** Populated only when this is a separate correction run. */
   correctionOfRunId?: string;
+  /** Required reason when a new snapshot corrects an approved/paid/closed run. */
+  correctionReason?: string;
 }
