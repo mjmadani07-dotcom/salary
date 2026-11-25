@@ -72,7 +72,8 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [ ] Complete pay-item insurance/tax/wage classifications and special-case handling, including aggregation of all taxable payments and legally exempt items.
 - [ ] Add the shift-pattern model and correct distinction between non-shift night premium (35%) and statutory shift allowances (10%, 15%, 22.5%).
 - [ ] Add statutory overtime controls (consent, daily limit and prohibited categories) using daily-level attendance evidence.
-- [ ] Reconcile Friday premium with weekly-rest scheduling and official-holiday overlap.
+- [x] Use the same hourly wage basis (base wage + seniority) for Friday premium as overtime; add explicit warnings when monthly overtime/Friday/holiday categories may overlap.
+- [ ] Reconcile Friday premium with weekly-rest scheduling, daily time records and official-holiday overlap; current monthly aggregates cannot prove non-overlap.
 - [ ] Complete mission allowance using the applicable fixed/base wage floor and separate transport/travel costs, including qualifying distance/overnight conditions.
 - [ ] Add the missing seniority, dependent eligibility, job group and actual insurance-history data. The 1405 twenty-group seniority schedule is now listed as SRC-014; the current employee model still lacks approved-plan/group and last-seniority-date evidence.
 - [ ] Complete shift, overtime, night, Friday, holiday and mission rules with overlap controls.
