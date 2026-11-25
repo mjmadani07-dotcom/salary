@@ -138,6 +138,52 @@ test('loads all employee records, including inactive rows, and marks unconfirmed
   assert.ok(issueCodes.includes('MONTHLY_720_DAY_INSURANCE_UNCONFIRMED'));
 });
 
+test('seeds stable marital and eligible-child facts from the employee master', () => {
+  const rows = createPayrollWorkspaceEmployees({
+    ...standardSeed,
+    employeeMasters: [makeMaster({ isMarried: true, eligibleChildrenCount: 3 })],
+    savedEmployees: [],
+  });
+  assert.equal(rows[0].payrollInput.isMarried, true);
+  assert.equal(rows[0].payrollInput.childrenCount, 3);
+  const issueCodes = rows[0].masterDataIssues?.map((issue) => issue.code) ?? [];
+  assert.ok(!issueCodes.includes('MONTHLY_MARITAL_STATUS_UNCONFIRMED'));
+  assert.ok(!issueCodes.includes('MONTHLY_CHILDREN_COUNT_UNCONFIRMED'));
+});
+
+test('uses the minimum or custom wage type and applies the statutory wage floor', () => {
+  const minimum = createPayrollWorkspaceEmployees({
+    ...standardSeed,
+    employeeMasters: [makeMaster({
+      wageHistory: [{
+        ...makeMaster().wageHistory[0],
+        dailyBaseWageRial: 8_000_000,
+        wageType: 'minimum',
+        seniorityEligible: false,
+      }],
+    })],
+    savedEmployees: [],
+  });
+  assert.equal(minimum[0].payrollInput.dailyBaseWageRial, standardSeed.minDailyWageRial);
+  assert.equal(minimum[0].payrollInput.dailySeniorityRial, 0);
+
+  const custom = createPayrollWorkspaceEmployees({
+    ...standardSeed,
+    employeeMasters: [makeMaster({
+      wageHistory: [{
+        ...makeMaster().wageHistory[0],
+        dailyBaseWageRial: 4_000_000,
+        wageType: 'custom',
+        seniorityEligible: true,
+      }],
+    })],
+    savedEmployees: [],
+  });
+  assert.equal(custom[0].payrollInput.dailyBaseWageRial, standardSeed.minDailyWageRial);
+  assert.equal(custom[0].payrollInput.dailySeniorityRial, 100_000);
+  assert.ok(custom[0].masterDataIssues?.some((issue) => issue.code === 'CUSTOM_WAGE_BELOW_STATUTORY_MINIMUM'));
+});
+
 test('reuses stable employee facts but resets period-specific inputs for a new month', () => {
   const saved = makeSavedEmployee();
   const rows = createPayrollWorkspaceEmployees({
