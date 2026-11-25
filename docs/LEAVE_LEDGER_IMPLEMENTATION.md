@@ -37,6 +37,10 @@ If an earlier month is edited, the application recalculates the opening and clos
 
 The application does not hard-code a monthly accrual rate in this ledger. The entitlement must be entered according to the applicable, approved legal/contractual basis. This avoids silently assuming one rule for every employee or employer.
 
-Unpaid leave is currently recorded in this ledger only. It is not yet automatically deducted from attendance workdays or payroll inputs. Daily leave requests, leave categories beyond paid/unpaid, approval workflow, and automatic accrual rules are not included in this stage.
+Unpaid leave is recorded in this ledger and now participates in a payroll review gate. When a month has unpaid leave, the Attendance screen displays the recorded quantity and asks the finance manager to confirm that the monthly work/payroll-day input has been reconciled with that quantity. PayrollRun blocks that employee if the saved review quantity is missing or differs from the current leave record. Editing the worked-day input clears the confirmation; changing the leave record makes an earlier confirmation stale.
+
+The system deliberately does **not** subtract unpaid leave days or money automatically. The exact conversion from leave days to payable days depends on the approved employment/attendance policy and must not be guessed. The manager must reconcile the attendance input and acknowledge the current leave quantity before payroll calculation can proceed. This avoids silently applying an unapproved formula or deducting the same absence twice.
+
+Daily leave requests, leave categories beyond paid/unpaid, approval workflow, and automatic accrual rules are not included in this stage.
 
 The existing payroll CTC calculation has its own annual-leave reserve assumption. This ledger does not currently replace or reconcile that reserve calculation. These are separate concepts and require a later, explicit policy decision before being linked.
