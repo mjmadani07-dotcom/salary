@@ -337,6 +337,386 @@ export async function buildPayrollExcelWorkbook(
     setRialFormat(eosSheet, [2]);
   }
 
+
+  // Excel-compatible detailed calculation output (A:AN). Values are sourced
+  // exclusively from PayrollRunResult and its input snapshot; no payroll formula
+  // is duplicated in this workbook.
+  const calculations = workbook.addWorksheet('محاسبات حقوق', {
+    views: [{ rightToLeft: true, state: 'frozen', xSplit: 4, ySplit: 1 }],
+  });
+  calculations.columns = [
+    { header: 'شناسه فیش', width: 24 },
+    { header: 'سال', width: 10 },
+    { header: 'ماه', width: 8 },
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام', width: 24 },
+    { header: 'سمت', width: 24 },
+    { header: 'مرکز هزینه', width: 20 },
+    { header: 'روز ماه', width: 10 },
+    { header: 'روز مبنای محاسبه', width: 16 },
+    { header: 'مزد روزانه', width: 18 },
+    { header: 'حقوق پایه', width: 18 },
+    { header: 'بن', width: 16 },
+    { header: 'مسکن', width: 16 },
+    { header: 'حق تأهل', width: 16 },
+    { header: 'پایه سنوات', width: 16 },
+    { header: 'حق اولاد', width: 16 },
+    { header: 'اضافه‌کاری', width: 18 },
+    { header: 'شب‌کاری', width: 18 },
+    { header: 'جمعه‌کاری', width: 18 },
+    { header: 'مأموریت', width: 18 },
+    { header: 'مزایای مشمول بیمه', width: 20 },
+    { header: 'مزایای غیرمشمول بیمه', width: 22 },
+    { header: 'پاداش', width: 18 },
+    { header: 'اصلاح حقوق', width: 18 },
+    { header: 'ناخالص', width: 20 },
+    { header: 'مبنای بیمه پیش از سقف', width: 23 },
+    { header: 'بیمه کارگر', width: 18 },
+    { header: 'بیمه کارفرما', width: 18 },
+    { header: 'درآمد مشمول مالیات', width: 22 },
+    { header: 'مالیات', width: 18 },
+    { header: 'وام/قسط', width: 18 },
+    { header: 'مساعده', width: 18 },
+    { header: 'سایر کسورات', width: 18 },
+    { header: 'جمع کسورات', width: 18 },
+    { header: 'خالص پرداختی', width: 20 },
+    { header: 'هزینه مستقیم کارفرما', width: 24 },
+    { header: 'شماره حساب', width: 26 },
+    { header: 'شماره شبا', width: 32 },
+    { header: 'تاریخ پرداخت', width: 16 },
+    { header: 'وضعیت کنترل', width: 28 },
+    { header: 'تعطیل‌کاری عمومی (مبلغ)', width: 22 },
+    { header: 'مرخصی استحقاقی (روز)', width: 20 },
+    { header: 'استعلاجی (روز)', width: 18 },
+    { header: 'غیبت بدون حقوق (روز)', width: 22 },
+    { header: 'اضافه‌کاری (ساعت)', width: 18 },
+    { header: 'شب‌کاری (ساعت)', width: 18 },
+    { header: 'تعطیل‌کاری عمومی (ساعت)', width: 22 },
+    { header: 'جمعه‌کاری (ساعت)', width: 18 },
+    { header: 'مأموریت (روز)', width: 18 },
+    { header: 'ذخایر ماهانه', width: 20 },
+    { header: 'CTC ماهانه', width: 20 },
+    { header: 'CTC سالانه‌شده', width: 22 },
+    { header: 'یادداشت ماهانه', width: 42 },
+  ];
+  styleHeaderRow(calculations.getRow(1), 'FF0F766E');
+  run.lines.forEach((line) => {
+    const input = line.payrollInput;
+    const result = line.result;
+    const calculatedStatus = line.status === 'calculated'
+      ? 'محاسبه شد - نیازمند بررسی و تأیید'
+      : line.status === 'blocked'
+        ? 'مسدود - نیازمند اصلاح'
+        : 'خارج از محاسبه';
+    calculations.addRow([
+      input.payslipId || run.fiscalYear + '-' + String(run.month).padStart(2, '0') + '-' + line.personnelCode,
+      run.fiscalYear,
+      run.month,
+      line.personnelCode,
+      line.fullName,
+      line.jobTitle ?? '',
+      line.costCenter ?? '',
+      run.monthDays,
+      input.workDays,
+      input.dailyBaseWageRial,
+      result?.basePayRial ?? null,
+      result?.couponPayRial ?? null,
+      result?.housingPayRial ?? null,
+      result?.marriagePayRial ?? null,
+      result?.seniorityPayRial ?? null,
+      result?.childAllowancePayRial ?? null,
+      result?.overtimePayRial ?? null,
+      result?.nightShiftPayRial ?? null,
+      result?.fridayWorkPayRial ?? null,
+      result?.missionPayRial ?? null,
+      result?.insuredBenefitsRial ?? null,
+      result?.nonInsuredBenefitsRial ?? null,
+      result?.variableBonusRial ?? null,
+      result?.signedCorrectionRial ?? null,
+      result?.grossEarningsRial ?? null,
+      result?.insuranceSubjectEarningsRial ?? null,
+      result?.employeeInsuranceRial ?? null,
+      result?.totalEmployerInsuranceRial ?? null,
+      result?.taxableIncomeRial ?? null,
+      result?.totalPayrollTaxRial ?? null,
+      result?.loanDeductionRial ?? null,
+      result?.advanceDeductionRial ?? null,
+      result?.otherDeductionsRial ?? null,
+      result?.totalDeductionsRial ?? null,
+      result?.netPayRial ?? null,
+      result?.totalEmployerCostRial ?? null,
+      line.bankAccountNumber ?? '',
+      line.bankIban ?? '',
+      input.paymentDate ?? '',
+      calculatedStatus,
+      result?.holidayPayRial ?? null,
+      input.paidLeaveDays ?? 0,
+      input.sickLeaveDays ?? 0,
+      input.unpaidAbsenceDays ?? 0,
+      input.overtimeHours,
+      input.nightShiftHours,
+      input.holidayHours,
+      input.fridayHours ?? 0,
+      input.missionDays ?? 0,
+      result?.totalMonthlyReservesRial ?? null,
+      result?.ctcMonthlyRial ?? null,
+      result?.ctcAnnualRial ?? null,
+      input.monthlyNotes ?? '',
+    ]);
+  });
+  setRialFormat(calculations, [
+    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 41, 50, 51, 52,
+  ]);
+  calculations.autoFilter = { from: 'A1', to: 'AZ1' };
+
+  // Period management summary and cost-center consolidation.
+  const monthlySummary = workbook.addWorksheet('خلاصه ماهانه', {
+    views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+  });
+  monthlySummary.columns = [
+    { header: 'شاخص', width: 36 },
+    { header: 'مبلغ/تعداد', width: 26 },
+    { header: 'مرکز هزینه', width: 24 },
+    { header: 'تعداد نفر', width: 14 },
+    { header: 'ناخالص', width: 22 },
+    { header: 'بیمه کارفرما', width: 22 },
+    { header: 'خالص', width: 22 },
+    { header: 'هزینه کل کارفرما', width: 24 },
+    { header: 'CTC ماهانه', width: 22 },
+  ];
+  styleHeaderRow(monthlySummary.getRow(1), 'FF0F766E');
+  addKeyValue(monthlySummary, 'سال گزارش', run.fiscalYear);
+  addKeyValue(monthlySummary, 'ماه گزارش', run.month);
+  addKeyValue(monthlySummary, 'شناسه Snapshot', run.runId);
+  addKeyValue(monthlySummary, 'تعداد کل کارکنان/ردیف‌ها', run.totals.employeeCount);
+  addKeyValue(monthlySummary, 'تعداد محاسبه‌شده', run.totals.calculatedCount);
+  addKeyValue(monthlySummary, 'تعداد نیازمند اصلاح', run.totals.blockedCount);
+  addKeyValue(monthlySummary, 'تعداد خارج از محاسبه', run.totals.excludedCount);
+  addKeyValue(monthlySummary, 'جمع ناخالص', run.totals.grossEarningsRial);
+  addKeyValue(monthlySummary, 'بیمه سهم کارگر', run.totals.employeeInsuranceRial);
+  addKeyValue(monthlySummary, 'بیمه سهم کارفرما', run.totals.employerInsuranceRial);
+  addKeyValue(monthlySummary, 'مالیات حقوق', run.totals.payrollTaxRial);
+  addKeyValue(monthlySummary, 'جمع کسورات', run.totals.totalDeductionsRial);
+  addKeyValue(monthlySummary, 'خالص پرداختی', run.totals.netPayRial);
+  addKeyValue(monthlySummary, 'هزینه مستقیم کارفرما', run.totals.directEmployerCostRial);
+  addKeyValue(monthlySummary, 'ذخایر ماهانه', run.totals.monthlyReservesRial);
+  addKeyValue(monthlySummary, 'CTC ماهانه', run.totals.ctcMonthlyRial);
+  addKeyValue(monthlySummary, 'CTC سالانه‌شده', run.totals.ctcAnnualRial);
+  monthlySummary.addRow([]);
+  const costCenterHeader = monthlySummary.addRow([
+    'تفکیک مرکز هزینه', '', 'مرکز هزینه', 'تعداد نفر', 'ناخالص',
+    'بیمه کارفرما', 'خالص', 'هزینه مستقیم', 'CTC ماهانه',
+  ]);
+  styleHeaderRow(costCenterHeader, 'FF334155');
+  const costCenters = new Map<string, {
+    count: number; gross: number; employerInsurance: number; net: number;
+    directCost: number; ctc: number;
+  }>();
+  run.lines.filter((line) => line.status === 'calculated' && line.result).forEach((line) => {
+    const name = (line.costCenter ?? '').trim() || 'بدون مرکز هزینه';
+    const current = costCenters.get(name) ?? {
+      count: 0, gross: 0, employerInsurance: 0, net: 0, directCost: 0, ctc: 0,
+    };
+    current.count += 1;
+    current.gross += line.result!.grossEarningsRial;
+    current.employerInsurance += line.result!.totalEmployerInsuranceRial;
+    current.net += line.result!.netPayRial;
+    current.directCost += line.result!.totalEmployerCostRial;
+    current.ctc += line.result!.ctcMonthlyRial;
+    costCenters.set(name, current);
+  });
+  [...costCenters.entries()].sort((a, b) => a[0].localeCompare(b[0], 'fa')).forEach(([name, values]) => {
+    monthlySummary.addRow([
+      '', '', name, values.count, values.gross, values.employerInsurance,
+      values.net, values.directCost, values.ctc,
+    ]);
+  });
+  setRialFormat(monthlySummary, [2, 5, 6, 7, 8, 9]);
+
+  // A bank transfer register; only calculated, non-blocked payroll lines are exported.
+  const bankRegister = workbook.addWorksheet('لیست پرداخت بانکی', {
+    views: [{ rightToLeft: true, state: 'frozen', xSplit: 2, ySplit: 1 }],
+  });
+  bankRegister.columns = [
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام کارمند', width: 26 },
+    { header: 'شماره حساب', width: 28 },
+    { header: 'شماره شبا', width: 34 },
+    { header: 'مبلغ خالص قابل پرداخت (ریال)', width: 28 },
+    { header: 'شناسه فیش', width: 26 },
+    { header: 'تاریخ پرداخت', width: 18 },
+    { header: 'مرکز هزینه', width: 22 },
+  ];
+  styleHeaderRow(bankRegister.getRow(1), 'FF334155');
+  run.lines.filter((line) => line.status === 'calculated' && line.result).forEach((line) => {
+    bankRegister.addRow([
+      line.personnelCode,
+      line.fullName,
+      line.bankAccountNumber ?? '',
+      line.bankIban ?? '',
+      line.result!.netPayRial,
+      line.payrollInput.payslipId || run.fiscalYear + '-' + String(run.month).padStart(2, '0') + '-' + line.personnelCode,
+      line.payrollInput.paymentDate ?? '',
+      line.costCenter ?? '',
+    ]);
+  });
+  setRialFormat(bankRegister, [5]);
+  bankRegister.autoFilter = { from: 'A1', to: 'H1' };
+
+  // A separate print-ready payslip sheet for every calculated employee.
+  const usedSheetNames = new Set(workbook.worksheets.map((sheet) => sheet.name.toLocaleLowerCase()));
+  run.lines.filter((line) => line.status === 'calculated' && line.result).forEach((line) => {
+    const rawName = 'فیش ' + line.personnelCode;
+    let sheetName = rawName.replace(/[\\/?*\[\]:]/g, '-').slice(0, 31);
+    let suffix = 2;
+    while (usedSheetNames.has(sheetName.toLocaleLowerCase())) {
+      const tail = '-' + suffix;
+      sheetName = rawName.slice(0, 31 - tail.length) + tail;
+      suffix += 1;
+    }
+    usedSheetNames.add(sheetName.toLocaleLowerCase());
+    const slip = workbook.addWorksheet(sheetName, {
+      views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+      pageSetup: {
+        paperSize: 9,
+        orientation: 'portrait',
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 1,
+        margins: { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+      },
+    });
+    slip.columns = [
+      { width: 30 }, { width: 24 }, { width: 26 }, { width: 24 }, { width: 24 },
+    ];
+    slip.mergeCells('A1:E1');
+    slip.getCell('A1').value = 'فیش حقوق و دستمزد';
+    styleHeaderRow(slip.getRow(1), 'FF0F766E');
+    slip.addRow(['نام کارمند', line.fullName, 'کد پرسنلی', line.personnelCode, '']);
+    slip.addRow(['عنوان شغلی', line.jobTitle ?? 'ثبت نشده', 'مرکز هزینه', line.costCenter ?? 'ثبت نشده', '']);
+    slip.addRow(['دوره', run.fiscalYear + ' / ' + String(run.month), 'شناسه فیش',
+      line.payrollInput.payslipId || run.fiscalYear + '-' + String(run.month).padStart(2, '0') + '-' + line.personnelCode, '']);
+    slip.addRow(['تاریخ پرداخت', line.payrollInput.paymentDate || 'ثبت نشده',
+      'شماره بیمه', line.insuranceNumber ?? 'ثبت نشده', '']);
+    slip.addRow(['شماره حساب', line.bankAccountNumber ?? 'ثبت نشده', 'شماره شبا', line.bankIban ?? 'ثبت نشده', '']);
+    slip.addRow([]);
+    const attendanceHeader = slip.addRow(['خلاصه کارکرد', '', 'مقدار', '', '']);
+    styleHeaderRow(attendanceHeader, 'FF334155');
+    [
+      ['روز ماه', run.monthDays],
+      ['روز کارکرد مبنای محاسبه', line.payrollInput.workDays],
+      ['مرخصی استحقاقی', line.payrollInput.paidLeaveDays ?? 0],
+      ['مرخصی استعلاجی', line.payrollInput.sickLeaveDays ?? 0],
+      ['غیبت بدون حقوق', line.payrollInput.unpaidAbsenceDays ?? 0],
+      ['اضافه‌کاری (ساعت)', line.payrollInput.overtimeHours],
+      ['شب‌کاری (ساعت)', line.payrollInput.nightShiftHours],
+      ['تعطیل‌کاری عمومی (ساعت)', line.payrollInput.holidayHours],
+      ['جمعه‌کاری (ساعت)', line.payrollInput.fridayHours ?? 0],
+      ['مأموریت (روز)', line.payrollInput.missionDays ?? 0],
+    ].forEach(([label, value]) => slip.addRow([label, value, '', '', '']));
+    slip.addRow([]);
+    const earningHeader = slip.addRow(['اقلام پرداختی', 'مبلغ (ریال)', '', 'اقلام کسری', 'مبلغ (ریال)']);
+    styleHeaderRow(earningHeader, 'FF0F766E');
+    const earningLines = line.result!.payItemBreakdown.filter((itemLine) =>
+      getPayrollPayItem(itemLine.itemId).kind === 'earning' && itemLine.amountRial !== 0
+    );
+    const deductionLines = line.result!.payItemBreakdown.filter((itemLine) =>
+      getPayrollPayItem(itemLine.itemId).kind === 'deduction' && itemLine.amountRial !== 0
+    );
+    const maxLines = Math.max(earningLines.length, deductionLines.length, 1);
+    for (let index = 0; index < maxLines; index += 1) {
+      const earning = earningLines[index];
+      const deduction = deductionLines[index];
+      slip.addRow([
+        earning ? getPayrollPayItem(earning.itemId).title : '',
+        earning ? earning.amountRial : null,
+        '',
+        deduction ? getPayrollPayItem(deduction.itemId).title : '',
+        deduction ? deduction.amountRial : null,
+      ]);
+    }
+    slip.addRow(['بیمه سهم کارگر', line.result!.employeeInsuranceRial, '', 'مالیات حقوق', line.result!.totalPayrollTaxRial]);
+    slip.addRow(['جمع ناخالص', line.result!.grossEarningsRial, '', 'جمع کسورات', line.result!.totalDeductionsRial]);
+    slip.addRow(['خالص پرداختی', line.result!.netPayRial, '', 'بیمه سهم کارفرما', line.result!.totalEmployerInsuranceRial]);
+    slip.addRow(['هزینه مستقیم کارفرما', line.result!.totalEmployerCostRial, '', 'CTC ماهانه', line.result!.ctcMonthlyRial]);
+    slip.addRow(['ذخایر ماهانه کارفرما', line.result!.totalMonthlyReservesRial, '', 'وضعیت قواعد', line.result!.ruleSetApprovalStatus]);
+    slip.addRow([]);
+    slip.addRow(['وضعیت تأیید', 'محاسبه‌شده؛ نیازمند بررسی و تأیید مالی', '', '', '']);
+    slip.addRow(['هشدارهای حقوقی', line.result!.legalReviewRequiredItems.join('؛ '), '', '', '']);
+    slip.addRow(['یادداشت ماهانه', line.payrollInput.monthlyNotes ?? '', '', '', '']);
+    slip.eachRow((row, rowNumber) => {
+      if (rowNumber > 1) styleDataRow(row, rowNumber >= slip.rowCount - 3);
+    });
+    slip.getColumn(2).numFmt = '#,##0;[Red]-#,##0';
+    slip.getColumn(5).numFmt = '#,##0;[Red]-#,##0';
+    slip.getColumn(1).alignment = { vertical: 'middle', horizontal: 'right', wrapText: true };
+    slip.getColumn(4).alignment = { vertical: 'middle', horizontal: 'right', wrapText: true };
+    slip.getColumn(2).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    slip.getColumn(5).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    slip.pageSetup.printArea = 'A1:E' + slip.rowCount;
+  });
+
+  // The settlement worksheet exports only amounts already produced by the
+  // central engine. Missing settlement inputs remain blank instead of being
+  // guessed; column N is explicitly a subtotal, not a final payable settlement.
+  const settlement = workbook.addWorksheet('عیدی و تسویه', {
+    views: [{ rightToLeft: true, state: 'frozen', xSplit: 2, ySplit: 3 }],
+  });
+  settlement.columns = [
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام', width: 26 },
+    { header: 'ماه کارکرد سال (نیازمند ثبت مستقل)', width: 28 },
+    { header: 'روز کارکرد سال', width: 18 },
+    { header: 'مزد روزانه پایان', width: 20 },
+    { header: 'حقوق ماهانه مبنا', width: 22 },
+    { header: 'عیدی حداقل محاسبه‌شده', width: 22 },
+    { header: 'سقف عیدی قانونی محاسبه‌شده', width: 25 },
+    { header: 'عیدی قابل پرداخت موتور', width: 22 },
+    { header: 'سنوات پایان کار موتور', width: 22 },
+    { header: 'مانده مرخصی (روز)', width: 20 },
+    { header: 'بازخرید مرخصی (نیازمند قاعده/تأیید)', width: 30 },
+    { header: 'سایر مطالبات (ورودی مستقل)', width: 24 },
+    { header: 'جمع عیدی و سنوات محاسبه‌شده (غیرنهایی)', width: 34 },
+  ];
+  styleHeaderRow(settlement.getRow(1), 'FF334155');
+  run.lines.forEach((line) => {
+    const result = line.result;
+    const input = line.payrollInput;
+    const finalDailyBase = input.dailyBaseWageRial + input.dailySeniorityRial;
+    settlement.addRow([
+      line.personnelCode,
+      line.fullName,
+      null,
+      input.annualWorkedDays,
+      finalDailyBase,
+      finalDailyBase * 30,
+      result?.eidMinAnnualRial ?? null,
+      result?.eidMaxCapAnnualRial ?? null,
+      result?.eidPayableRial ?? null,
+      result?.severancePayableRial ?? null,
+      line.leaveBalanceDays ?? null,
+      null,
+      null,
+      result ? result.eidPayableRial + result.severancePayableRial : null,
+    ]);
+  });
+  settlement.insertRow(1, [
+    'توجه: ستون‌های ماه کارکرد، بازخرید مرخصی و سایر مطالبات در این Snapshot ورودی/محاسبه مصوب ندارند. ستون آخر فقط جمع عیدی و سنوات محاسبه‌شده است و جمع نهایی تسویه محسوب نمی‌شود.',
+  ]);
+  settlement.mergeCells('A1:N1');
+  settlement.getRow(1).height = 38;
+  settlement.getRow(1).font = { name: 'Tahoma', size: 10, bold: true, color: { argb: 'FF9A3412' } };
+  settlement.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+  settlement.getRow(1).alignment = { vertical: 'middle', horizontal: 'right', wrapText: true };
+  settlement.getRow(2).eachCell((cell) => {
+    cell.font = { name: 'Tahoma', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+  });
+  setRialFormat(settlement, [5, 6, 7, 8, 9, 10, 14]);
+  settlement.autoFilter = { from: 'A2', to: 'N' + settlement.rowCount };
+
   for (const sheet of workbook.worksheets) {
     sheet.eachRow((row) => styleDataRow(row));
     styleHeaderRow(sheet.getRow(1));
