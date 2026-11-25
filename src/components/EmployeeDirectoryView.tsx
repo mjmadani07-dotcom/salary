@@ -320,7 +320,10 @@ export function EmployeeDirectoryView() {
                     weeklyHours: String(contract.weeklyHours),
                   }));
                 }} className="text-slate-700">ویرایش</button>
-                <button type="button" onClick={() => setContracts((current) => current.filter((item) => item.contractId !== contract.contractId))} className="text-rose-700">حذف</button>
+                <button type="button" onClick={() => {
+                  setContracts((current) => current.filter((item) => item.contractId !== contract.contractId));
+                  if (selectedContractId === contract.contractId) setSelectedContractId(null);
+                }} className="text-rose-700">حذف</button>
               </div>
             </div>)}
           </div>
@@ -351,7 +354,10 @@ export function EmployeeDirectoryView() {
                     dailySeniorityRial: String(wage.dailySeniorityRial / multiplier),
                   }));
                 }} className="text-slate-700">ویرایش</button>
-                <button type="button" onClick={() => setWageHistory((current) => current.filter((item) => item.wageEntryId !== wage.wageEntryId))} className="text-rose-700">حذف</button>
+                <button type="button" onClick={() => {
+                  setWageHistory((current) => current.filter((item) => item.wageEntryId !== wage.wageEntryId));
+                  if (selectedWageId === wage.wageEntryId) setSelectedWageId(null);
+                }} className="text-rose-700">حذف</button>
               </div>
             </div>)}
           </div>
