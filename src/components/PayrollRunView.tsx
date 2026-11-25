@@ -1,169 +1,188 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Plus, Trash2, Calculator, FileSpreadsheet, Lock } from 'lucide-react';
-import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
 import {
-  formatMoney,
-  toPersianDigits,
-} from '../utils/payrollEngine';
+  Calculator,
+  FileSpreadsheet,
+  Lock,
+  RefreshCw,
+  Search,
+  UserPlus,
+} from 'lucide-react';
+import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
+import { formatMoney, toPersianDigits } from '../utils/payrollEngine';
 import type { PayrollInput } from '../utils/payrollEngine';
 import { calculatePayrollRun } from '../utils/payrollRunEngine';
 import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEngine';
 import {
-  deleteSavedEmployee,
   getPayrollVaultStatus,
   isPayrollVaultUnlocked,
-  lockPayrollVault,
-  unlockPayrollVault,
+  listEmployeeMasterRecords,
   listSavedEmployees,
+  listSavedPayrollRuns,
+  loadSavedPayrollRun,
+  lockPayrollVault,
   saveEmployee,
   savePayrollRunSnapshot,
-  listMonthlyAttendance,
-  listAnnualLeaveRecords,
+  unlockPayrollVault,
 } from '../data/payrollLocalDatabase';
-import { getUnpaidLeavePayrollReviewIssue } from '../utils/attendanceLedger';
-import { listEmployeeMasterRecords } from '../data/payrollLocalDatabase';
 import type { EmployeeMasterRecord } from '../types/employee';
-import { calculateServiceDurationJalali, resolveEmployeeTerms } from '../utils/employeeMaster';
+import {
+  calculateServiceDurationJalali,
+  resolveEmployeeTerms,
+} from '../utils/employeeMaster';
+import { createPayrollWorkspaceEmployees } from '../utils/payrollRunWorkspace';
 import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 
-interface EmployeeDraft {
-  personnelCode: string;
-  fullName: string;
-  dailyBaseWageRial: number;
-  dailySeniorityRial: number;
-  workDays: number;
-  isMarried: boolean;
-  childrenCount: number;
-  has720DaysInsurance: boolean;
-  overtimeHours: number;
-  nightShiftHours: number;
-  holidayHours: number;
-  variableBonusRial: number;
-  annualWorkedDays: number;
-  serviceYearsForSeverance: number;
-  serviceExtraDaysForSeverance: number;
+interface PayrollRunViewProps {
+  onNavigateToEmployees: () => void;
 }
 
-function createEmptyDraft(
-  year: PayrollInput['year'],
-  monthDays: PayrollInput['monthDays']
-): EmployeeDraft {
-  const rules = getPayrollRuleSet(year).regulations;
-  return {
-    personnelCode: '',
-    fullName: '',
-    dailyBaseWageRial: rules.minDailyWageRial,
-    dailySeniorityRial: 0,
-    workDays: monthDays,
-    isMarried: false,
-    childrenCount: 0,
-    has720DaysInsurance: false,
-    overtimeHours: 0,
-    nightShiftHours: 0,
-    holidayHours: 0,
-    variableBonusRial: 0,
-    annualWorkedDays: 365,
-    serviceYearsForSeverance: 0,
-    serviceExtraDaysForSeverance: 0,
-  };
-}
+type RequiredMonthlyIssue = {
+  code: string;
+  field: string;
+  message: string;
+  confirmed: boolean;
+};
+
+const MONTH_OPTIONS = [
+  'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+  'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند',
+];
 
 function numberValue(value: string): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function PayrollRunView() {
+function hasIssue(employee: PayrollRunEmployee, code: string): boolean {
+  return (employee.masterDataIssues ?? []).some((issue) => issue.code === code);
+}
+
+function inputClass(width = 'w-20'): string {
+  return `${width} rounded-md border border-slate-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100 disabled:text-slate-400`;
+}
+
+export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const { state } = useUnifiedPayroll();
   const { year, monthDays, unit } = state;
   const rules = getPayrollRuleSet(year).regulations;
+  const unitMultiplier = unit === 'toman' ? 10 : 1;
   const [month, setMonth] = useState(1);
-  const [draft, setDraft] = useState<EmployeeDraft>(() => createEmptyDraft(year, monthDays));
   const [employees, setEmployees] = useState<PayrollRunEmployee[]>([]);
   const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
-  const [selectedMasterId, setSelectedMasterId] = useState('');
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [storageError, setStorageError] = useState<string | null>(null);
+  const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [isLoadingLocalData, setIsLoadingLocalData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const [vaultPhase, setVaultPhase] = useState<'checking' | 'locked' | 'unlocked' | 'error'>('checking');
   const [vaultPassword, setVaultPassword] = useState('');
   const [vaultBusy, setVaultBusy] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
+
+  const format = (value: number) => formatMoney(value, unit);
+  const periodLabel = `سال ${toPersianDigits(year)} · ${MONTH_OPTIONS[month - 1]} · ${toPersianDigits(monthDays)} روزه`;
 
   useEffect(() => {
     let active = true;
     getPayrollVaultStatus()
       .then((status) => {
         if (!active) return;
-        // New installations use the local database directly. Only databases
-        // protected by an older vault require the legacy passphrase screen.
+        // New installations use local storage directly. Only legacy vaults
+        // configured by an earlier version require their existing passphrase.
         setVaultPhase(
           status.configured && !isPayrollVaultUnlocked() ? 'locked' : 'unlocked'
         );
       })
       .catch((error) => {
         if (!active) return;
-        setVaultError(error instanceof Error ? error.message : 'بررسی خزانه اطلاعات ناموفق بود.');
+        setVaultError(error instanceof Error ? error.message : 'بررسی وضعیت اطلاعات محلی ناموفق بود.');
         setVaultPhase('error');
       });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
     if (vaultPhase !== 'unlocked') {
       setEmployees([]);
-        setRunResult(null);
+      setEmployeeMasters([]);
+      setRunResult(null);
       setLastSavedRunId(null);
       setIsLoadingLocalData(false);
       return;
     }
+
     let active = true;
     setIsLoadingLocalData(true);
-    setRunResult(null);
-    setLastSavedRunId(null);
-    Promise.all([listSavedEmployees(), listEmployeeMasterRecords()])
-      .then(([savedEmployees, savedMasters]) => {
+    setStorageError(null);
+
+    const loadWorkspace = async () => {
+      try {
+        const [savedEmployees, masters, savedRuns] = await Promise.all([
+          listSavedEmployees(),
+          listEmployeeMasterRecords(),
+          listSavedPayrollRuns(100),
+        ]);
         if (!active) return;
-        setEmployees(
-          savedEmployees.map((employee) => ({
-            ...employee,
-            payrollInput: {
-              ...employee.payrollInput,
-              year,
-              monthDays,
-              workDays: Math.min(employee.payrollInput.workDays, monthDays),
-              housingAllowanceRial: rules.housingAllowanceRial,
-              workerCouponRial: rules.workerCouponRial,
-            },
-          }))
+
+        const matchingRun = savedRuns.find((run) =>
+          run.fiscalYear === year &&
+          run.month === month &&
+          run.monthDays === monthDays
         );
-        setEmployeeMasters(savedMasters);
-        setStorageError(null);
-      })
-      .catch((error) => {
+        const savedRun = matchingRun
+          ? await loadSavedPayrollRun(matchingRun.runId)
+          : undefined;
+        if (!active) return;
+
+        const rows = createPayrollWorkspaceEmployees({
+          year,
+          month,
+          monthDays,
+          housingAllowanceRial: rules.housingAllowanceRial,
+          workerCouponRial: rules.workerCouponRial,
+          minDailyWageRial: rules.minDailyWageRial,
+          employeeMasters: masters,
+          savedEmployees,
+          savedRun,
+        });
+
+        setEmployeeMasters(masters);
+        setEmployees(rows);
+        setRunResult(savedRun ?? null);
+        setLastSavedRunId(savedRun?.runId ?? null);
+      } catch (error) {
         if (active) {
           setStorageError(
             error instanceof Error
               ? error.message
-              : 'خواندن پایگاه داده محلی ناموفق بود.'
+              : 'خواندن اطلاعات کارکنان یا دوره ذخیره‌شده ناموفق بود.'
           );
+          setEmployees([]);
+          setEmployeeMasters([]);
+          setRunResult(null);
+          setLastSavedRunId(null);
         }
-      })
-      .finally(() => {
+      } finally {
         if (active) setIsLoadingLocalData(false);
-      });
-
-    return () => {
-      active = false;
+      }
     };
-  }, [year, monthDays, rules.housingAllowanceRial, rules.workerCouponRial, vaultPhase]);
+
+    void loadWorkspace();
+    return () => { active = false; };
+  }, [
+    year,
+    month,
+    monthDays,
+    rules.housingAllowanceRial,
+    rules.workerCouponRial,
+    rules.minDailyWageRial,
+    vaultPhase,
+    reloadVersion,
+  ]);
 
   const handleUnlockVault = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -174,7 +193,7 @@ export function PayrollRunView() {
       setVaultPassword('');
       setVaultPhase('unlocked');
     } catch (error) {
-      setVaultError(error instanceof Error ? error.message : 'بازکردن خزانه ناموفق بود.');
+      setVaultError(error instanceof Error ? error.message : 'بازکردن اطلاعات ذخیره‌شده ناموفق بود.');
     } finally {
       setVaultBusy(false);
     }
@@ -184,181 +203,112 @@ export function PayrollRunView() {
     lockPayrollVault();
     setVaultPassword('');
     setEmployees([]);
+    setEmployeeMasters([]);
     setRunResult(null);
-    setDraft(createEmptyDraft(year, monthDays));
-    setFormError(null);
-    setStorageError(null);
     setLastSavedRunId(null);
     setVaultPhase('locked');
   };
 
-  const unitMultiplier = unit === 'toman' ? 10 : 1;
-  const format = (value: number) => formatMoney(value, unit);
-  const periodLabel = useMemo(
-    () => `سال ${toPersianDigits(year)} · ماه ${toPersianDigits(month)} · ${toPersianDigits(monthDays)} روزه`,
-    [year, month, monthDays]
-  );
+  const updateEmployee = (
+    employee: PayrollRunEmployee,
+    payrollPatch: Partial<PayrollInput>,
+    confirmation?: RequiredMonthlyIssue
+  ): PayrollRunEmployee => {
+    let issues = [...(employee.masterDataIssues ?? [])];
+    if (confirmation) {
+      issues = issues.filter((issue) => issue.code !== confirmation.code);
+      if (!confirmation.confirmed) {
+        issues.push({
+          code: confirmation.code,
+          field: confirmation.field,
+          message: confirmation.message,
+        });
+      }
+    }
 
-  const updateDraft = (patch: Partial<EmployeeDraft>) => {
-    setDraft((current) => ({ ...current, ...patch }));
+    const updated: PayrollRunEmployee = {
+      ...employee,
+      payrollInput: { ...employee.payrollInput, ...payrollPatch },
+      masterDataIssues: issues,
+    };
+    setEmployees((current) =>
+      current.map((item) => item.employeeId === employee.employeeId ? updated : item)
+    );
     setRunResult(null);
-    setFormError(null);
+    setLastSavedRunId(null);
+    return updated;
   };
 
-  const addEmployee = async () => {
-    const master = employeeMasters.find((item) => item.employeeId === selectedMasterId);
-    if (!master) {
-      setFormError('ابتدا کارمند را در بخش «پرونده کارکنان» ثبت کنید و سپس از این فهرست انتخاب کنید.');
-      return;
-    }
-
-    const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
-    const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
-    const terms = resolveEmployeeTerms(master, periodStartJalali, periodEndJalali);
-    if (terms.issues.length > 0 || !terms.wage || !terms.contract) {
-      setFormError(terms.issues.map((issue) => issue.message).join(' '));
-      return;
-    }
-
-    if (employees.some((employee) =>
-      employee.employeeId === master.employeeId ||
-      employee.personnelCode === master.personnelCode
-    )) {
-      setFormError('این کارمند قبلاً به فهرست دوره اضافه شده است.');
-      return;
-    }
-
-    let serviceDuration;
-    try {
-      serviceDuration = calculateServiceDurationJalali(master.hireDateJalali, periodEndJalali);
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.');
-      return;
-    }
-
-    const payrollInput: PayrollInput = {
-      year,
-      monthDays,
-      workDays: draft.workDays,
-      dailyBaseWageRial: terms.wage.dailyBaseWageRial,
-      dailySeniorityRial: terms.wage.dailySeniorityRial,
-      housingAllowanceRial: rules.housingAllowanceRial,
-      workerCouponRial: rules.workerCouponRial,
-      isMarried: draft.isMarried,
-      childrenCount: draft.childrenCount,
-      has720DaysInsurance: draft.has720DaysInsurance,
-      overtimeHours: draft.overtimeHours,
-      nightShiftHours: draft.nightShiftHours,
-      holidayHours: draft.holidayHours,
-      variableBonusRial: draft.variableBonusRial,
-      annualWorkedDays: draft.annualWorkedDays,
-      serviceYearsForSeverance: serviceDuration.completedYears,
-      serviceExtraDaysForSeverance: serviceDuration.additionalDays,
-    };
-
-    const employee: PayrollRunEmployee = {
-      employeeId: master.employeeId,
-      personnelCode: master.personnelCode,
-      fullName: `${master.firstName} ${master.lastName}`,
-      isActive: master.status === 'active',
-      payrollInput,
-    };
-
+  const persistEmployee = async (employee: PayrollRunEmployee) => {
     try {
       await saveEmployee(employee);
-      setEmployees((current) => [
-        ...current.filter((item) => item.employeeId !== employee.employeeId),
-        employee,
-      ]);
-      setSelectedMasterId('');
-      setDraft(createEmptyDraft(year, monthDays));
-      setRunResult(null);
-      setFormError(null);
-      setStorageError(null);
-    } catch (error) {
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : 'ذخیره کارمند در پایگاه داده محلی انجام نشد.'
-      );
-    }
-  };
-
-  const removeEmployee = async (personnelCode: string) => {
-    const employee = employees.find((item) => item.personnelCode === personnelCode);
-    if (!employee) return;
-
-    try {
-      await deleteSavedEmployee(employee.employeeId);
-      setEmployees((current) =>
-        current.filter((item) => item.employeeId !== employee.employeeId)
-      );
-      setRunResult(null);
       setStorageError(null);
     } catch (error) {
       setStorageError(
         error instanceof Error
-          ? error.message
-          : 'حذف کارمند از پایگاه داده محلی ناموفق بود.'
+          ? `تغییرات ${employee.fullName} در پایگاه داده محلی ذخیره نشد: ${error.message}`
+          : `ذخیره تغییرات ${employee.fullName} ناموفق بود.`
       );
     }
   };
 
+  const updateNumber = (
+    employee: PayrollRunEmployee,
+    field: 'workDays' | 'overtimeHours' | 'nightShiftHours' | 'holidayHours' |
+      'variableBonusRial' | 'annualWorkedDays' | 'childrenCount',
+    rawValue: string,
+    confirmation?: Omit<RequiredMonthlyIssue, 'confirmed'>
+  ) => {
+    const value = numberValue(rawValue);
+    const patch = { [field]: value } as Partial<PayrollInput>;
+    const next = updateEmployee(
+      employee,
+      patch,
+      confirmation ? { ...confirmation, confirmed: rawValue.trim().length > 0 } : undefined
+    );
+    return next;
+  };
+
+  const filteredEmployees = useMemo(() => {
+    const query = searchText.trim().toLocaleLowerCase();
+    if (!query) return employees;
+    return employees.filter((employee) =>
+      employee.personnelCode.toLocaleLowerCase().includes(query) ||
+      employee.fullName.toLocaleLowerCase().includes(query)
+    );
+  }, [employees, searchText]);
+
+  const pendingEmployeeCount = employees.filter((employee) =>
+    (employee.masterDataIssues?.length ?? 0) > 0
+  ).length;
+
   const calculateRun = async () => {
-    if (employees.length === 0 || isSaving) return;
+    if (employees.length === 0 || isSaving || isLoadingLocalData) return;
     setIsSaving(true);
     setStorageError(null);
+    setRunResult(null);
+    setLastSavedRunId(null);
 
     const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
     const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
-    let attendanceRecords: Awaited<ReturnType<typeof listMonthlyAttendance>>;
-    let leaveRecords: Awaited<ReturnType<typeof listAnnualLeaveRecords>>;
-    try {
-      [attendanceRecords, leaveRecords] = await Promise.all([
-        listMonthlyAttendance(year, month),
-        listAnnualLeaveRecords(year),
-      ]);
-    } catch (error) {
-      setStorageError(error instanceof Error ? error.message : 'خواندن کارکرد یا دفتر مرخصی ماهانه ناموفق بود.');
-      setIsSaving(false);
-      return;
-    }
-    const attendanceByEmployee = new Map(attendanceRecords.map((record) => [record.employeeId, record]));
-    const leaveByEmployee = new Map(leaveRecords.filter(record => record.month === month).map(record => [record.employeeId, record]));
-    const getLeaveReviewIssues = (employeeId: string, attendance: (typeof attendanceRecords)[number] | undefined) => {
-      const unpaidLeaveDays = leaveByEmployee.get(employeeId)?.unpaidLeaveUsedDays ?? 0;
-      const issue = getUnpaidLeavePayrollReviewIssue(unpaidLeaveDays, attendance?.reviewedUnpaidLeaveDays);
-      return issue ? [{ code: issue.code, message: issue.message, field: String(issue.field) }] : [];
-    };
+
     const periodEmployees = employees.map((employee) => {
-      const attendance = attendanceByEmployee.get(employee.employeeId);
       const master = employeeMasters.find((item) => item.employeeId === employee.employeeId);
-      if (!master) {
-        return {
-          ...employee,
-          masterDataIssues: [...(employee.masterDataIssues ?? []), ...getLeaveReviewIssues(employee.employeeId, attendance)],
-          payrollInput: {
-            ...employee.payrollInput,
-            year,
-            monthDays,
-            workDays: attendance?.workedDays ?? Math.min(employee.payrollInput.workDays, monthDays),
-            overtimeHours: attendance?.overtimeHours ?? employee.payrollInput.overtimeHours,
-            nightShiftHours: attendance?.nightShiftHours ?? employee.payrollInput.nightShiftHours,
-            holidayHours: attendance?.holidayHours ?? employee.payrollInput.holidayHours,
-            variableBonusRial: attendance?.variableBonusRial ?? employee.payrollInput.variableBonusRial,
-            annualWorkedDays: attendance?.annualWorkedDays ?? employee.payrollInput.annualWorkedDays,
-            housingAllowanceRial: rules.housingAllowanceRial,
-            workerCouponRial: rules.workerCouponRial,
-          },
-        };
-      }
+      if (!master) return employee;
 
       const terms = resolveEmployeeTerms(master, periodStartJalali, periodEndJalali);
-      const masterDataIssues = terms.issues.map((issue) => ({
-        code: issue.code,
-        message: issue.message,
-        field: issue.field,
-      }));
+      const monthlyIssues = (employee.masterDataIssues ?? []).filter((issue) =>
+        issue.code.startsWith('MONTHLY_')
+      );
+      const masterDataIssues = [
+        ...monthlyIssues,
+        ...terms.issues.map((issue) => ({
+          code: issue.code,
+          message: issue.message,
+          field: issue.field,
+        })),
+      ];
+
       let serviceDuration = {
         completedYears: employee.payrollInput.serviceYearsForSeverance,
         additionalDays: employee.payrollInput.serviceExtraDaysForSeverance,
@@ -368,27 +318,21 @@ export function PayrollRunView() {
       } catch (error) {
         masterDataIssues.push({
           code: 'INVALID_SERVICE_DURATION',
-          message: error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.',
           field: 'hireDateJalali',
+          message: error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.',
         });
       }
 
       return {
         ...employee,
         personnelCode: master.personnelCode,
-        fullName: `${master.firstName} ${master.lastName}`,
+        fullName: `${master.firstName} ${master.lastName}`.trim(),
         isActive: master.status === 'active',
-        masterDataIssues: [...masterDataIssues, ...getLeaveReviewIssues(employee.employeeId, attendance)],
+        masterDataIssues,
         payrollInput: {
           ...employee.payrollInput,
           year,
           monthDays,
-          workDays: attendance?.workedDays ?? Math.min(employee.payrollInput.workDays, monthDays),
-          overtimeHours: attendance?.overtimeHours ?? employee.payrollInput.overtimeHours,
-          nightShiftHours: attendance?.nightShiftHours ?? employee.payrollInput.nightShiftHours,
-          holidayHours: attendance?.holidayHours ?? employee.payrollInput.holidayHours,
-          variableBonusRial: attendance?.variableBonusRial ?? employee.payrollInput.variableBonusRial,
-          annualWorkedDays: attendance?.annualWorkedDays ?? employee.payrollInput.annualWorkedDays,
           dailyBaseWageRial: terms.wage?.dailyBaseWageRial ?? employee.payrollInput.dailyBaseWageRial,
           dailySeniorityRial: terms.wage?.dailySeniorityRial ?? employee.payrollInput.dailySeniorityRial,
           housingAllowanceRial: rules.housingAllowanceRial,
@@ -410,15 +354,31 @@ export function PayrollRunView() {
     );
     setRunResult(result);
 
+    const employeeSaveErrors = (await Promise.all(
+      periodEmployees.map(async (employee) => {
+        try {
+          await saveEmployee(employee);
+          return null;
+        } catch (error) {
+          return error instanceof Error ? error.message : `ذخیره ${employee.fullName} ناموفق بود.`;
+        }
+      })
+    )).filter((message): message is string => message !== null);
+
     try {
       await savePayrollRunSnapshot(result);
       setLastSavedRunId(result.runId);
+      if (employeeSaveErrors.length > 0) {
+        setStorageError(
+          `Snapshot دوره ذخیره شد، اما ذخیره آخرین ورودی برخی کارکنان ناموفق بود: ${employeeSaveErrors.slice(0, 3).join('؛ ')}`
+        );
+      }
     } catch (error) {
       setLastSavedRunId(null);
       setStorageError(
         error instanceof Error
-          ? `محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود: ${error.message}`
-          : 'محاسبه انجام شد، اما ذخیره سابقه دوره ناموفق بود.'
+          ? `محاسبه انجام شد، اما ذخیره Snapshot دوره ناموفق بود: ${error.message}`
+          : 'محاسبه انجام شد، اما ذخیره Snapshot دوره ناموفق بود.'
       );
     } finally {
       setIsSaving(false);
@@ -428,14 +388,14 @@ export function PayrollRunView() {
   if (vaultPhase === 'checking') {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">
-        در حال بررسی وضعیت خزانه اطلاعات…
+        در حال بررسی اطلاعات ذخیره‌شده…
       </div>
     );
   }
 
   if (vaultPhase !== 'unlocked') {
     return (
-      <div className="mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5">
+      <div className="mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-slate-100 p-3 text-slate-700">
             <Lock className="h-6 w-6" />
@@ -443,33 +403,49 @@ export function PayrollRunView() {
           <div>
             <div className="text-xs font-semibold text-slate-500">LOCAL DATA</div>
             <h1 className="mt-1 text-xl font-bold text-slate-900">
-              {vaultPhase === 'error' ? 'دسترسی به اطلاعات ممکن نیست' : 'بازکردن اطلاعات ذخیره‌شده'}
+              {vaultPhase === 'error' ? 'دسترسی به اطلاعات ممکن نیست' : 'بازیابی اطلاعات نسخه قبلی'}
             </h1>
           </div>
         </div>
-
         {vaultPhase === 'error' ? (
-          <div className="space-y-3">
+          <div className="mt-5 space-y-3">
             <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
               {vaultError ?? 'خواندن پایگاه داده محلی ناموفق بود.'}
             </p>
-            <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-              بارگذاری مجدد نرم‌افزار
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              بارگذاری مجدد
             </button>
           </div>
         ) : (
           <>
-            <p className="text-sm leading-7 text-slate-600">
-              این داده‌ها در نسخه قبلی نرم‌افزار با عبارت عبور محافظت شده‌اند. برای حفظ و بازیابی همان اطلاعات، عبارت عبور قبلی را وارد کن. نصب‌های جدید به ساخت خزانه یا تعریف گذرواژه جداگانه نیاز ندارند.
+            <p className="mt-4 text-sm leading-7 text-slate-600">
+              این اطلاعات در نسخه قبلی با عبارت عبور محافظت شده‌اند. برای حفظ و بازیابی همان اطلاعات، عبارت عبور قبلی را وارد کنید. نصب‌های جدید به تعریف گذرواژه جداگانه نیاز ندارند.
             </p>
-            <form onSubmit={handleUnlockVault} className="space-y-4">
+            <form onSubmit={handleUnlockVault} className="mt-5 space-y-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">عبارت عبور قبلی</label>
-                <input type="password" value={vaultPassword} onChange={(event) => setVaultPassword(event.target.value)} autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" placeholder="عبارت عبور قبلی" />
+                <input
+                  type="password"
+                  value={vaultPassword}
+                  onChange={(event) => setVaultPassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                />
               </div>
-              {vaultError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{vaultError}</div>}
-              <button type="submit" disabled={vaultBusy || !vaultPassword} className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40">
-                {vaultBusy ? 'در حال بازکردن اطلاعات…' : 'بازکردن اطلاعات'}
+              {vaultError && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{vaultError}</div>
+              )}
+              <button
+                type="submit"
+                disabled={vaultBusy || !vaultPassword}
+                className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+              >
+                {vaultBusy ? 'در حال بازیابی…' : 'بازیابی اطلاعات'}
               </button>
             </form>
           </>
@@ -480,22 +456,17 @@ export function PayrollRunView() {
 
   return (
     <div className="space-y-6">
-      <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <div className="text-xs text-slate-500">Payroll Run · پردازش گروهی</div>
-            <h1 className="text-xl font-bold text-slate-900 mt-1">پردازش دوره حقوق و دستمزد</h1>
-            <p className="text-sm text-slate-600 mt-1">
-              پرونده کارکنان و سوابق محاسبات در پایگاه داده محلی همین دستگاه نگهداری می‌شوند؛ محاسبات همه کارکنان از موتور مرکزی نرم‌افزار انجام می‌شود.
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {isLoadingLocalData
-                ? 'در حال بازیابی اطلاعات ذخیره‌شده…'
-                : `${toPersianDigits(employees.length)} پرونده پرسنلی ذخیره‌شده در این دستگاه`}
+            <div className="text-xs font-semibold text-teal-700">MONTHLY PAYROLL WORKSPACE</div>
+            <h1 className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">حقوق ماهانه</h1>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+              اطلاعات ماهانه همه کارکنان را در همین جدول وارد کنید. مزد و سابقه از پرونده کارکنان خوانده می‌شود و یک محاسبه گروهی، نتیجه حقوق و هزینه کارفرما را تولید می‌کند.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
               {periodLabel}
             </div>
             {isPayrollVaultUnlocked() && (
@@ -510,345 +481,460 @@ export function PayrollRunView() {
             )}
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">ماه دوره</label>
-            <select
-              value={month}
-              onChange={(event) => {
-                setMonth(numberValue(event.target.value));
-                setRunResult(null);
-              }}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">دوره حقوق</label>
+              <select
+                value={month}
+                onChange={(event) => setMonth(numberValue(event.target.value))}
+                className="min-w-36 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                {MONTH_OPTIONS.map((label, index) => (
+                  <option key={label} value={index + 1}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">روزهای ماه</label>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {toPersianDigits(monthDays)} روز
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReloadVersion((value) => value + 1)}
+              disabled={isLoadingLocalData || isSaving}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => (
-                <option key={value} value={value}>{toPersianDigits(value)}</option>
-              ))}
-            </select>
+              <RefreshCw className="h-4 w-4" />
+              بارگذاری مجدد کارکنان
+            </button>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">طول ماه</label>
-            <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-              {toPersianDigits(monthDays)} روز · از تنظیمات اصلی
-            </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-600">تعداد پرسنل فهرست</label>
-            <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm tabular-nums">
-              {toPersianDigits(employees.length)} نفر
-            </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-700">
+              {toPersianDigits(employees.length)} ردیف
+            </span>
+            <span className={`rounded-full px-3 py-1.5 ${pendingEmployeeCount > 0 ? 'bg-amber-50 text-amber-800' : 'bg-teal-50 text-teal-800'}`}>
+              {toPersianDigits(pendingEmployeeCount)} ردیف نیازمند تکمیل
+            </span>
           </div>
         </div>
       </section>
 
       {storageError && (
-        <div className="border border-rose-200 bg-rose-50 rounded-lg p-3 text-sm text-rose-800">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
           {storageError}
         </div>
       )}
 
-      <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-5">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">افزودن کارمند به دوره</h2>
-          <p className="text-xs text-slate-500 mt-1">
-            همه مبالغ در موتور به ریال ذخیره می‌شوند؛ ورودی مزد و مزایا بر اساس واحد نمایشی بالا تفسیر می‌شود.
+      {isLoadingLocalData ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+          در حال بازیابی پرونده کارکنان و اطلاعات دوره…
+        </div>
+      ) : employees.length === 0 ? (
+        <section className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <UserPlus className="mx-auto h-9 w-9 text-slate-400" />
+          <h2 className="mt-3 font-bold text-slate-800">هنوز پرونده کارمندی ثبت نشده است</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            ابتدا اطلاعات پایه کارکنان و مزد مؤثر آن‌ها را ثبت کنید. سپس همه کارکنان در این جدول ظاهر می‌شوند.
           </p>
-        </div>
-
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">انتخاب از پرونده کارکنان *</label>
-              <select
-                value={selectedMasterId}
-                onChange={(event) => { setSelectedMasterId(event.target.value); setFormError(null); }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">انتخاب کارمند ثبت‌شده</option>
-                {employeeMasters.map((master) => (
-                  <option key={master.employeeId} value={master.employeeId}>
-                    {master.personnelCode} — {master.firstName} {master.lastName}
-                  </option>
-                ))}
-              </select>
-              {employeeMasters.length === 0 && (
-                <p className="text-xs text-amber-700">هنوز پرونده‌ای ثبت نشده است. ابتدا از تب «پرونده کارکنان» اطلاعات پایه، قرارداد و مزد را ثبت کنید.</p>
-              )}
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-600">
-              {selectedMasterId ? (() => {
-                const master = employeeMasters.find((item) => item.employeeId === selectedMasterId);
-                if (!master) return 'کارمند انتخاب نشده است.';
-                const terms = resolveEmployeeTerms(
-                  master,
-                  `${year}-${String(month).padStart(2, '0')}-01`,
-                  `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`
-                );
-                return terms.issues.length
-                  ? terms.issues.map((issue) => issue.message).join(' ')
-                  : `قرارداد: ${terms.contract?.jobTitle} · مزد روزانه مؤثر: ${format(terms.wage?.dailyBaseWageRial ?? 0)} · پایه سنوات: ${format(terms.wage?.dailySeniorityRial ?? 0)}`;
-              })() : 'با انتخاب کارمند، قرارداد و آخرین سابقه مزد معتبر در ابتدای دوره به‌صورت خودکار انتخاب می‌شوند.'}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">روزهای پرداخت/کارکرد</label>
-              <input type="number" min={0} max={monthDays} value={draft.workDays} onChange={(event) => updateDraft({ workDays: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">اضافه‌کاری (ساعت)</label>
-              <input type="number" min={0} value={draft.overtimeHours} onChange={(event) => updateDraft({ overtimeHours: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">شب‌کاری (ساعت)</label>
-              <input type="number" min={0} value={draft.nightShiftHours} onChange={(event) => updateDraft({ nightShiftHours: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">کار در تعطیل (ساعت)</label>
-              <input type="number" min={0} value={draft.holidayHours} onChange={(event) => updateDraft({ holidayHours: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">پاداش متغیر ({unit})</label>
-              <input type="number" min={0} value={Math.round(draft.variableBonusRial / unitMultiplier)} onChange={(event) => updateDraft({ variableBonusRial: numberValue(event.target.value) * unitMultiplier })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">کارکرد سال برای عیدی (روز)</label>
-              <input type="number" min={0} max={366} value={draft.annualWorkedDays} onChange={(event) => updateDraft({ annualWorkedDays: numberValue(event.target.value) })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums" />
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-4 text-sm">
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.isMarried}
-              onChange={(event) => updateDraft({ isMarried: event.target.checked })}
-            />
-            متأهل
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <span>تعداد فرزند واجد شرایط</span>
-            <input
-              type="number"
-              min={0}
-              value={draft.childrenCount}
-              onChange={(event) => updateDraft({ childrenCount: numberValue(event.target.value) })}
-              className="w-20 rounded-lg border border-slate-200 px-2 py-1 tabular-nums"
-            />
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.has720DaysInsurance}
-              onChange={(event) => updateDraft({ has720DaysInsurance: event.target.checked })}
-            />
-            سابقه بیمه ۷۲۰ روز یا بیشتر
-          </label>
-        </div>
-
-        {formError && (
-          <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3">
-            {formError}
-          </div>
-        )}
-
-        <div className="flex justify-end">
           <button
             type="button"
-            onClick={addEmployee}
-            disabled={isLoadingLocalData}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+            onClick={onNavigateToEmployees}
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
           >
-            <Plus className="w-4 h-4"/>
-            ذخیره کارمند و افزودن به دوره
+            <UserPlus className="h-4 w-4" />
+            ثبت اطلاعات کارکنان
           </button>
-        </div>
-      </section>
-
-      <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">فهرست پرسنل دوره</h2>
-            <p className="text-xs text-slate-500 mt-1">حذف هر ردیف، نتیجه محاسبه قبلی را باطل می‌کند.</p>
-          </div>
-          <button
-            type="button"
-            disabled={employees.length === 0 || isSaving || isLoadingLocalData}
-            onClick={() => void calculateRun()}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-40"
-          >
-            <Calculator className="w-4 h-4"/>
-            {isSaving ? 'در حال محاسبه و ذخیره…' : 'محاسبه و ذخیره دوره حقوق'}
-          </button>
-        </div>
-
-        {employees.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            هنوز کارمندی به این دوره اضافه نشده است.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm text-right">
-              <thead className="bg-slate-100 text-slate-700">
-                <tr>
-                  <th className="p-3">کد پرسنلی</th>
-                  <th className="p-3">نام</th>
-                  <th className="p-3">مزد روزانه</th>
-                  <th className="p-3">روز کارکرد</th>
-                  <th className="p-3">اضافه‌کاری</th>
-                  <th className="p-3">وضعیت</th>
-                  <th className="p-3">عملیات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {employees.map((employee) => {
-                  const line = runResult?.lines.find((item) => item.personnelCode === employee.personnelCode);
-                  return (
-                    <tr key={employee.employeeId}>
-                      <td className="p-3 tabular-nums">{employee.personnelCode}</td>
-                      <td className="p-3">{employee.fullName}</td>
-                      <td className="p-3 tabular-nums">{format(employee.payrollInput.dailyBaseWageRial)}</td>
-                      <td className="p-3 tabular-nums">{toPersianDigits(employee.payrollInput.workDays)}</td>
-                      <td className="p-3 tabular-nums">{toPersianDigits(employee.payrollInput.overtimeHours)}</td>
-                      <td className="p-3">
-                        {line?.status === 'calculated' ? (
-                          <span className="text-teal-700">محاسبه شد</span>
-                        ) : line?.status === 'blocked' ? (
-                          <span className="text-rose-700">نیازمند اصلاح</span>
-                        ) : (
-                          <span className="text-slate-500">در انتظار محاسبه</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() => removeEmployee(employee.personnelCode)}
-                          className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-900"
-                        >
-                          <Trash2 className="w-3.5 h-3.5"/>
-                          حذف
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {runResult && (
-        <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">نتیجه تجمیعی دوره</h2>
-              <p className="text-xs text-slate-500 mt-1">{runResult.runId}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className={runResult.status === 'ready-for-review' ? 'text-teal-700 text-sm font-semibold' : 'text-rose-700 text-sm font-semibold'}>
-                {runResult.status === 'ready-for-review' ? 'آماده بررسی' : 'دارای خطای اعتبارسنجی'}
-              </span>
-              {lastSavedRunId === runResult.runId && (
-                <span className="text-xs text-teal-700">Snapshot این دوره ذخیره شده است</span>
-              )}
-              <button
-                type="button"
-                onClick={() => void downloadPayrollRunExcelWorkbook(runResult)}
-                className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800"
-              >
-                <FileSpreadsheet className="w-4 h-4"/>
-                خروجی Excel کل دوره
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {[
-              ['جمع ناخالص', runResult.totals.grossEarningsRial],
-              ['بیمه سهم کارگر', runResult.totals.employeeInsuranceRial],
-              ['مالیات حقوق', runResult.totals.payrollTaxRial],
-              ['خالص پرداختی', runResult.totals.netPayRial],
-              ['بیمه کارفرما', runResult.totals.employerInsuranceRial],
-              ['هزینه مستقیم کارفرما', runResult.totals.directEmployerCostRial],
-              ['ذخایر ماهانه', runResult.totals.monthlyReservesRial],
-              ['CTC ماهانه', runResult.totals.ctcMonthlyRial],
-            ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-                <div className="text-xs text-slate-500">{label}</div>
-                <div className="text-base font-bold text-slate-900 tabular-nums mt-1">
-                  {format(Number(value))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-xs text-slate-600">
-            محاسبه‌شده: {toPersianDigits(runResult.totals.calculatedCount)} ·
-            مسدودشده: {toPersianDigits(runResult.totals.blockedCount)} ·
-            خارج از دوره: {toPersianDigits(runResult.totals.excludedCount)}
-          </div>
-
-          {runResult.lines.some((line) => line.issues.length > 0) && (
-            <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-2">
-              <div className="text-sm font-semibold text-amber-900">موارد نیازمند اصلاح ورودی</div>
-              {runResult.lines.filter((line) => line.issues.length > 0).map((line) => (
-                <div key={line.employeeId} className="text-xs text-amber-900">
-                  <strong>{line.personnelCode} · {line.fullName}:</strong>{' '}
-                  {line.issues.map((issue) => issue.message).join('؛ ')}
-                </div>
-              ))}
-            </div>
-          )}
-          {runResult.lines.some((line) => (line.result?.legalReviewRequiredItems.length ?? 0) > 0) && (
-            <div className="border border-orange-200 bg-orange-50 rounded-lg p-4 space-y-2">
-              <div className="text-sm font-semibold text-orange-900">
-                هشدارهای حقوقی؛ محاسبه انجام شده اما قواعد تأیید نهایی ندارند
-              </div>
-              {runResult.lines.filter((line) => (line.result?.legalReviewRequiredItems.length ?? 0) > 0).map((line) => (
-                <div key={line.employeeId} className="text-xs text-orange-900 leading-6">
-                  <strong>{line.personnelCode} · {line.fullName}:</strong>{' '}
-                  {line.result?.legalReviewRequiredItems.join('؛ ')}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm text-right">
-              <thead className="bg-slate-100 text-slate-700">
-                <tr>
-                  <th className="p-3">کارمند</th>
-                  <th className="p-3">ناخالص</th>
-                  <th className="p-3">بیمه کارگر</th>
-                  <th className="p-3">مالیات</th>
-                  <th className="p-3">خالص</th>
-                  <th className="p-3">CTC</th>
-                  <th className="p-3">وضعیت</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {runResult.lines.map((line) => (
-                  <tr key={line.employeeId}>
-                    <td className="p-3">{line.personnelCode} · {line.fullName}</td>
-                    <td className="p-3 tabular-nums">{line.result ? format(line.result.grossEarningsRial) : '—'}</td>
-                    <td className="p-3 tabular-nums">{line.result ? format(line.result.employeeInsuranceRial) : '—'}</td>
-                    <td className="p-3 tabular-nums">{line.result ? format(line.result.totalPayrollTaxRial) : '—'}</td>
-                    <td className="p-3 tabular-nums">{line.result ? format(line.result.netPayRial) : '—'}</td>
-                    <td className="p-3 tabular-nums">{line.result ? format(line.result.ctcMonthlyRial) : '—'}</td>
-                    <td className="p-3">
-                      {line.status === 'calculated' ? 'محاسبه شد' : line.status === 'blocked' ? 'مسدود' : 'حذف از دوره'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </section>
+      ) : (
+        <>
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div>
+                <h2 className="font-bold text-slate-900">ورود گروهی اطلاعات ماهانه</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  خانه‌های خالی یا هشدار‌دار را تکمیل کنید؛ برای ثبت صفر، عدد صفر را وارد کنید.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    value={searchText}
+                    onChange={(event) => setSearchText(event.target.value)}
+                    placeholder="جست‌وجوی نام یا کد پرسنلی"
+                    className="w-full rounded-lg border border-slate-300 py-2 pr-9 pl-3 text-sm sm:w-64"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void calculateRun()}
+                  disabled={employees.length === 0 || isSaving || isLoadingLocalData}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Calculator className="h-4 w-4" />
+                  {isSaving ? 'در حال محاسبه و ذخیره…' : 'محاسبه و ذخیره دوره'}
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1660px] text-right text-sm">
+                <thead className="bg-slate-100 text-xs text-slate-700">
+                  <tr>
+                    <th className="sticky right-0 z-10 min-w-28 bg-slate-100 p-3">کد پرسنلی</th>
+                    <th className="sticky right-28 z-10 min-w-40 bg-slate-100 p-3">نام کارمند</th>
+                    <th className="min-w-32 p-3">مزد روزانه</th>
+                    <th className="min-w-24 p-3">روز کارکرد</th>
+                    <th className="min-w-24 p-3">اضافه‌کاری</th>
+                    <th className="min-w-24 p-3">شب‌کاری</th>
+                    <th className="min-w-24 p-3">تعطیل‌کاری</th>
+                    <th className="min-w-32 p-3">پاداش متغیر ({unit})</th>
+                    <th className="min-w-28 p-3">وضعیت تأهل</th>
+                    <th className="min-w-24 p-3">فرزند واجد شرایط</th>
+                    <th className="min-w-32 p-3">سابقه بیمه ۷۲۰ روز</th>
+                    <th className="min-w-28 p-3">کارکرد سالانه</th>
+                    <th className="min-w-44 p-3">وضعیت داده‌ها</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredEmployees.map((employee) => {
+                    const disabled = !employee.isActive || isSaving;
+                    const rowIssues = employee.masterDataIssues ?? [];
+                    const workDaysMissing = hasIssue(employee, 'MONTHLY_WORK_DAYS_UNCONFIRMED');
+                    const annualDaysMissing = hasIssue(employee, 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED');
+                    const maritalMissing = hasIssue(employee, 'MONTHLY_MARITAL_STATUS_UNCONFIRMED');
+                    const childrenMissing = hasIssue(employee, 'MONTHLY_CHILDREN_COUNT_UNCONFIRMED');
+                    const insuranceMissing = hasIssue(employee, 'MONTHLY_720_DAY_INSURANCE_UNCONFIRMED');
+                    const calculatedLine = runResult?.lines.find((line) => line.employeeId === employee.employeeId);
+                    const cellClass = 'border-l border-slate-100 px-2 py-2 align-middle';
+                    const requiredInputClass = (missing: boolean, width = 'w-20') =>
+                      `${inputClass(width)} ${missing ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : ''}`;
+
+                    return (
+                      <tr
+                        key={employee.employeeId}
+                        className={employee.isActive ? 'hover:bg-slate-50/70' : 'bg-slate-50 text-slate-400'}
+                      >
+                        <td className="sticky right-0 z-[1] border-l border-slate-100 bg-inherit p-3 font-semibold tabular-nums">
+                          {employee.personnelCode}
+                        </td>
+                        <td className="sticky right-28 z-[1] border-l border-slate-100 bg-inherit p-3">
+                          <div className="min-w-36 font-medium text-slate-800">{employee.fullName}</div>
+                          {!employee.isActive && <div className="mt-1 text-[11px] text-slate-500">غیرفعال</div>}
+                        </td>
+                        <td className={`${cellClass} whitespace-nowrap tabular-nums text-slate-700`}>
+                          {format(employee.payrollInput.dailyBaseWageRial)}
+                        </td>
+                        <td className={cellClass}>
+                          <input
+                            type="number"
+                            min={0}
+                            max={monthDays}
+                            step={0.5}
+                            aria-label={`روز کارکرد ${employee.fullName}`}
+                            disabled={disabled}
+                            value={workDaysMissing ? '' : employee.payrollInput.workDays}
+                            placeholder="روز"
+                            className={requiredInputClass(workDaysMissing)}
+                            onChange={(event) => updateNumber(employee, 'workDays', event.target.value, {
+                              code: 'MONTHLY_WORK_DAYS_UNCONFIRMED',
+                              field: 'workDays',
+                              message: 'روزهای کارکرد این دوره را تأیید یا اصلاح کنید.',
+                            })}
+                            onBlur={() => void persistEmployee(employee)}
+                          />
+                        </td>
+                        <td className={cellClass}>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            aria-label={`اضافه‌کاری ${employee.fullName}`}
+                            disabled={disabled}
+                            value={employee.payrollInput.overtimeHours}
+                            className={inputClass()}
+                            onChange={(event) => updateNumber(employee, 'overtimeHours', event.target.value)}
+                            onBlur={() => void persistEmployee(employee)}
+                          />
+                        </td>
+                        <td className={cellClass}>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            aria-label={`شب‌کاری ${employee.fullName}`}
+                            disabled={disabled}
+                            value={employee.payrollInput.nightShiftHours}
+                            className={inputClass()}
+                            onChange={(event) => updateNumber(employee, 'nightShiftHours', event.target.value)}
+                            onBlur={() => void persistEmployee(employee)}
+                          />
+                        </td>
+                        <td className={cellClass}>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            aria-label={`تعطیل‌کاری ${employee.fullName}`}
+                            disabled={disabled}
+                            value={employee.payrollInput.holidayHours}
+                            className={inputClass()}
+                            onChange={(event) => updateNumber(employee, 'holidayHours', event.target.value)}
+                            onBlur={() => void persistEmployee(employee)}
+                          />
+                        </td>
+                        <td className={cellClass}>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            aria-label={`پاداش متغیر ${employee.fullName}`}
+                            disabled={disabled}
+                            value={Math.round(employee.payrollInput.variableBonusRial / unitMultiplier)}
+                            className={inputClass('w-28')}
+                            onChange={(event) => updateNumber(employee, 'variableBonusRial', numberValue(event.target.value) * unitMultiplier + (event.target.value.trim() === '' ? 0 : 0))}
+                            onBlur={() => void persistEmployee(employee)}
+                          />
+                        </td>
+                        <td className={cellClass}>
+                          <select
+                            aria-label={`وضعیت تأهل ${employee.fullName}`}
+                            disabled={disabled}
+                            value={maritalMissing ? '' : employee.payrollInput.isMarried ? 'yes' : 'no'}
+                            className={`w-24 rounded-md border px-2 py-2 text-xs ${maritalMissing ? 'border-amber-400 bg-amber-50' : 'border-slate-300 bg-white'}`}
+                            onChange={(event) => {
+                              const updated = updateEmployee(employee, {
+                                isMarried: event.target.value === 'yes',
+                              }, {
+                                code: 'MONTHLY_MARITAL_STATUS_UNCONFIRMED',
+                                field: 'isMarried',
+                                message: 'وضعیت تأهل این کارمند را مشخص کنید.',
+                                confirmed: true,
+                              });
+                              void persistEmployee(updated);
+                            }}
+                          >
+                            <option value="">انتخاب کنید</option>
+                            <option value="yes">متأهل</option>
+                            <option value="no">مجرد</option>
+                          </select>
+                        </td>
+                        <td className={cellClass}>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            aria-label={`تعداد فرزند واجد شرایط ${employee.fullName}`}
+                            disabled={disabled}
+                            value={childrenMissing ? '' : employee.payrollInput.childrenCount}
+                            placeholder="۰"
+                            className={requiredInputClass(childrenMissing)}
+                            onChange={(event) => updateNumber(employee, 'childrenCount', event.target.value, {
+                              code: 'MONTHLY_CHILDREN_COUNT_UNCONFIRMED',
+                              field: 'childrenCount',
+                              message: 'تعداد فرزندان واجد شرایط را مشخص کنید؛ در صورت نداشتن فرزند، عدد صفر را وارد کنید.',
+                            })}
+                            onBlur={() => void persistEmployee(employee)}
+                          />
+                        </td>
+                        <td className={cellClass}>
+                          <select
+                            aria-label={`سابقه بیمه ۷۲۰ روز ${employee.fullName}`}
+                            disabled={disabled}
+                            value={insuranceMissing ? '' : employee.payrollInput.has720DaysInsurance ? 'yes' : 'no'}
+                            className={`w-28 rounded-md border px-2 py-2 text-xs ${insuranceMissing ? 'border-amber-400 bg-amber-50' : 'border-slate-300 bg-white'}`}
+                            onChange={(event) => {
+                              const updated = updateEmployee(employee, {
+                                has720DaysInsurance: event.target.value === 'yes',
+                              }, {
+                                code: 'MONTHLY_720_DAY_INSURANCE_UNCONFIRMED',
+                                field: 'has720DaysInsurance',
+                                message: 'وضعیت احراز حداقل ۷۲۰ روز سابقه بیمه را مشخص کنید.',
+                                confirmed: true,
+                              });
+                              void persistEmployee(updated);
+                            }}
+                          >
+                            <option value="">انتخاب کنید</option>
+                            <option value="yes">دارد</option>
+                            <option value="no">ندارد</option>
+                          </select>
+                        </td>
+                        <td className={cellClass}>
+                          <input
+                            type="number"
+                            min={0}
+                            max={366}
+                            step={1}
+                            aria-label={`روزهای کارکرد سالانه ${employee.fullName}`}
+                            disabled={disabled}
+                            value={annualDaysMissing ? '' : employee.payrollInput.annualWorkedDays}
+                            placeholder="روز"
+                            className={requiredInputClass(annualDaysMissing)}
+                            onChange={(event) => updateNumber(employee, 'annualWorkedDays', event.target.value, {
+                              code: 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED',
+                              field: 'annualWorkedDays',
+                              message: 'تعداد روزهای کارکرد سال برای محاسبه عیدی را وارد یا تأیید کنید.',
+                            })}
+                            onBlur={() => void persistEmployee(employee)}
+                          />
+                        </td>
+                        <td className={cellClass}>
+                          {rowIssues.length > 0 ? (
+                            <div className="max-w-56">
+                              <div className="text-xs font-semibold text-amber-800">
+                                {toPersianDigits(rowIssues.length)} مورد نیازمند بررسی
+                              </div>
+                              <div className="mt-1 text-[11px] leading-5 text-slate-500" title={rowIssues.map((issue) => issue.message).join('؛ ')}>
+                                {rowIssues.slice(0, 2).map((issue) => issue.message).join('؛ ')}
+                                {rowIssues.length > 2 ? ' …' : ''}
+                              </div>
+                            </div>
+                          ) : calculatedLine?.status === 'calculated' ? (
+                            <span className="text-xs font-semibold text-teal-700">محاسبه شد</span>
+                          ) : calculatedLine?.status === 'excluded' || !employee.isActive ? (
+                            <span className="text-xs text-slate-500">خارج از محاسبه</span>
+                          ) : (
+                            <span className="text-xs text-slate-500">آماده ورود اطلاعات</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                نمایش {toPersianDigits(filteredEmployees.length)} از {toPersianDigits(employees.length)} ردیف
+              </span>
+              <span>تغییرات هر ردیف هنگام خروج از سلول ذخیره می‌شود؛ محاسبه دوره نیز یک Snapshot مستقل می‌سازد.</span>
+            </div>
+          </section>
+
+          {runResult && (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">نتیجه محاسبه دوره</h2>
+                  <p className="mt-1 text-xs text-slate-500">{runResult.runId}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={runResult.status === 'ready-for-review' ? 'text-sm font-semibold text-teal-700' : 'text-sm font-semibold text-rose-700'}>
+                    {runResult.status === 'ready-for-review' ? 'آماده بررسی' : 'دارای موارد نیازمند اصلاح'}
+                  </span>
+                  {lastSavedRunId === runResult.runId && (
+                    <span className="text-xs text-teal-700">Snapshot ذخیره شد</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void downloadPayrollRunExcelWorkbook(runResult)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    خروجی Excel دوره
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ['جمع ناخالص', runResult.totals.grossEarningsRial],
+                  ['جمع کسورات', runResult.totals.totalDeductionsRial],
+                  ['خالص پرداختی', runResult.totals.netPayRial],
+                  ['بیمه سهم کارفرما', runResult.totals.employerInsuranceRial],
+                  ['هزینه مستقیم کارفرما', runResult.totals.directEmployerCostRial],
+                  ['ذخایر ماهانه', runResult.totals.monthlyReservesRial],
+                  ['CTC ماهانه', runResult.totals.ctcMonthlyRial],
+                  ['CTC سالانه‌شده', runResult.totals.ctcAnnualRial],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-xs text-slate-500">{label}</div>
+                    <div className="mt-1 text-base font-bold tabular-nums text-slate-900">{format(Number(value))}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600">
+                <span>کل کارکنان: {toPersianDigits(runResult.totals.employeeCount)}</span>
+                <span>محاسبه‌شده: {toPersianDigits(runResult.totals.calculatedCount)}</span>
+                <span>نیازمند اصلاح: {toPersianDigits(runResult.totals.blockedCount)}</span>
+                <span>خارج از دوره: {toPersianDigits(runResult.totals.excludedCount)}</span>
+              </div>
+
+              {runResult.lines.some((line) => line.issues.length > 0) && (
+                <div className="mt-5 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="text-sm font-semibold text-amber-900">موارد نیازمند تکمیل یا اصلاح</h3>
+                  {runResult.lines.filter((line) => line.issues.length > 0).map((line) => (
+                    <p key={line.employeeId} className="text-xs leading-6 text-amber-900">
+                      <strong>{line.personnelCode} · {line.fullName}:</strong>{' '}
+                      {line.issues.map((issue) => issue.message).join('؛ ')}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {runResult.lines.some((line) => (line.result?.legalReviewRequiredItems.length ?? 0) > 0) && (
+                <div className="mt-4 space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-4">
+                  <h3 className="text-sm font-semibold text-orange-900">هشدارهای قواعد نیازمند بررسی حقوقی</h3>
+                  {runResult.lines.filter((line) => (line.result?.legalReviewRequiredItems.length ?? 0) > 0).map((line) => (
+                    <p key={line.employeeId} className="text-xs leading-6 text-orange-900">
+                      <strong>{line.personnelCode} · {line.fullName}:</strong>{' '}
+                      {line.result?.legalReviewRequiredItems.join('؛ ')}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[900px] text-right text-sm">
+                  <thead className="bg-slate-100 text-slate-700">
+                    <tr>
+                      <th className="p-3">کد پرسنلی</th>
+                      <th className="p-3">نام کارمند</th>
+                      <th className="p-3">ناخالص</th>
+                      <th className="p-3">بیمه کارگر</th>
+                      <th className="p-3">مالیات</th>
+                      <th className="p-3">خالص دریافتی</th>
+                      <th className="p-3">بیمه کارفرما</th>
+                      <th className="p-3">CTC ماهانه</th>
+                      <th className="p-3">وضعیت</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {runResult.lines.map((line) => (
+                      <tr key={line.employeeId}>
+                        <td className="p-3 tabular-nums">{line.personnelCode}</td>
+                        <td className="p-3">{line.fullName}</td>
+                        <td className="p-3 tabular-nums">{line.result ? format(line.result.grossEarningsRial) : '—'}</td>
+                        <td className="p-3 tabular-nums">{line.result ? format(line.result.employeeInsuranceRial) : '—'}</td>
+                        <td className="p-3 tabular-nums">{line.result ? format(line.result.totalPayrollTaxRial) : '—'}</td>
+                        <td className="p-3 tabular-nums font-semibold">{line.result ? format(line.result.netPayRial) : '—'}</td>
+                        <td className="p-3 tabular-nums">{line.result ? format(line.result.totalEmployerInsuranceRial) : '—'}</td>
+                        <td className="p-3 tabular-nums">{line.result ? format(line.result.ctcMonthlyRial) : '—'}</td>
+                        <td className="p-3">
+                          {line.status === 'calculated' ? 'محاسبه‌شده' : line.status === 'blocked' ? 'نیازمند اصلاح' : 'خارج از دوره'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
       )}
 
-      <section className="border border-amber-200 bg-amber-50 rounded-xl p-4 text-xs text-amber-900 leading-6">
-        اطلاعات این نسخه به‌صورت محلی در پروفایل مرورگر همین دستگاه ذخیره می‌شوند و در نصب جدید رمزنگاری جداگانه یا حساب کاربری مستقل لازم نیست. پاک‌شدن داده‌های مرورگر یا خرابی دستگاه می‌تواند باعث از دست‌رفتن اطلاعات شود؛ تا زمان آماده‌شدن پشتیبان‌گیری داخلی، نسخه پشتیبان مستقل نگهداری شود. این نسخه هنوز بسته مستقل Windows نیست. پرونده کارکنان، قراردادها، تاریخچه مزد، حضور و مرخصی در سطح اولیه پیاده‌سازی شده‌اند؛ تردد روزانه، تفکیک کامل روزهای پرداختی، شیفت، مأموریت و گردش تأیید/پرداخت هنوز تکمیل نشده‌اند. نتیجه «آماده بررسی» مجوز پرداخت نیست.
+      <section className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-600">
+        <strong className="text-slate-800">نکته ورود اطلاعات:</strong>{' '}
+        روزهای کارکرد و کارکرد سالانه برای هر دوره باید تأیید شوند. اطلاعات تأهل، فرزند و سابقه ۷۲۰ روز بیمه برای کارکنان جدید تا زمان تعیین صریح وارد محاسبه نمی‌شوند. ساعت‌های اضافه‌کاری، شب‌کاری و تعطیل‌کاری و پاداش متغیر در صورت نداشتن مقدار، صفر محسوب می‌شوند. نتیجه «آماده بررسی» به‌معنای تأیید پرداخت یا تأیید حقوقی همه قواعد نیست.
       </section>
     </div>
   );
