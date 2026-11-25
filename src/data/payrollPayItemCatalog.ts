@@ -348,25 +348,27 @@ export function sumOvertimeBase(lines: PayrollPayItemLine[]): number {
 }
 
 export function sumInsuranceBasis(lines: PayrollPayItemLine[]): number {
-  return lines.reduce((total, line) => {
+  const total = lines.reduce((sum, line) => {
     const definition = getPayrollPayItem(line.itemId);
     return definition.insuranceTreatment === 'included'
-      ? total + Math.max(0, Math.round(line.amountRial))
-      : total;
+      ? sum + Math.round(line.amountRial)
+      : sum;
   }, 0);
+  return Math.max(0, total);
 }
 
 export function sumTaxableIncome(lines: PayrollPayItemLine[]): number {
-  return lines.reduce((total, line) => {
+  const total = lines.reduce((sum, line) => {
     const definition = getPayrollPayItem(line.itemId);
     if (definition.taxTreatment === 'taxable') {
-      return total + Math.max(0, Math.round(line.amountRial));
+      return sum + Math.round(line.amountRial);
     }
     if (definition.taxTreatment === 'taxable-excess') {
-      return total + Math.max(0, Math.round(line.taxableAmountRial ?? 0));
+      return sum + Math.max(0, Math.round(line.taxableAmountRial ?? 0));
     }
-    return total;
+    return sum;
   }, 0);
+  return Math.max(0, total);
 }
 
 export function getPendingLegalReviewItems(lines: PayrollPayItemLine[]): string[] {
