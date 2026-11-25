@@ -387,11 +387,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     const rowIndex = Number(target.dataset.gridRow);
     const text = event.clipboardData.getData('text/plain');
 
-    if (
-      !field ||
-      !Number.isInteger(rowIndex) ||
-      (!text.includes('\t') && !text.includes('\n'))
-    ) {
+    if (!field || !Number.isInteger(rowIndex) || text.length === 0) {
       return;
     }
 
