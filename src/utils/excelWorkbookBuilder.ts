@@ -409,7 +409,9 @@ export async function buildPayrollRunExcelWorkbook(
   addKeyValue(summary, 'سال مالی', run.fiscalYear);
   addKeyValue(summary, 'ماه', run.month);
   addKeyValue(summary, 'طول ماه', run.monthDays);
-  addKeyValue(summary, 'وضعیت دوره', run.status);
+  addKeyValue(summary, 'وضعیت محاسبه دوره', run.status);
+  addKeyValue(summary, 'وضعیت گردش تأیید/پرداخت', run.workflow?.status ?? 'قدیمی / بدون گردش ثبت‌شده');
+  addKeyValue(summary, 'اصلاحیه Snapshot قبلی', run.workflow?.correctionOfRunId ?? 'خیر');
   const firstCalculatedResult = run.lines.find((line) => line.result)?.result;
   addKeyValue(summary, 'شناسه مجموعه قواعد', firstCalculatedResult?.ruleSetId ?? 'بدون نتیجه محاسبه‌شده');
   addKeyValue(summary, 'نسخه مجموعه قواعد', firstCalculatedResult?.ruleSetVersion ?? '—');
