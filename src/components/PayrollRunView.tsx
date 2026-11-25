@@ -67,10 +67,11 @@ function inputClass(width = 'w-20'): string {
 
 export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const { state } = useUnifiedPayroll();
-  const { year, monthDays, unit } = state;
+  const { year, unit } = state;
   const rules = getPayrollRuleSet(year).regulations;
   const unitMultiplier = unit === 'toman' ? 10 : 1;
   const [month, setMonth] = useState(1);
+  const [periodMonthDays, setPeriodMonthDays] = useState<29 | 30 | 31>(31);
   const [employees, setEmployees] = useState<PayrollRunEmployee[]>([]);
   const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
@@ -87,7 +88,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const [vaultError, setVaultError] = useState<string | null>(null);
 
   const format = (value: number) => formatMoney(value, unit);
-  const periodLabel = `سال ${toPersianDigits(year)} · ${MONTH_OPTIONS[month - 1]} · ${toPersianDigits(monthDays)} روزه`;
+  const periodLabel = `سال ${toPersianDigits(year)} · ${MONTH_OPTIONS[month - 1]} · ${toPersianDigits(periodMonthDays)} روزه`;
 
   useEffect(() => {
     let active = true;
@@ -135,7 +136,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         const matchingRun = savedRuns.find((run) =>
           run.fiscalYear === year &&
           run.month === month &&
-          run.monthDays === monthDays
+          run.monthDays === periodMonthDays
         );
         const savedRun = matchingRun
           ? await loadSavedPayrollRun(matchingRun.runId)
@@ -145,7 +146,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         const rows = createPayrollWorkspaceEmployees({
           year,
           month,
-          monthDays,
+          monthDays: periodMonthDays,
           housingAllowanceRial: rules.housingAllowanceRial,
           workerCouponRial: rules.workerCouponRial,
           minDailyWageRial: rules.minDailyWageRial,
@@ -182,7 +183,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   }, [
     year,
     month,
-    monthDays,
+    periodMonthDays,
     rules.housingAllowanceRial,
     rules.workerCouponRial,
     rules.minDailyWageRial,
@@ -434,7 +435,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     setLastSavedRunId(null);
 
     const periodStartJalali = `${year}-${String(month).padStart(2, '0')}-01`;
-    const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
+    const periodEndJalali = `${year}-${String(month).padStart(2, '0')}-${String(periodMonthDays).padStart(2, '0')}`;
 
     const periodEmployees = employees.map((employee) => {
       const master = employeeMasters.find((item) => item.employeeId === employee.employeeId);
@@ -487,7 +488,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           : {
               ...employee.payrollInput,
               year,
-              monthDays,
+              monthDays: periodMonthDays,
               dailyBaseWageRial: terms.wage?.dailyBaseWageRial ?? employee.payrollInput.dailyBaseWageRial,
               dailySeniorityRial: terms.wage?.dailySeniorityRial ?? employee.payrollInput.dailySeniorityRial,
               housingAllowanceRial: rules.housingAllowanceRial,
@@ -503,7 +504,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         runId: `PAY-${year}-${String(month).padStart(2, '0')}-${Date.now()}`,
         fiscalYear: year,
         month,
-        monthDays,
+        monthDays: periodMonthDays,
       },
       periodEmployees
     );
@@ -644,7 +645,11 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
               <label className="text-xs font-medium text-slate-600">دوره حقوق</label>
               <select
                 value={month}
-                onChange={(event) => setMonth(numberValue(event.target.value))}
+                onChange={(event) => {
+                  const nextMonth = numberValue(event.target.value);
+                  setMonth(nextMonth);
+                  setPeriodMonthDays(nextMonth <= 6 ? 31 : nextMonth <= 11 ? 30 : 29);
+                }}
                 className="min-w-36 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               >
                 {MONTH_OPTIONS.map((label, index) => (
@@ -654,9 +659,15 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-slate-600">روزهای ماه</label>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                {toPersianDigits(monthDays)} روز
-              </div>
+              <select
+                value={periodMonthDays}
+                onChange={(event) => setPeriodMonthDays(numberValue(event.target.value) as 29 | 30 | 31)}
+                className="min-w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                {[29, 30, 31].map((days) => (
+                  <option key={days} value={days}>{toPersianDigits(days)} روز</option>
+                ))}
+              </select>
             </div>
             <button
               type="button"
@@ -792,7 +803,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                           <input
                             type="number"
                             min={0}
-                            max={monthDays}
+                            max={periodMonthDays}
                             step={0.5}
                             aria-label={`روز کارکرد ${employee.fullName}`}
                             data-grid-row={rowIndex}
