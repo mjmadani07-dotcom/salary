@@ -292,6 +292,14 @@ export function calculatePayrollRun(
         status: 'calculated',
         issues: [],
         payrollInput: employee.payrollInput,
+        jobTitle: employee.jobTitle,
+        costCenter: employee.costCenter,
+        bankAccountNumber: employee.bankAccountNumber,
+        bankIban: employee.bankIban,
+        insuranceNumber: employee.insuranceNumber,
+        hireDateJalali: employee.hireDateJalali,
+        terminationDateJalali: employee.terminationDateJalali,
+        leaveBalanceDays: employee.leaveBalanceDays,
         result,
       };
     } catch (error) {
