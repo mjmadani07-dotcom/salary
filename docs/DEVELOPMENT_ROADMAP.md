@@ -62,8 +62,10 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 ### Phase 3 — Attendance/leave to payroll integration
 - [ ] Define the meaning of actual attendance days, paid days, paid leave, unpaid leave, absence and payable days.
 - [ ] Reconcile the current monthly attendance totals with the above model without breaking existing records.
-- [ ] Connect approved leave records to payroll inputs under an explicit and testable policy.
-- [ ] Prevent double deduction when attendance inputs already reflect unpaid leave.
+- [x] Connect monthly leave records to PayrollRun through a blocking reconciliation review for unpaid leave.
+- [x] Invalidate the confirmation when worked days change or the stored unpaid-leave quantity changes.
+- [x] Prevent automatic/double deduction: the manager must confirm the monthly work/payroll-day input has already been reconciled; no legal formula is guessed.
+- [ ] Define the legally/contractually approved conversion from attendance and leave categories to payable days before automating any deduction.
 - [ ] Keep daily event capture, shift rosters and mission data as separate extensions after the monthly model is stable.
 
 ### Phase 4 — Employee debt and deductions ledger
@@ -108,6 +110,4 @@ The current branch is a development baseline, not a legally approved production 
 
 Last verified development branch: `feat/payroll-rule-registry-engine`.
 
-Last verified commit before roadmap synchronization: `0c6d0d0cf3eecf481e2d7f2ec30cc8eb4c1827e3`.
-
-At that commit, the latest successful CI run reported 41 passing tests, TypeScript validation passing and production build passing. The pull request remains open and unmerged.
+The attendance/leave reconciliation review gate is now implemented after the initial documentation synchronization. CI validation for the latest commits is pending. The previous verified baseline had 41 passing tests, TypeScript validation passing and production build passing. The pull request remains open and unmerged.
