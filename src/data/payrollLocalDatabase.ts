@@ -41,7 +41,8 @@ import type {
 } from '../utils/payrollVaultCrypto';
 
 const DATABASE_NAME = 'iran-payroll-local';
-const DATABASE_VERSION = 7;
+export const PAYROLL_DATABASE_SCHEMA_VERSION = 7;
+const DATABASE_VERSION = PAYROLL_DATABASE_SCHEMA_VERSION;
 const EMPLOYEE_STORE = 'employees';
 const PAYROLL_RUN_STORE = 'payrollRuns';
 const EMPLOYEE_MASTER_STORE = 'employeeMasters';
