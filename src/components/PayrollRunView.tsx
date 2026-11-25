@@ -328,8 +328,10 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         ...employee,
         personnelCode: master.personnelCode,
         fullName: `${master.firstName} ${master.lastName}`.trim(),
-        isActive: master.status === 'active',
-        masterDataIssues,
+        isActive: employee.isActive,
+        masterDataIssues: masterDataIssues.filter((issue) =>
+          !(employee.isActive && issue.code === 'EMPLOYEE_INACTIVE')
+        ),
         payrollInput: {
           ...employee.payrollInput,
           year,
@@ -607,6 +609,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                   {filteredEmployees.map((employee) => {
                     const disabled = !employee.isActive || isSaving;
                     const rowIssues = employee.masterDataIssues ?? [];
+                    const displayedIssues = rowIssues.length > 0 ? rowIssues : calculatedLine?.issues ?? [];
                     const workDaysMissing = hasIssue(employee, 'MONTHLY_WORK_DAYS_UNCONFIRMED');
                     const annualDaysMissing = hasIssue(employee, 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED');
                     const maritalMissing = hasIssue(employee, 'MONTHLY_MARITAL_STATUS_UNCONFIRMED');
@@ -787,14 +790,14 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                           />
                         </td>
                         <td className={cellClass}>
-                          {rowIssues.length > 0 ? (
+                          {displayedIssues.length > 0 ? (
                             <div className="max-w-56">
                               <div className="text-xs font-semibold text-amber-800">
-                                {toPersianDigits(rowIssues.length)} مورد نیازمند بررسی
+                                {toPersianDigits(displayedIssues.length)} مورد نیازمند بررسی
                               </div>
-                              <div className="mt-1 text-[11px] leading-5 text-slate-500" title={rowIssues.map((issue) => issue.message).join('؛ ')}>
-                                {rowIssues.slice(0, 2).map((issue) => issue.message).join('؛ ')}
-                                {rowIssues.length > 2 ? ' …' : ''}
+                              <div className="mt-1 text-[11px] leading-5 text-slate-500" title={displayedIssues.map((issue) => issue.message).join('؛ ')}>
+                                {displayedIssues.slice(0, 2).map((issue) => issue.message).join('؛ ')}
+                                {displayedIssues.length > 2 ? ' …' : ''}
                               </div>
                             </div>
                           ) : calculatedLine?.status === 'calculated' ? (
