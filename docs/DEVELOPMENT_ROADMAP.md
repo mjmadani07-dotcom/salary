@@ -54,6 +54,8 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [x] Add the remaining monthly Excel inputs to the row-details UI, attendance record, PayrollInput, calculation snapshot and pay-item breakdown: paid leave reference, sick leave, unpaid absence, Friday hours, mission days, insured/non-insured benefits, loan instalment, advance, other deductions, signed correction, payslip ID, payment date and notes.
 - [x] Inspect the actual monthly calculation formulas and record confirmed gaps: paid leave, sick leave and unpaid absence are not part of Excel's payable-day formula; its tax basis is gross minus employee insurance; and its overtime/night hourly basis excludes seniority pay. These are recorded as comparison points, not treated as approved legal rules.
 - [x] Add full A:V monthly Excel Paste/Import with row, period, personnel-code, payslip-ID and paid-leave-ledger validation; convert source Toman amounts to internal Rial.
+- [x] Block payroll lines where deductions create a negative net-pay result; retain the negative calculation for review but exclude it from payable payroll totals.
+- [x] Add regression coverage for the 1405 monthly progressive tax thresholds/rates currently configured in the RuleSet.
 - [ ] Complete formula-by-formula legal reconciliation for all 22 columns, including tax-base differences and overlap between holiday work, Friday work and overtime.
 - [ ] Complete the settlement-sheet inputs and outputs without removing or merging any source input.
 
@@ -61,7 +63,11 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [x] Create a structured 1405 legal source review register and identify source/implementation gaps.
 - [ ] Complete the primary-source legal pack with issuer-signed copies for wage, insurance, tax and statutory benefits.
 - [ ] Obtain documented review/sign-off for RuleSets 1404 and 1405.
-- [ ] Complete pay-item insurance/tax/wage classifications and special-case handling.
+- [ ] Complete pay-item insurance/tax/wage classifications and special-case handling, including aggregation of all taxable payments and legally exempt items.
+- [ ] Add the shift-pattern model and correct distinction between non-shift night premium (35%) and statutory shift allowances (10%, 15%, 22.5%).
+- [ ] Add statutory overtime controls (consent, daily limit and prohibited categories) using daily-level attendance evidence.
+- [ ] Reconcile Friday premium with weekly-rest scheduling and official-holiday overlap.
+- [ ] Complete mission allowance using the applicable fixed/base wage floor and separate transport/travel costs, including qualifying distance/overnight conditions.
 - [ ] Add the missing seniority, dependent eligibility, job group and actual insurance-history data. The 1405 twenty-group seniority schedule is now listed as SRC-014; the current employee model still lacks approved-plan/group and last-seniority-date evidence.
 - [ ] Complete shift, overtime, night, Friday, holiday and mission rules with overlap controls.
 - [ ] Add the legal acceptance scenarios in PAYROLL_RULES_AND_COMPLIANCE.md to automated tests.
@@ -92,6 +98,7 @@ Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md]
 - [x] Preserve legacy encrypted-vault compatibility while keeping new installations password-free.
 - [x] Do not auto-post installments or other deductions to payroll.
 - [ ] Obtain/record evidence and review of whether a proposed deduction is lawfully/contractually recoverable from wages.
+- [ ] Require documented legal/contractual basis and review for manual deductions; enforce applicable statutory restrictions before approval.
 - [ ] Connect eligible reviewed deductions to the payroll approval/payment workflow, with explicit manager confirmation.
 - [ ] Prevent duplicate posting when a payroll run is recalculated, corrected or exported.
 - [ ] Add debt correction/reversal, account closure, write-off and termination settlement workflows.
@@ -129,4 +136,4 @@ The current branch is a development baseline, not a legally approved production 
 
 Current work branch: `feat/lightweight-payroll-workbench`.
 
-The 8-sheet Excel input audit and formula-gap review are documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). Excel is treated as the complete input/output coverage baseline, not as the final calculation authority. Employee master stores the added Excel fields compatibly, and new payroll periods use family facts, wage type and seniority eligibility where explicitly provided. The monthly payroll row retains all extended fields independently in attendance, PayrollInput and snapshots. A full A:V Paste/Import is implemented: it validates the period and employee identity, checks payslip uniqueness, converts Toman to Rial, and reconciles paid leave through the leave ledger. The source workbook itself omits paid leave, sick leave and unpaid absence from its payable-day formula; the software does not inherit that omission by automatically guessing their effect. Sick leave and unpaid absence remain separate inputs pending the applicable rule. Tax-base parity, legal classifications, leave-day treatment and overlap rules remain open for review. CI [45616377588](https://github.com/mjmadani07-dotcom/salary/actions/runs/45616377588) passed 76 regression tests, TypeScript validation and production build at code commit `b593964cbd6cd0c7d3698b72bc02f7dea5c38450`. The pull request remains open and unmerged.
+The 8-sheet Excel input audit and formula-gap review are documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). Excel is treated as the complete input/output coverage baseline, not as the final calculation authority. Employee master stores the added Excel fields compatibly. A full A:V Paste/Import validates the period, employee identity, payslip uniqueness and leave balance, and converts source Toman amounts to internal Rial. The source workbook omits paid leave, sick leave and unpaid absence from its payable-day formula; the software does not inherit that omission by guessing how these days affect pay. Additional statutory gaps found include shift work versus non-shift night work, daily overtime conditions, weekly-rest/Friday treatment, mission travel costs and lawful deduction controls. Negative net-pay lines are now blocked from payable totals. The 1405 tax thresholds have an explicit regression test against the published monthly brackets; item-by-item tax treatment and the primary signed circular still require reconciliation. CI for code commit `08776aa505e72fc81a9ad4f18b426a15fe7e35e6` is pending at the time of this documentation update. The pull request remains open and unmerged.
