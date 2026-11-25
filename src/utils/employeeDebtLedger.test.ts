@@ -45,7 +45,12 @@ test('blocks invalid amounts, invalid dates and an installment date before issue
     firstDueFiscalYear: '1404', firstDueMonth: 12, installmentLimit: 0, notes: '',
   });
   assert.ok(issues.some(item => item.code === 'INVALID_PRINCIPAL'));
-  assert.ok(issues.some(item => item.code === 'INVALID_ISSUE_DATE'));
+  assert.ok(validateEmployeeDebtAccount({
+    employeeId: 'emp-1', personnelCode: '1001', employeeName: 'Test Employee',
+    debtType: 'advance', principalRial: 0, issueDateJalali: '1405-13-40',
+    purpose: '', repaymentPlan: 'fixed-installment', monthlyInstallmentRial: 0,
+    firstDueFiscalYear: '1404', firstDueMonth: 12, installmentLimit: 0, notes: '',
+  }).some(item => item.code === 'INVALID_ISSUE_DATE'));
   assert.ok(issues.some(item => item.code === 'FIRST_DUE_BEFORE_ISSUE'));
 });
 
