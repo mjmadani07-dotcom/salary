@@ -989,10 +989,10 @@ export async function listEmployeeDebtAccounts(employeeId?: string): Promise<Emp
     const transaction = database.transaction(DEBT_ACCOUNT_STORE, 'readonly');
     const completed = transactionComplete(transaction);
     const store = transaction.objectStore(DEBT_ACCOUNT_STORE);
-    records = await requestResult(
-      (employeeId ? store.index('employee').getAll(employeeId) : store.getAll())
-        as IDBRequest<EmployeeDebtAccount[]>
-    );
+    const request = employeeId
+      ? store.index('employee').getAll(employeeId)
+      : store.getAll();
+    records = await requestResult(request as IDBRequest<EmployeeDebtAccount[]>);
     await completed;
   } else {
     const keys = requireUnlockedKeys();
