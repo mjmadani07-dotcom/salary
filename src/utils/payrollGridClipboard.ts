@@ -38,7 +38,7 @@ function parseNumber(value: string): number | undefined {
 }
 
 function parseBoolean(value: string): boolean | undefined {
-  const normalized = value.trim().toLocaleLowerCase().replace(/[\s\u200c]/g, '');
+  const normalized = normalizeDigits(value).trim().toLocaleLowerCase().replace(/[\s\u200c]/g, '');
   if (!normalized) return undefined;
 
   const trueValues = new Set(['1', 'true', 'yes', 'y', 'بله', 'دارد', 'متاهل', 'متأهل']);
