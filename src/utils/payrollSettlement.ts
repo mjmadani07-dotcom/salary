@@ -144,7 +144,7 @@ export function calculatePayrollSettlement(
     }
   }
 
-  if (serviceDuration && issues.length === 0) {
+  if (serviceDuration) {
     const ruleSet = getPayrollRuleSet(input.fiscalYear);
     const recognizedServiceYears =
       serviceDuration.completedYears + serviceDuration.additionalDays / 365;
