@@ -70,7 +70,7 @@ The application rejects a repayment that exceeds the remaining principal and a r
 - No debt settlement at termination or final-pay reconciliation.
 - No approval chain or digital signatures; the finance manager records the supporting reference.
 - No automatic bank-statement import or bank transfer file generation.
-- The data remains local to the browser profile until the built-in Backup/Restore milestone is completed.
+- The data remains local to the browser profile and is included in versioned JSON Backup/Restore. A safety backup is downloaded before destructive restore; clean-profile and legacy-vault recovery remain operational acceptance tests.
 
 ## Tests
 
