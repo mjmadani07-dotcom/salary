@@ -9,6 +9,7 @@ import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
 import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
 import { useUnifiedPayroll } from '../state/UnifiedPayrollContext';
 import { PayrollSettlementPanel } from './PayrollSettlementPanel';
+import { PayrollRunApprovalPanel } from './PayrollRunApprovalPanel';
 
 interface PayrollReportsViewProps {
   onNavigateToPayroll: () => void;
@@ -296,7 +297,19 @@ export function PayrollReportsView({ onNavigateToPayroll }: PayrollReportsViewPr
         </div>
       )}
       {selectedRun && !isLoading && (
-        <PayrollSettlementPanel run={selectedRun} unit={state.unit} />
+        <>
+          <PayrollRunApprovalPanel
+            run={selectedRun}
+            unit={state.unit}
+            onUpdated={(updated) => {
+              setSelectedRun(updated);
+              setRuns((current) => current.map((item) =>
+                item.runId === updated.runId ? updated : item
+              ));
+            }}
+          />
+          <PayrollSettlementPanel run={selectedRun} unit={state.unit} />
+        </>
       )}
     </div>
   );
