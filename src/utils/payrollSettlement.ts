@@ -1,5 +1,5 @@
 import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
-import { calculateServiceDurationJalali } from './employeeMaster';
+import { calculateServiceDurationJalali, isJalaliDate } from './employeeMaster';
 import type {
   PayrollSettlementCalculationResult,
   PayrollSettlementInput,
@@ -32,7 +32,7 @@ const NON_NEGATIVE_FIELDS: Array<keyof PayrollSettlementInput> = [
 ];
 
 function isValidJalaliDate(value: string): boolean {
-  return /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value);
+  return isJalaliDate(value);
 }
 
 export function calculatePayrollSettlement(
