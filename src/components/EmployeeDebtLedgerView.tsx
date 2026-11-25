@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownLeft,
-  ArrowUpRight,
   Banknote,
   CheckCircle2,
   Clock3,
