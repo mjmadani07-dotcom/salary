@@ -1041,7 +1041,8 @@ async function writeStoredPayrollRunSnapshot(
 }
 
 export async function savePayrollRunSnapshot(
-  run: PayrollRunResult
+  run: PayrollRunResult,
+  correctionOfRunId?: string
 ): Promise<void> {
   const database = await openDatabase();
   const metadata = await readVaultMetadata(database);
@@ -1065,7 +1066,7 @@ export async function savePayrollRunSnapshot(
   const snapshot: StoredPayrollRun = {
     ...run,
     savedAt,
-    workflow: createInitialPayrollRunWorkflow(run, savedAt),
+    workflow: createInitialPayrollRunWorkflow(run, savedAt, correctionOfRunId),
   };
   await writeStoredPayrollRunSnapshot(snapshot);
 }
