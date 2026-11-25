@@ -4,7 +4,7 @@ import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/a
 import type { MonthlyLeaveRecord, MonthlyLeaveDraft } from '../types/leave';
 import type { PayrollSettlementCase, PayrollSettlementAuditEventType } from '../types/payrollSettlement';
 import type { PayrollRunWorkflow, PayrollRunWorkflowEventType } from '../types/payrollRunWorkflow';
-import { createInitialPayrollRunWorkflow, validatePayrollRunSnapshotDeletion, validatePayrollRunWorkflowUpdate } from '../utils/payrollRunWorkflow';
+import { createInitialPayrollRunWorkflow, validatePayrollCorrectionRun, validatePayrollRunSnapshotDeletion, validatePayrollRunWorkflowUpdate } from '../utils/payrollRunWorkflow';
 import { validatePayrollSettlementTransition } from '../utils/payrollSettlement';
 import type {
   EmployeeDebtAccount,
@@ -1083,22 +1083,11 @@ export async function savePayrollRunSnapshot(
   correctionReason?: string
 ): Promise<void> {
   if (correctionOfRunId) {
-    if (!correctionReason?.trim()) {
-      throw new Error('برای Snapshot اصلاحی، ثبت علت اصلاح الزامی است.');
-    }
     const sourceRun = await loadSavedPayrollRun(correctionOfRunId);
     if (!sourceRun) throw new Error('Snapshot اصلی برای اصلاح پیدا نشد.');
-    if (
-      sourceRun.fiscalYear !== run.fiscalYear ||
-      sourceRun.month !== run.month ||
-      sourceRun.monthDays !== run.monthDays
-    ) {
-      throw new Error('Snapshot اصلاحی باید دقیقاً به همان سال، ماه و تعداد روز دوره اصلی مربوط باشد.');
-    }
-    const sourceStatus = sourceRun.workflow?.status ??
-      createInitialPayrollRunWorkflow(sourceRun, sourceRun.savedAt).status;
-    if (!['approved', 'paid', 'closed'].includes(sourceStatus)) {
-      throw new Error('فقط دوره تأییدشده، پرداخت‌شده یا بسته‌شده می‌تواند مبنای Snapshot اصلاحی باشد.');
+    const correctionIssues = validatePayrollCorrectionRun(sourceRun, run, correctionReason ?? '');
+    if (correctionIssues.length > 0) {
+      throw new Error(correctionIssues.join(' '));
     }
   } else if (correctionReason?.trim()) {
     throw new Error('ثبت علت اصلاح بدون مرجع Snapshot اصلی مجاز نیست.');
