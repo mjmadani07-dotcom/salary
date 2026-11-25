@@ -114,6 +114,17 @@ Simplifying the product must **not** simplify or weaken statutory calculation co
 
 The current 1404 and 1405 rule sets and their legal-review status must be preserved. This product-scope change does not constitute legal validation or approval of any payroll formula.
 
+## 4.1 Excel reference parity and input preservation
+
+The repository workbook `excel-hoghoogh-dastmozd-1405-igilar.xlsx` is the baseline for input coverage. Its complete field-by-field mapping is maintained in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md).
+
+- Every input in the reference workbook must have an independently stored destination in the application, including informational and reconciliation inputs that do not directly enter a formula.
+- The simplified UI may place infrequent inputs in a row-detail panel or an expanded section. Progressive disclosure is allowed; removing an input or merging two distinct inputs is not.
+- Employee master facts, period-specific inputs, annual settlement inputs, versioned legal parameters and calculated outputs must remain distinct. A monthly value must not silently overwrite a permanent employee fact.
+- Monthly aggregates such as sick leave, unpaid absence, mission days, insured/non-insured benefits, deductions and signed corrections must remain separately identifiable. The application must not substitute a superficially similar field (for example, a bonus field) without an explicit, tested mapping.
+- A value stored in a separate attendance, leave or debt ledger is not considered covered by the payroll workflow until the selected-period value is loaded, reconciled and retained in the payroll snapshot.
+- The Excel workbook is a compatibility and reconciliation baseline, not automatic legal authority. Any formula conflict must be documented and tested before choosing the application rule.
+
 ## 5. What is outside the core product
 
 The following capabilities must not shape the main navigation, data-entry model or release criteria for this branch:
