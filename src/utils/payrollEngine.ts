@@ -41,6 +41,10 @@ export interface PayrollInput {
   otherDeductionsRial?: number;
   /** Signed adjustment to gross earnings; negative values are valid. */
   signedCorrectionRial?: number;
+  /** Non-calculation monthly metadata retained in each payroll snapshot. */
+  payslipId?: string;
+  paymentDate?: string;
+  monthlyNotes?: string;
   /** Employee-level flags from the employee master. Undefined is legacy behavior. */
   insuranceSubject?: boolean;
   taxSubject?: boolean;
