@@ -5,7 +5,9 @@ import { calculatePayroll } from './payrollEngine';
 import {
   buildPayrollExcelWorkbook,
   buildPayrollRunExcelWorkbook,
+  buildPayrollSettlementExcelWorkbook,
 } from './excelWorkbookBuilder';
+import type { PayrollSettlementCase } from '../types/payrollSettlement';
 import { calculatePayrollRun } from './payrollRunEngine';
 import type { PayrollInput } from './payrollEngine';
 
@@ -217,6 +219,105 @@ test('multi-employee export contains calculation, payslip, monthly summary, bank
       });
     });
   });
+  assert.equal(formulaCount, 0);
+});
+
+test('settlement export preserves inputs, calculation results, legal warnings and workflow audit without formulas', async () => {
+  const settlementCase: PayrollSettlementCase = {
+    settlementId: 'SET-001',
+    employeeId: 'emp-001',
+    personnelCode: 'P-001',
+    employeeName: 'کارمند تسویه',
+    fiscalYear: '1405',
+    hireDateJalali: '1400-01-01',
+    terminationDateJalali: '1405-06-31',
+    reason: 'contract-end',
+    monthsWorkedInYear: 6,
+    annualWorkedDays: 184,
+    annualCalendarDays: 365,
+    eidDailyWageBasisRial: 8_000_000,
+    eidWageBasisReference: 'حکم مزد',
+    eidWageBasisConfirmed: true,
+    severanceMonthlyWageBasisRial: 240_000_000,
+    severanceWageBasisReference: 'آخرین فیش',
+    severanceWageBasisConfirmed: true,
+    leaveBalanceDays: 12,
+    leaveBalanceConfirmed: true,
+    leaveDailyBasisRial: 9_000_000,
+    leaveBasisReference: 'گزارش حق‌السعی',
+    leaveBasisConfirmed: true,
+    eidAdvancePaidRial: 10_000_000,
+    eidAdvanceReference: 'فیش خرداد',
+    priorSeverancePaidRial: 0,
+    priorSeveranceReference: '',
+    otherClaimsRial: 15_000_000,
+    otherClaimsDescription: 'مطالبات تأییدشده',
+    approvedDeductionsRial: 0,
+    deductionAuthorizationReference: '',
+    medicalCommissionReference: '',
+    legalBasisReference: '',
+    notes: 'پرونده آزمون',
+    status: 'approved',
+    calculation: {
+      ruleSetId: 'iran-1405',
+      ruleSetVersion: 1,
+      ruleSetApprovalStatus: 'pending',
+      completedServiceYears: 5,
+      additionalServiceDays: 185,
+      recognizedServiceYears: 5 + 185 / 365,
+      eidMaximumBeforeProrationRial: 480_000_000,
+      eidEntitlementRial: Math.round(480_000_000 * 184 / 365),
+      eidAdvancePaidRial: 10_000_000,
+      eidBalanceRial: Math.round(480_000_000 * 184 / 365) - 10_000_000,
+      severanceMultiplier: 1,
+      severanceEntitlementRial: 1_000_000_000,
+      priorSeverancePaidRial: 0,
+      severanceBalanceRial: 1_000_000_000,
+      leaveEncashmentRial: 108_000_000,
+      otherClaimsRial: 15_000_000,
+      totalGrossEntitlementRial: 1_000_000_000,
+      approvedDeductionsRial: 0,
+      payableBeforeTaxRial: 1_000_000_000,
+      legalReviewRequiredItems: ['مبنای مزد نیازمند تأیید'],
+    },
+    createdAt: '2026-11-25T10:00:00.000Z',
+    updatedAt: '2026-11-25T11:00:00.000Z',
+    approverName: 'مدیر مالی',
+    approvalReference: 'FIN-001',
+    approvedAt: '2026-11-25T11:00:00.000Z',
+    auditTrail: [{
+      eventId: 'EV-001',
+      eventType: 'approved',
+      occurredAt: '2026-11-25T11:00:00.000Z',
+      status: 'approved',
+      actorName: 'مدیر مالی',
+      reference: 'FIN-001',
+    }],
+  };
+
+  const workbook = await buildPayrollSettlementExcelWorkbook([settlementCase]);
+  const sheet = workbook.getWorksheet('پرونده‌های تسویه');
+  const audit = workbook.getWorksheet('گردش پرونده‌ها');
+  const guide = workbook.getWorksheet('راهنمای خروجی');
+
+  assert.ok(sheet);
+  assert.ok(audit);
+  assert.ok(guide);
+  assert.equal(sheet.getCell('A2').value, 'SET-001');
+  assert.equal(sheet.getCell('H2').value, 6);
+  assert.equal(sheet.getCell('I2').value, 184);
+  assert.equal(sheet.getCell('R2').value, settlementCase.calculation.eidEntitlementRial);
+  assert.equal(sheet.getCell('AF2').value, 108_000_000);
+  assert.equal(sheet.getCell('AM2').value, 'approved');
+  assert.equal(audit.getCell('A2').value, 'SET-001');
+  assert.equal(audit.getCell('H2').value, 'مدیر مالی');
+  assert.ok(String(guide.getCell('A1').value).includes('قبل از مالیات'));
+
+  let formulaCount = 0;
+  workbook.worksheets.forEach((worksheet) => worksheet.eachRow((row) => row.eachCell((cell) => {
+    const value = cell.value;
+    if (value && typeof value === 'object' && 'formula' in value) formulaCount += 1;
+  })));
   assert.equal(formulaCount, 0);
 });
 
