@@ -10,12 +10,22 @@ export interface EmployeeMasterIssue {
   message: string;
 }
 
+function isJalaliLeapYear(year: number): boolean {
+  const elapsed = year - 979;
+  const leapCount = (value: number) =>
+    Math.floor(value / 33) * 8 + Math.floor(((value % 33) + 3) / 4);
+  return leapCount(elapsed + 1) - leapCount(elapsed) === 1;
+}
+
 function isJalaliDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
+  const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  return month >= 1 && month <= 12 && day >= 1 && day <= (month <= 6 ? 31 : month <= 11 ? 30 : 30);
+  if (year < 979 || month < 1 || month > 12 || day < 1) return false;
+  const maxDay = month <= 6 ? 31 : month <= 11 ? 30 : isJalaliLeapYear(year) ? 30 : 29;
+  return day <= maxDay;
 }
 
 export function validateEmployeeMaster(
@@ -146,11 +156,16 @@ export function calculateServiceDurationJalali(
   }
   const [hireYear, hireMonth, hireDay] = hireDateJalali.split('-').map(Number);
   const [endYear, endMonth, endDay] = asOfDateJalali.split('-').map(Number);
+  const anniversaryDayInEndYear =
+    hireMonth === 12 && hireDay === 30 && !isJalaliLeapYear(endYear) ? 29 : hireDay;
   let completedYears = endYear - hireYear;
-  if (endMonth < hireMonth || (endMonth === hireMonth && endDay < hireDay)) {
+  if (endMonth < hireMonth || (endMonth === hireMonth && endDay < anniversaryDayInEndYear)) {
     completedYears -= 1;
   }
-  const anniversary = `${String(hireYear + completedYears).padStart(4, '0')}-${String(hireMonth).padStart(2, '0')}-${String(hireDay).padStart(2, '0')}`;
+  const anniversaryYear = hireYear + completedYears;
+  const anniversaryDay =
+    hireMonth === 12 && hireDay === 30 && !isJalaliLeapYear(anniversaryYear) ? 29 : hireDay;
+  const anniversary = `${String(anniversaryYear).padStart(4, '0')}-${String(hireMonth).padStart(2, '0')}-${String(anniversaryDay).padStart(2, '0')}`;
   return {
     completedYears,
     additionalDays: jalaliDayNumber(asOfDateJalali) - jalaliDayNumber(anniversary),
