@@ -723,7 +723,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   ).length;
 
   const calculateRun = async () => {
-    if (employees.length === 0 || isSaving || isLoadingLocalData) return;
+    if (employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting) return;
     setIsSaving(true);
     setStorageError(null);
     setRunResult(null);
@@ -1036,7 +1036,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                 <button
                   type="button"
                   onClick={() => void calculateRun()}
-                  disabled={employees.length === 0 || isSaving || isLoadingLocalData}
+                  disabled={employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Calculator className="h-4 w-4" />
