@@ -26,6 +26,10 @@ export interface YearRegulation {
   unemploymentInsuranceRate: number;
   insuranceCeilingMultiplier: number;
   fridayWorkPremiumRate: number;
+  shiftWorkMorningEveningRate: number;
+  shiftWorkMorningEveningNightRate: number;
+  shiftWorkMorningNightRate: number;
+  shiftWorkEveningNightRate: number;
   taxMonthlyExemptionRial: number;
   taxAnnualExemptionRial: number;
   eidTaxExemptionCapRial: number;
@@ -83,6 +87,10 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
       unemploymentInsuranceRate: 0.03,
       insuranceCeilingMultiplier: 7,
       fridayWorkPremiumRate: 0.4,
+      shiftWorkMorningEveningRate: 0.10,
+      shiftWorkMorningEveningNightRate: 0.15,
+      shiftWorkMorningNightRate: 0.225,
+      shiftWorkEveningNightRate: 0.225,
       taxMonthlyExemptionRial: 400_000_000,
       taxAnnualExemptionRial: 4_800_000_000,
       eidTaxExemptionCapRial: 400_000_000,
@@ -127,6 +135,10 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
       unemploymentInsuranceRate: 0.03,
       insuranceCeilingMultiplier: 7,
       fridayWorkPremiumRate: 0.4,
+      shiftWorkMorningEveningRate: 0.10,
+      shiftWorkMorningEveningNightRate: 0.15,
+      shiftWorkMorningNightRate: 0.225,
+      shiftWorkEveningNightRate: 0.225,
       taxMonthlyExemptionRial: 240_000_000,
       taxAnnualExemptionRial: 2_880_000_000,
       eidTaxExemptionCapRial: 240_000_000,
@@ -187,6 +199,10 @@ export function validatePayrollRuleSet(
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
     ['insuranceCeilingMultiplier', reg.insuranceCeilingMultiplier],
     ['fridayWorkPremiumRate', reg.fridayWorkPremiumRate],
+    ['shiftWorkMorningEveningRate', reg.shiftWorkMorningEveningRate],
+    ['shiftWorkMorningEveningNightRate', reg.shiftWorkMorningEveningNightRate],
+    ['shiftWorkMorningNightRate', reg.shiftWorkMorningNightRate],
+    ['shiftWorkEveningNightRate', reg.shiftWorkEveningNightRate],
     ['taxMonthlyExemptionRial', reg.taxMonthlyExemptionRial],
     ['taxAnnualExemptionRial', reg.taxAnnualExemptionRial],
     ['eidTaxExemptionCapRial', reg.eidTaxExemptionCapRial],
@@ -207,6 +223,10 @@ export function validatePayrollRuleSet(
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
     ['otherLevelsIncreaseRate', reg.otherLevelsIncreaseRate],
     ['fridayWorkPremiumRate', reg.fridayWorkPremiumRate],
+    ['shiftWorkMorningEveningRate', reg.shiftWorkMorningEveningRate],
+    ['shiftWorkMorningEveningNightRate', reg.shiftWorkMorningEveningNightRate],
+    ['shiftWorkMorningNightRate', reg.shiftWorkMorningNightRate],
+    ['shiftWorkEveningNightRate', reg.shiftWorkEveningNightRate],
   ] as Array<[string, number]>) {
     if (rate < 0 || rate > 1) {
       issues.push({
