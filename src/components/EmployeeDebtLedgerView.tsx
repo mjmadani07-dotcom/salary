@@ -43,6 +43,8 @@ const emptyAccount = {
   notes: '',
 };
 
+type AccountDraftState = Omit<typeof emptyAccount, 'debtType'> & { debtType: 'advance' | 'loan' };
+
 const emptyRepayment = {
   debtId: '',
   amount: '',
@@ -70,7 +72,7 @@ export function EmployeeDebtLedgerView() {
   const [accounts, setAccounts] = useState<EmployeeDebtAccount[]>([]);
   const [repayments, setRepayments] = useState<EmployeeDebtRepayment[]>([]);
   const [deductions, setDeductions] = useState<EmployeeOtherDeduction[]>([]);
-  const [accountDraft, setAccountDraft] = useState(emptyAccount);
+  const [accountDraft, setAccountDraft] = useState<AccountDraftState>(emptyAccount);
   const [repaymentDraft, setRepaymentDraft] = useState(emptyRepayment);
   const [deductionDraft, setDeductionDraft] = useState(emptyDeduction);
   const [loading, setLoading] = useState(true);
