@@ -46,13 +46,15 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [x] Align the compliance specification with implemented attendance and leave ledgers.
 - [x] Align implementation notes with actual remaining work.
 - [x] Explicitly defer full operational EOS development while retaining current EOS functionality.
-- [ ] Keep the pull-request summary and this roadmap synchronized with every material feature change.
+- [x] Add a single development roadmap and synchronize the compliance/implementation notes and Pull Request summary with the actual branch state.
+- [x] Add a 1405 legal source review register; formal legal approval and issuer-signed primary copies remain outstanding.
 
 ### Phase 2 — Legal rules and calculation integrity
-- [ ] Complete the primary-source legal pack for wage, insurance, tax and statutory benefits.
+- [x] Create a structured 1405 legal source review register and identify source/implementation gaps.
+- [ ] Complete the primary-source legal pack with issuer-signed copies for wage, insurance, tax and statutory benefits.
 - [ ] Obtain documented review/sign-off for RuleSets 1404 and 1405.
 - [ ] Complete pay-item insurance/tax/wage classifications and special-case handling.
-- [ ] Add the missing seniority, dependent eligibility, job group and actual insurance-history data.
+- [ ] Add the missing seniority, dependent eligibility, job group and actual insurance-history data. The 1405 twenty-group seniority schedule is now listed as SRC-014; the current employee model still lacks approved-plan/group and last-seniority-date evidence.
 - [ ] Complete shift, overtime, night, Friday, holiday and mission rules with overlap controls.
 - [ ] Add the legal acceptance scenarios in PAYROLL_RULES_AND_COMPLIANCE.md to automated tests.
 - [ ] Add effective-dated multi-segment proration for mid-period hire, termination, wage and contract changes.
@@ -110,4 +112,4 @@ The current branch is a development baseline, not a legally approved production 
 
 Last verified development branch: `feat/payroll-rule-registry-engine`.
 
-The attendance/leave reconciliation review gate is implemented. Latest verified CI runs [45563290173](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563290173) and [45563284500](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563284500) both passed 44 tests, TypeScript validation and production build. The pull request remains open and unmerged.
+The attendance/leave reconciliation review gate and the first 1405 legal-source register are implemented. The RuleSet now traces the approved-job-classification schedule as SRC-014 but keeps its application conditional on employee/workshop evidence. CI validation for the latest source-reference/test change is pending; prior runs [45563290173](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563290173) and [45563284500](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563284500) both passed 44 tests, TypeScript validation and production build. The pull request remains open and unmerged.
