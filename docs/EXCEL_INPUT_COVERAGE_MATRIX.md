@@ -4,7 +4,7 @@
 |---|---|
 | فایل مرجع | `excel-hoghoogh-dastmozd-1405-igilar.xlsx` |
 | نسخه شاخه بررسی‌شده | `feat/lightweight-payroll-workbench` |
-| Commit مبنای ممیزی | `6e554729f778a0c13cb176bbe190c3f76a2e14f8` |
+| Commit مبنای ممیزی | `df8285edae52c4f40b1efab043a36fc8fb903f56` |
 | تاریخ ممیزی | 2026-11-25 |
 | هدف | حفظ تمام ورودی‌های مرجع و انتقال منطق آن‌ها به مدل داده و گردش کار نرم‌افزار |
 
