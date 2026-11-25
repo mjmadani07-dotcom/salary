@@ -1375,6 +1375,9 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                                       shiftWorkPattern: e.target.value
                                         ? e.target.value as NonNullable<PayrollInput['shiftWorkPattern']>
                                         : undefined,
+                                      shiftWorkPatternPeriod: e.target.value
+                                        ? `${year}-${String(month).padStart(2, '0')}`
+                                        : undefined,
                                     });
                                     void persistEmployee(updated);
                                   }}
