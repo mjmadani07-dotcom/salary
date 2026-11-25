@@ -42,6 +42,33 @@ test('valid employee master record passes validation', () => {
   assert.deepEqual(validateEmployeeMaster(makeEmployee()), []);
 });
 
+test('rejects a negative or fractional eligible-children count', () => {
+  assert.ok(validateEmployeeMaster(makeEmployee({ eligibleChildrenCount: -1 }))
+    .some((issue) => issue.code === 'INVALID_ELIGIBLE_CHILDREN_COUNT'));
+  assert.ok(validateEmployeeMaster(makeEmployee({ eligibleChildrenCount: 1.5 }))
+    .some((issue) => issue.code === 'INVALID_ELIGIBLE_CHILDREN_COUNT'));
+});
+
+test('accepts the optional Excel employee facts without breaking legacy records', () => {
+  const employee = makeEmployee({
+    bankAccountNumber: '00123456789',
+    bankIban: 'IR123456789012345678901234',
+    isMarried: true,
+    eligibleChildrenCount: 2,
+    insuranceSubject: true,
+    taxSubject: false,
+    costCenter: 'CC-01',
+    notes: 'پرونده منتقل‌شده از اکسل',
+    wageHistory: [{
+      ...makeEmployee().wageHistory[0],
+      wageType: 'custom',
+      seniorityEligible: true,
+    }],
+  });
+  assert.deepEqual(validateEmployeeMaster(employee), []);
+  assert.deepEqual(validateEmployeeMaster(makeEmployee()), []);
+});
+
 test('rejects overlapping contract periods', () => {
   const employee = makeEmployee({
     contracts: [
