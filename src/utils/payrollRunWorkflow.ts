@@ -1,0 +1,87 @@
+import { isJalaliDate } from './employeeMaster';
+import type { PayrollRunResult } from './payrollRunEngine';
+import type { PayrollRunWorkflow, PayrollRunWorkflowStatus } from '../types/payrollRunWorkflow';
+
+export interface PayrollRunWorkflowValidationIssue {
+  code: string;
+  message: string;
+}
+
+export function validatePayrollRunWorkflowTransition(
+  currentStatus: PayrollRunWorkflowStatus,
+  nextStatus: PayrollRunWorkflowStatus
+): string[] {
+  const allowed: Record<PayrollRunWorkflowStatus, PayrollRunWorkflowStatus[]> = {
+    'validation-failed': [],
+    'ready-for-review': ['approved'],
+    approved: ['paid'],
+    paid: ['closed'],
+    closed: [],
+  };
+  return allowed[currentStatus].includes(nextStatus)
+    ? []
+    : [currentStatus === 'closed'
+      ? 'دوره بسته‌شده قابل تغییر نیست؛ برای اصلاح باید Snapshot اصلاحی مستقل ایجاد شود.'
+      : currentStatus === 'paid'
+        ? 'دوره پرداخت‌شده فقط با بستن دوره تغییر وضعیت می‌دهد.'
+        : currentStatus === 'approved'
+          ? 'دوره تأییدشده فقط با ثبت پرداخت تغییر وضعیت می‌دهد.'
+          : currentStatus === 'validation-failed'
+            ? 'دوره دارای خطای اعتبارسنجی قابل تأیید نیست.'
+            : 'انتقال وضعیت دوره حقوق مجاز نیست.'];
+}
+
+export function validatePayrollRunWorkflowUpdate(
+  run: PayrollRunResult,
+  current: PayrollRunWorkflow,
+  next: PayrollRunWorkflow
+): PayrollRunWorkflowValidationIssue[] {
+  const issues: PayrollRunWorkflowValidationIssue[] = [];
+  const add = (code: string, message: string) => issues.push({ code, message });
+  if (current.status !== next.status) {
+    validatePayrollRunWorkflowTransition(current.status, next.status)
+      .forEach((message) => add('INVALID_WORKFLOW_TRANSITION', message));
+  }
+
+  if (next.status === 'approved') {
+    if (run.status !== 'ready-for-review' || run.totals.blockedCount > 0 || run.totals.calculatedCount === 0) {
+      add('RUN_NOT_APPROVABLE', 'دوره باید بدون ردیف مسدود و با حداقل یک کارمند محاسبه‌شده آماده بررسی باشد.');
+    }
+    if (!next.approverName?.trim()) add('APPROVER_REQUIRED', 'نام تأییدکننده مالی الزامی است.');
+    if (!next.approvalReference?.trim()) add('APPROVAL_REFERENCE_REQUIRED', 'شماره صورتجلسه یا مجوز تأیید الزامی است.');
+    if (!next.approvedAt || !Number.isFinite(Date.parse(next.approvedAt))) {
+      add('APPROVAL_DATE_REQUIRED', 'زمان ثبت تأیید معتبر نیست.');
+    }
+  }
+
+  if (next.status === 'paid') {
+    if (!isJalaliDate(next.paymentDate ?? '')) {
+      add('PAYMENT_DATE_REQUIRED', 'تاریخ پرداخت شمسی معتبر الزامی است.');
+    }
+    if (!next.paymentReference?.trim()) add('PAYMENT_REFERENCE_REQUIRED', 'شماره سند یا مرجع پرداخت الزامی است.');
+    if (!Number.isSafeInteger(next.paidAmountRial) || (next.paidAmountRial ?? -1) < 0) {
+      add('PAID_AMOUNT_INVALID', 'مبلغ پرداخت واقعی باید عدد صحیح ریالی و غیرمنفی باشد.');
+    }
+    if (
+      next.paidAmountRial !== undefined &&
+      Math.round(next.paidAmountRial) !== run.totals.netPayRial &&
+      !next.paymentDifferenceReason?.trim()
+    ) {
+      add('PAYMENT_DIFFERENCE_REASON_REQUIRED', 'مبلغ پرداخت واقعی با خالص حقوق متفاوت است؛ علت اختلاف را ثبت کنید.');
+    }
+    if (!next.paidAt || !Number.isFinite(Date.parse(next.paidAt))) {
+      add('PAID_AT_REQUIRED', 'زمان ثبت پرداخت معتبر نیست.');
+    }
+  }
+
+  if (next.status === 'closed') {
+    if (!next.closeReference?.trim()) {
+      add('CLOSE_REFERENCE_REQUIRED', 'شماره سند بستن دوره یا مرجع بایگانی الزامی است.');
+    }
+    if (!next.closedAt || !Number.isFinite(Date.parse(next.closedAt))) {
+      add('CLOSED_AT_REQUIRED', 'زمان بستن دوره معتبر نیست.');
+    }
+  }
+
+  return issues;
+}
