@@ -95,6 +95,60 @@ test('hydrates period payroll inputs from the selected monthly attendance record
   assert.ok(hydrated.masterDataIssues?.some((issue) => issue.code === MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code));
 });
 
+test('hydrates and round-trips every added Excel monthly input independently', () => {
+  const attendance = makeAttendance({
+    paidLeaveDays: 3,
+    sickLeaveDays: 1.5,
+    unpaidAbsenceDays: 2,
+    fridayHours: 4,
+    missionDays: 1,
+    insuredBenefitsRial: 1_200_000,
+    nonInsuredBenefitsRial: 800_000,
+    loanDeductionRial: 300_000,
+    advanceDeductionRial: 150_000,
+    otherDeductionsRial: 50_000,
+    signedCorrectionRial: -250_000,
+    payslipId: 'PAY-1405-01-P001',
+    paymentDate: '1405-02-01',
+    notes: 'کارکرد و اقلام تکمیلی',
+  });
+  const leave = makeLeave({ paidLeaveUsedDays: 3, unpaidLeaveUsedDays: 0 });
+  const hydrated = hydratePayrollEmployeeFromAttendance(makeEmployee(), attendance, leave);
+
+  assert.equal(hydrated.payrollInput.paidLeaveDays, 3);
+  assert.equal(hydrated.payrollInput.sickLeaveDays, 1.5);
+  assert.equal(hydrated.payrollInput.unpaidAbsenceDays, 2);
+  assert.equal(hydrated.payrollInput.fridayHours, 4);
+  assert.equal(hydrated.payrollInput.missionDays, 1);
+  assert.equal(hydrated.payrollInput.insuredBenefitsRial, 1_200_000);
+  assert.equal(hydrated.payrollInput.nonInsuredBenefitsRial, 800_000);
+  assert.equal(hydrated.payrollInput.loanDeductionRial, 300_000);
+  assert.equal(hydrated.payrollInput.advanceDeductionRial, 150_000);
+  assert.equal(hydrated.payrollInput.otherDeductionsRial, 50_000);
+  assert.equal(hydrated.payrollInput.signedCorrectionRial, -250_000);
+  assert.equal(hydrated.payrollInput.payslipId, 'PAY-1405-01-P001');
+  assert.equal(hydrated.payrollInput.paymentDate, '1405-02-01');
+  assert.equal(hydrated.payrollInput.monthlyNotes, 'کارکرد و اقلام تکمیلی');
+
+  const draft = createMonthlyAttendanceDraftFromPayrollEmployee(
+    hydrated, '1405', 1, 31, attendance,
+  );
+  assert.equal(draft.paidLeaveDays, 3);
+  assert.equal(draft.sickLeaveDays, 1.5);
+  assert.equal(draft.unpaidAbsenceDays, 2);
+  assert.equal(draft.fridayHours, 4);
+  assert.equal(draft.missionDays, 1);
+  assert.equal(draft.insuredBenefitsRial, 1_200_000);
+  assert.equal(draft.nonInsuredBenefitsRial, 800_000);
+  assert.equal(draft.loanDeductionRial, 300_000);
+  assert.equal(draft.advanceDeductionRial, 150_000);
+  assert.equal(draft.otherDeductionsRial, 50_000);
+  assert.equal(draft.signedCorrectionRial, -250_000);
+  assert.equal(draft.payslipId, 'PAY-1405-01-P001');
+  assert.equal(draft.paymentDate, '1405-02-01');
+  assert.equal(draft.notes, 'کارکرد و اقلام تکمیلی');
+});
+
 test('accepts unpaid-leave reconciliation only when the exact quantity was reviewed', () => {
   const employee = makeEmployee();
   const hydrated = hydratePayrollEmployeeFromAttendance(
