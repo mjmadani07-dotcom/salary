@@ -52,6 +52,7 @@ function makeAttendance(overrides: Partial<MonthlyAttendanceRecord> = {}): Month
     workedDays: 27,
     overtimeHours: 8,
     nightShiftHours: 4,
+    shiftWorkPattern: 'morning-evening-night',
     holidayHours: 2,
     variableBonusRial: 5_000_000,
     annualWorkedDays: 180,
@@ -87,6 +88,7 @@ test('hydrates period payroll inputs from the selected monthly attendance record
   assert.equal(hydrated.payrollInput.workDays, 27);
   assert.equal(hydrated.payrollInput.overtimeHours, 8);
   assert.equal(hydrated.payrollInput.nightShiftHours, 4);
+  assert.equal(hydrated.payrollInput.shiftWorkPattern, 'morning-evening-night');
   assert.equal(hydrated.payrollInput.holidayHours, 2);
   assert.equal(hydrated.payrollInput.variableBonusRial, 5_000_000);
   assert.equal(hydrated.payrollInput.annualWorkedDays, 180);
@@ -138,6 +140,7 @@ test('hydrates and round-trips every added Excel monthly input independently', (
   assert.equal(draft.sickLeaveDays, 1.5);
   assert.equal(draft.unpaidAbsenceDays, 2);
   assert.equal(draft.fridayHours, 4);
+  assert.equal(draft.shiftWorkPattern, 'morning-evening-night');
   assert.equal(draft.missionDays, 1);
   assert.equal(draft.insuredBenefitsRial, 1_200_000);
   assert.equal(draft.nonInsuredBenefitsRial, 800_000);
