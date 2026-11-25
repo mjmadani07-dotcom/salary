@@ -4,7 +4,8 @@ import type { PayrollRunResult } from './payrollRunEngine';
 export function createInitialPayrollRunWorkflow(
   run: Pick<PayrollRunResult, 'status' | 'runId'>,
   occurredAt = new Date().toISOString(),
-  correctionOfRunId?: string
+  correctionOfRunId?: string,
+  correctionReason?: string
 ): PayrollRunWorkflow {
   const status: PayrollRunWorkflowStatus = run.status === 'ready-for-review'
     ? 'ready-for-review'
@@ -17,10 +18,11 @@ export function createInitialPayrollRunWorkflow(
       occurredAt,
       status,
       note: correctionOfRunId
-        ? `Correction snapshot ${run.runId} replaces review of ${correctionOfRunId}`
+        ? `Correction snapshot ${run.runId} references ${correctionOfRunId}. Reason: ${correctionReason?.trim() ?? ''}`
         : `Snapshot ${run.runId} created from the central payroll engine`,
     }],
     ...(correctionOfRunId ? { correctionOfRunId } : {}),
+    ...(correctionOfRunId && correctionReason?.trim() ? { correctionReason: correctionReason.trim() } : {}),
   };
 }
 
@@ -76,6 +78,13 @@ export function validatePayrollRunWorkflowUpdate(
 ): PayrollRunWorkflowValidationIssue[] {
   const issues: PayrollRunWorkflowValidationIssue[] = [];
   const add = (code: string, message: string) => issues.push({ code, message });
+
+  if (
+    current.correctionOfRunId !== next.correctionOfRunId ||
+    current.correctionReason !== next.correctionReason
+  ) {
+    add('CORRECTION_METADATA_IMMUTABLE', 'مرجع و علت Snapshot اصلاحی پس از ایجاد قابل تغییر نیست.');
+  }
   if (current.status !== next.status) {
     validatePayrollRunWorkflowTransition(current.status, next.status)
       .forEach((message) => add('INVALID_WORKFLOW_TRANSITION', message));
