@@ -5,6 +5,7 @@ import type {
   EmployeeMasterRecord,
   EmploymentContract,
   EmploymentContractType,
+  EmployeeWageType,
   WageHistoryEntry,
 } from '../types/employee';
 import {
@@ -25,6 +26,14 @@ const EMPTY_DRAFT: EmployeeMasterDraft = {
   terminationDateJalali: '',
   status: 'active',
   insuranceNumber: '',
+  bankAccountNumber: '',
+  bankIban: '',
+  isMarried: '',
+  eligibleChildrenCount: '',
+  insuranceSubject: '',
+  taxSubject: '',
+  costCenter: '',
+  notes: '',
   contractNumber: '',
   contractType: 'fixed-term',
   jobTitle: '',
@@ -34,8 +43,15 @@ const EMPTY_DRAFT: EmployeeMasterDraft = {
   weeklyHours: '44',
   dailyBaseWageRial: '',
   dailySeniorityRial: '0',
+  wageType: '',
+  seniorityEligible: '',
   wageFromJalali: '',
 };
+
+const WAGE_TYPES: Array<[EmployeeWageType, string]> = [
+  ['minimum', 'حداقل‌بگیر'],
+  ['custom', 'مزد سفارشی'],
+];
 
 const CONTRACT_TYPES: Array<[EmploymentContractType, string]> = [
   ['permanent', 'دائم'],
@@ -122,7 +138,9 @@ export function EmployeeDirectoryView() {
       effectiveFromJalali: draft.wageFromJalali.trim(),
       dailyBaseWageRial: numberValue(draft.dailyBaseWageRial) * multiplier,
       dailySeniorityRial: numberValue(draft.dailySeniorityRial) * multiplier,
-      notes: '',
+      wageType: draft.wageType || (selectedWageId ? wageHistory.find((item) => item.wageEntryId === selectedWageId)?.wageType : undefined),
+      seniorityEligible: draft.seniorityEligible === 'yes' ? true : draft.seniorityEligible === 'no' ? false : (selectedWageId ? wageHistory.find((item) => item.wageEntryId === selectedWageId)?.seniorityEligible : undefined),
+      notes: selectedWageId ? wageHistory.find((item) => item.wageEntryId === selectedWageId)?.notes ?? '' : '',
     };
     if (!wage.effectiveFromJalali || wage.dailyBaseWageRial <= 0) {
       setError('تاریخ اثر و مزد روزانه پایه معتبر را وارد کنید.');
@@ -163,6 +181,14 @@ export function EmployeeDirectoryView() {
       terminationDateJalali: employee.terminationDateJalali ?? '',
       status: employee.status,
       insuranceNumber: employee.insuranceNumber,
+      bankAccountNumber: employee.bankAccountNumber ?? '',
+      bankIban: employee.bankIban ?? '',
+      isMarried: employee.isMarried === true ? 'yes' : employee.isMarried === false ? 'no' : '',
+      eligibleChildrenCount: employee.eligibleChildrenCount === undefined ? '' : String(employee.eligibleChildrenCount),
+      insuranceSubject: employee.insuranceSubject === true ? 'yes' : employee.insuranceSubject === false ? 'no' : '',
+      taxSubject: employee.taxSubject === true ? 'yes' : employee.taxSubject === false ? 'no' : '',
+      costCenter: employee.costCenter ?? '',
+      notes: employee.notes ?? '',
       contractNumber: currentContract?.contractNumber ?? '',
       contractType: currentContract?.contractType ?? 'fixed-term',
       jobTitle: currentContract?.jobTitle ?? '',
@@ -172,6 +198,8 @@ export function EmployeeDirectoryView() {
       weeklyHours: String(currentContract?.weeklyHours ?? 44),
       dailyBaseWageRial: currentWage ? String(currentWage.dailyBaseWageRial / multiplier) : '',
       dailySeniorityRial: currentWage ? String(currentWage.dailySeniorityRial / multiplier) : '0',
+      wageType: currentWage?.wageType ?? '',
+      seniorityEligible: currentWage?.seniorityEligible === true ? 'yes' : currentWage?.seniorityEligible === false ? 'no' : '',
       wageFromJalali: currentWage?.effectiveFromJalali ?? '',
     });
     setSelectedContractId(currentContract?.contractId ?? null);
@@ -196,6 +224,14 @@ export function EmployeeDirectoryView() {
       terminationDateJalali: draft.terminationDateJalali.trim() || null,
       status: draft.status,
       insuranceNumber: draft.insuranceNumber.trim(),
+      bankAccountNumber: draft.bankAccountNumber.trim() || existing?.bankAccountNumber,
+      bankIban: draft.bankIban.trim() || existing?.bankIban,
+      isMarried: draft.isMarried === 'yes' ? true : draft.isMarried === 'no' ? false : existing?.isMarried,
+      eligibleChildrenCount: draft.eligibleChildrenCount.trim() ? numberValue(draft.eligibleChildrenCount) : existing?.eligibleChildrenCount,
+      insuranceSubject: draft.insuranceSubject === 'yes' ? true : draft.insuranceSubject === 'no' ? false : existing?.insuranceSubject,
+      taxSubject: draft.taxSubject === 'yes' ? true : draft.taxSubject === 'no' ? false : existing?.taxSubject,
+      costCenter: draft.costCenter.trim() || existing?.costCenter,
+      notes: draft.notes.trim() || existing?.notes,
       contracts,
       wageHistory,
       createdAt: existing?.createdAt ?? now,
@@ -284,6 +320,35 @@ export function EmployeeDirectoryView() {
         </div>
 
         <div className="border-t border-slate-100 pt-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-700">اطلاعات بانکی و وضعیت‌های پرسنلی اکسل</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="شماره حساب" value={draft.bankAccountNumber} onChange={(value) => updateDraft({ bankAccountNumber: value })} />
+            <Field label="شماره شبا" value={draft.bankIban} onChange={(value) => updateDraft({ bankIban: value.toUpperCase() })} placeholder="IR..." />
+            <Field label="مرکز هزینه" value={draft.costCenter} onChange={(value) => updateDraft({ costCenter: value })} />
+            <label className="space-y-1 text-xs text-slate-600">وضعیت تأهل
+              <select value={draft.isMarried} onChange={(event) => updateDraft({ isMarried: event.target.value as EmployeeMasterDraft['isMarried'] })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                <option value="">نامشخص</option><option value="yes">متأهل</option><option value="no">مجرد</option>
+              </select>
+            </label>
+            <Field label="تعداد فرزند واجد شرایط" value={draft.eligibleChildrenCount} onChange={(value) => updateDraft({ eligibleChildrenCount: value })} type="number" />
+            <label className="space-y-1 text-xs text-slate-600">مشمول بیمه؟
+              <select value={draft.insuranceSubject} onChange={(event) => updateDraft({ insuranceSubject: event.target.value as EmployeeMasterDraft['insuranceSubject'] })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                <option value="">نامشخص</option><option value="yes">بله</option><option value="no">خیر</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-xs text-slate-600">مشمول مالیات؟
+              <select value={draft.taxSubject} onChange={(event) => updateDraft({ taxSubject: event.target.value as EmployeeMasterDraft['taxSubject'] })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                <option value="">نامشخص</option><option value="yes">بله</option><option value="no">خیر</option>
+              </select>
+            </label>
+          </div>
+          <label className="block space-y-1 text-xs text-slate-600">توضیحات پرونده
+            <textarea value={draft.notes} onChange={(event) => updateDraft({ notes: event.target.value })} rows={2} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900" />
+          </label>
+          <p className="text-xs text-amber-700">وضعیت‌های مشمول بیمه و مالیات فعلاً به‌عنوان داده پرسنلی ذخیره می‌شوند؛ اتصال اثر آن‌ها به طبقه‌بندی اقلام حقوق، مرحله بعدی است.</p>
+        </div>
+
+        <div className="border-t border-slate-100 pt-4 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FileText className="h-4 w-4" /> اطلاعات شغلی و قرارداد</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین قرارداد در فرم قرار می‌گیرد؛ ذخیره، همان سابقه را اصلاح می‌کند. سوابق قبلی حفظ می‌شوند.</p></div>
             {selectedContractId && <button type="button" onClick={() => { setSelectedContractId(null); updateDraft({ contractNumber: '', jobTitle: '', department: '', contractFromJalali: '', contractToJalali: '', weeklyHours: '44' }); }} className="text-xs font-semibold text-slate-700">ثبت قرارداد جدید</button>}
@@ -334,7 +399,17 @@ export function EmployeeDirectoryView() {
             <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Wallet className="h-4 w-4" /> مزد و پایه سنوات</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین نرخ مزد نمایش داده می‌شود؛ با ذخیره، همان سابقه اصلاح می‌شود و سوابق قدیمی‌تر باقی می‌مانند.</p></div>
             {selectedWageId && <button type="button" onClick={() => { setSelectedWageId(null); updateDraft({ wageFromJalali: '', dailyBaseWageRial: '', dailySeniorityRial: '0' }); }} className="text-xs font-semibold text-slate-700">ثبت نرخ جدید</button>}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="space-y-1 text-xs text-slate-600">نوع مزد
+              <select value={draft.wageType} onChange={(event) => updateDraft({ wageType: event.target.value as EmployeeMasterDraft['wageType'] })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                <option value="">نامشخص / سابقه قدیمی</option>{WAGE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs text-slate-600">مشمول پایه سنوات؟
+              <select value={draft.seniorityEligible} onChange={(event) => updateDraft({ seniorityEligible: event.target.value as EmployeeMasterDraft['seniorityEligible'] })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                <option value="">نامشخص</option><option value="yes">بله</option><option value="no">خیر</option>
+              </select>
+            </label>
             <Field label={`مزد روزانه پایه (${unit}) *`} value={draft.dailyBaseWageRial} onChange={(value) => updateDraft({ dailyBaseWageRial: value })} type="number" />
             <Field label={`پایه سنوات روزانه (${unit})`} value={draft.dailySeniorityRial} onChange={(value) => updateDraft({ dailySeniorityRial: value })} type="number" />
             <Field label="تاریخ اثر مزد (شمسی) *" value={draft.wageFromJalali} onChange={(value) => updateDraft({ wageFromJalali: value })} placeholder="1405-01-01" />
@@ -352,6 +427,8 @@ export function EmployeeDirectoryView() {
                     wageFromJalali: wage.effectiveFromJalali,
                     dailyBaseWageRial: String(wage.dailyBaseWageRial / multiplier),
                     dailySeniorityRial: String(wage.dailySeniorityRial / multiplier),
+                    wageType: wage.wageType ?? '',
+                    seniorityEligible: wage.seniorityEligible === true ? 'yes' : wage.seniorityEligible === false ? 'no' : '',
                   }));
                 }} className="text-slate-700">ویرایش</button>
                 <button type="button" onClick={() => {
