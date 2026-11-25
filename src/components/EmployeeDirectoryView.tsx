@@ -138,12 +138,16 @@ export function EmployeeDirectoryView() {
       effectiveFromJalali: draft.wageFromJalali.trim(),
       dailyBaseWageRial: numberValue(draft.dailyBaseWageRial) * multiplier,
       dailySeniorityRial: numberValue(draft.dailySeniorityRial) * multiplier,
-      wageType: draft.wageType || (selectedWageId ? wageHistory.find((item) => item.wageEntryId === selectedWageId)?.wageType : undefined),
-      seniorityEligible: draft.seniorityEligible === 'yes' ? true : draft.seniorityEligible === 'no' ? false : (selectedWageId ? wageHistory.find((item) => item.wageEntryId === selectedWageId)?.seniorityEligible : undefined),
+      wageType: draft.wageType as EmployeeWageType,
+      seniorityEligible: draft.seniorityEligible === 'yes',
       notes: selectedWageId ? wageHistory.find((item) => item.wageEntryId === selectedWageId)?.notes ?? '' : '',
     };
     if (!wage.effectiveFromJalali || wage.dailyBaseWageRial <= 0) {
       setError('تاریخ اثر و مزد روزانه پایه معتبر را وارد کنید.');
+      return;
+    }
+    if (!draft.wageType || !draft.seniorityEligible) {
+      setError('نوع مزد و وضعیت شمول پایه سنوات را مشخص کنید. برای سابقه قدیمیِ نامشخص نیز پیش از اصلاح نرخ، این دو مورد را تعیین کنید.');
       return;
     }
     setWageHistory((current) => {
