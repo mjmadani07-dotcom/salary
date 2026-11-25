@@ -301,27 +301,31 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
       const monthlyIssues = (employee.masterDataIssues ?? []).filter((issue) =>
         issue.code.startsWith('MONTHLY_')
       );
-      const masterDataIssues = [
-        ...monthlyIssues,
-        ...terms.issues.map((issue) => ({
-          code: issue.code,
-          message: issue.message,
-          field: issue.field,
-        })),
-      ];
+      const masterDataIssues = employee.isActive
+        ? [
+            ...monthlyIssues,
+            ...terms.issues.filter((issue) => issue.code !== 'EMPLOYEE_INACTIVE').map((issue) => ({
+              code: issue.code,
+              message: issue.message,
+              field: issue.field,
+            })),
+          ]
+        : [];
 
       let serviceDuration = {
         completedYears: employee.payrollInput.serviceYearsForSeverance,
         additionalDays: employee.payrollInput.serviceExtraDaysForSeverance,
       };
-      try {
-        serviceDuration = calculateServiceDurationJalali(master.hireDateJalali, periodEndJalali);
-      } catch (error) {
-        masterDataIssues.push({
-          code: 'INVALID_SERVICE_DURATION',
-          field: 'hireDateJalali',
-          message: error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.',
-        });
+      if (employee.isActive) {
+        try {
+          serviceDuration = calculateServiceDurationJalali(master.hireDateJalali, periodEndJalali);
+        } catch (error) {
+          masterDataIssues.push({
+            code: 'INVALID_SERVICE_DURATION',
+            field: 'hireDateJalali',
+            message: error instanceof Error ? error.message : 'محاسبه سابقه خدمت ناموفق بود.',
+          });
+        }
       }
 
       return {
