@@ -17,7 +17,7 @@ function isJalaliLeapYear(year: number): boolean {
   return leapCount(elapsed + 1) - leapCount(elapsed) === 1;
 }
 
-function isJalaliDate(value: string): boolean {
+export function isJalaliDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
   const year = Number(match[1]);
