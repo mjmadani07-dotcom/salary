@@ -43,6 +43,7 @@ test('1405 RuleSet is explicitly pending legal approval', () => {
   assert.equal(ruleSet.id, 'IR-LABOR-PAYROLL-1405');
   assert.equal(ruleSet.version, 1);
   assert.equal(ruleSet.approvalStatus, 'pending-legal-review');
+  assert.equal(ruleSet.regulations.fridayWorkPremiumRate, 0.4);
   assert.equal(ruleSet.effectiveFromJalali, '1405-01-01');
   assert.equal(ruleSet.effectiveToJalali, null);
   assert.ok(ruleSet.sourceRefs.includes('SRC-003'));
