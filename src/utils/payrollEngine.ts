@@ -128,6 +128,13 @@ export function validatePayrollInput(input: PayrollInput): PayrollInputIssue[] {
     add('signedCorrectionRial', 'INVALID_SIGNED_CORRECTION', 'Signed payroll correction must be a finite number.');
   }
 
+  for (const field of ['paidLeaveDays', 'sickLeaveDays', 'unpaidAbsenceDays', 'missionDays'] as const) {
+    const value = input[field];
+    if (value !== undefined && value > input.monthDays) {
+      add(field, 'INVALID_MONTHLY_DAY_COUNT', `${field} cannot exceed the payroll month length.`);
+    }
+  }
+
   if (!Number.isInteger(input.childrenCount)) {
     add('childrenCount', 'INVALID_CHILD_COUNT', 'Child count must be a whole number.');
   }
