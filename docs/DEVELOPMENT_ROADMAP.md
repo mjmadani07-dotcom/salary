@@ -170,7 +170,7 @@ The current branch is a development baseline, not a legally approved production 
 ## 6. Current status
 
 - Work branch: `feat/lightweight-payroll-workbench`.
-- Latest verified closeout commit: `5bdde3846208f28b3edef8214f751ca115d8c7ff`.
+- Latest verified code-bearing closeout commit (before subsequent documentation-only commits): `5bdde3846208f28b3edef8214f751ca115d8c7ff`.
 - CI run: [`45683393546`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45683393546), completed successfully: 117 tests passed, TypeScript check passed and Vite production build passed. This verifies automated code checks only, not legal approval or operational acceptance.
 - Monthly shift-pattern capture, period-scoped persistence, Article 56 rate differentiation and suppression of the Article 58 35% non-shift premium for rotating patterns are implemented. The shift allowance wage base and item classification remain legal-review items.
 - The 20 Excel legal parameters are now traceable to the versioned RuleSet; hourly divisor, overtime multiplier, non-shift night premium and months-per-year are consumed by the calculation/validation code. The annual leave carryover cap is configured but not applied pending legal review. Rule changes are controlled through reviewed RuleSet releases, not direct operator editing.
