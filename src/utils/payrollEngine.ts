@@ -335,11 +335,11 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const holidayPayRial = Math.round(
     input.holidayHours * hourlyNormalRateRial * 1.4
   );
-  const fridayHourlyRateRial = Math.round(
-    (input.dailyBaseWageRial * 30) / divisor
-  );
+  // Friday premium is calculated from the same hourly wage base as overtime
+  // (base wage + seniority), rather than silently omitting seniority as the
+  // source workbook formula does. Legal classification remains reviewable.
   const fridayWorkPayRial = Math.round(
-    (input.fridayHours ?? 0) * fridayHourlyRateRial * reg.fridayWorkPremiumRate
+    (input.fridayHours ?? 0) * hourlyNormalRateRial * reg.fridayWorkPremiumRate
   );
   const missionPayRial = Math.round(
     input.dailyBaseWageRial * (input.missionDays ?? 0)
