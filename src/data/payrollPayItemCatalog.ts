@@ -270,18 +270,6 @@ export const PAYROLL_PAY_ITEM_CATALOG: PayrollPayItemDefinition[] = [
     reviewStatus: 'pending-legal-review',
     legalBasis: ['فایل مرجع حقوق ۱۴۰۵، ستون S شیت کارکرد ماهانه'],
     implementationNote: 'به‌صورت ورودی دستی و مستقل از وام و مساعده از خالص پرداختی کسر می‌شود؛ مجاز بودن هر کسر باید جداگانه مستند/تأیید شود.',
-  },  {
-    id: 'mission-allowance',
-    title: 'فوق‌العاده مأموریت و هزینه سفر',
-    kind: 'earning',
-    insuranceTreatment: 'not-applicable',
-    taxTreatment: 'not-applicable',
-    includedInOvertimeBase: false,
-    includedInMonthlyGross: false,
-    includedInCtc: true,
-    reviewStatus: 'pending-legal-review',
-    legalBasis: ['قانون کار، ماده 46', 'قواعد مالیاتی و بیمه‌ای مرتبط'],
-    implementationNote: 'در موتور فعلی پیاده‌سازی نشده؛ فوق‌العاده مأموریت باید از بازپرداخت هزینه مستند سفر تفکیک شود.',
   },
   {
     id: 'non-cash-benefit',
