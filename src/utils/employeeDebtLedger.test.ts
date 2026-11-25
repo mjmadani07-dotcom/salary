@@ -92,3 +92,9 @@ test('requires a documented authorization reference before an agreed deduction i
   assert.ok(validateOtherDeduction(base).some(item => item.code === 'AUTHORIZATION_REFERENCE_REQUIRED'));
   assert.deepEqual(validateOtherDeduction({ ...base, authorizationReference: 'Agreement-01' }), []);
 });
+
+test('requires repayment year and month to match its Jalali date', () => {
+  const invalid = { ...repayment(100_000), month: 2 };
+  assert.ok(validateDebtRepayment(invalid, account, [])
+    .some(item => item.code === 'REPAYMENT_PERIOD_MISMATCH'));
+});
