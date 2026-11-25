@@ -34,7 +34,7 @@ test('validates installment and manual repayment plans without introducing inter
 test('blocks invalid amounts, invalid dates and an installment date before issue', () => {
   const issues = validateEmployeeDebtAccount({
     employeeId: 'emp-1', personnelCode: '1001', employeeName: 'Test Employee',
-    debtType: 'advance', principalRial: 0, issueDateJalali: '1405-13-40',
+    debtType: 'advance', principalRial: 0, issueDateJalali: '1405-01-20',
     purpose: '', repaymentPlan: 'fixed-installment', monthlyInstallmentRial: 0,
     firstDueFiscalYear: '1404', firstDueMonth: 12, installmentLimit: 0, notes: '',
   });
