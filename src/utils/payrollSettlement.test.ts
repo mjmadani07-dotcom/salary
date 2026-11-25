@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PayrollSettlementInput } from '../types/payrollSettlement';
-import { calculatePayrollSettlement, validatePayrollSettlementWorkflow } from './payrollSettlement';
+import { calculatePayrollSettlement, validatePayrollSettlementTransition, validatePayrollSettlementWorkflow } from './payrollSettlement';
 
 function makeInput(overrides: Partial<PayrollSettlementInput> = {}): PayrollSettlementInput {
   return {
@@ -102,6 +102,16 @@ test('requires a legal basis for an unclassified termination reason', () => {
     legalBasisReference: '',
   }));
   assert.ok(result.issues.some((issue) => issue.code === 'LEGAL_BASIS_REFERENCE_REQUIRED'));
+});
+
+test('settlement status transitions prevent changing approved and paid cases', () => {
+  assert.deepEqual(validatePayrollSettlementTransition(null, 'draft'), []);
+  assert.deepEqual(validatePayrollSettlementTransition('draft', 'ready-for-review'), []);
+  assert.deepEqual(validatePayrollSettlementTransition('ready-for-review', 'approved'), []);
+  assert.deepEqual(validatePayrollSettlementTransition('approved', 'paid'), []);
+  assert.ok(validatePayrollSettlementTransition('approved', 'draft').length > 0);
+  assert.ok(validatePayrollSettlementTransition('paid', 'draft').length > 0);
+  assert.ok(validatePayrollSettlementTransition('cancelled', 'approved').length > 0);
 });
 
 test('approval and payment transitions require named references and payment reconciliation', () => {
