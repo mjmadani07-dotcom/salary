@@ -16,14 +16,11 @@ import {
   lockPayrollVault,
   unlockPayrollVault,
   listSavedEmployees,
-  listSavedPayrollRuns,
-  loadSavedPayrollRun,
   saveEmployee,
   savePayrollRunSnapshot,
   listMonthlyAttendance,
   listAnnualLeaveRecords,
 } from '../data/payrollLocalDatabase';
-import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
 import { getUnpaidLeavePayrollReviewIssue } from '../utils/attendanceLedger';
 import { listEmployeeMasterRecords } from '../data/payrollLocalDatabase';
 import type { EmployeeMasterRecord } from '../types/employee';
@@ -88,7 +85,6 @@ export function PayrollRunView() {
   const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
   const [selectedMasterId, setSelectedMasterId] = useState('');
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
-  const [runHistory, setRunHistory] = useState<StoredPayrollRun[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [isLoadingLocalData, setIsLoadingLocalData] = useState(true);
@@ -123,8 +119,7 @@ export function PayrollRunView() {
   useEffect(() => {
     if (vaultPhase !== 'unlocked') {
       setEmployees([]);
-      setRunHistory([]);
-      setRunResult(null);
+        setRunResult(null);
       setLastSavedRunId(null);
       setIsLoadingLocalData(false);
       return;
@@ -133,8 +128,8 @@ export function PayrollRunView() {
     setIsLoadingLocalData(true);
     setRunResult(null);
     setLastSavedRunId(null);
-    Promise.all([listSavedEmployees(), listSavedPayrollRuns(8), listEmployeeMasterRecords()])
-      .then(([savedEmployees, savedRuns, savedMasters]) => {
+    Promise.all([listSavedEmployees(), listEmployeeMasterRecords()])
+      .then(([savedEmployees, savedMasters]) => {
         if (!active) return;
         setEmployees(
           savedEmployees.map((employee) => ({
@@ -149,7 +144,6 @@ export function PayrollRunView() {
             },
           }))
         );
-        setRunHistory(savedRuns);
         setEmployeeMasters(savedMasters);
         setStorageError(null);
       })
@@ -190,7 +184,6 @@ export function PayrollRunView() {
     lockPayrollVault();
     setVaultPassword('');
     setEmployees([]);
-    setRunHistory([]);
     setRunResult(null);
     setDraft(createEmptyDraft(year, monthDays));
     setFormError(null);
@@ -419,8 +412,6 @@ export function PayrollRunView() {
 
     try {
       await savePayrollRunSnapshot(result);
-      const history = await listSavedPayrollRuns(8);
-      setRunHistory(history);
       setLastSavedRunId(result.runId);
     } catch (error) {
       setLastSavedRunId(null);
@@ -554,47 +545,6 @@ export function PayrollRunView() {
         <div className="border border-rose-200 bg-rose-50 rounded-lg p-3 text-sm text-rose-800">
           {storageError}
         </div>
-      )}
-
-      {runHistory.length > 0 && (
-        <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-3">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">تاریخچه محاسبات ذخیره‌شده</h2>
-            <p className="text-xs text-slate-500 mt-1">این موارد Snapshot محاسبات قبلی هستند و با تغییر نرخ‌های فعلی بازمحاسبه نمی‌شوند.</p>
-          </div>
-          <div className="divide-y divide-slate-200">
-            {runHistory.map((savedRun) => (
-              <div key={savedRun.runId} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold text-slate-800">{savedRun.runId}</div>
-                  <div className="text-xs text-slate-500">
-                    {new Date(savedRun.savedAt).toLocaleString('fa-IR')} ·
-                    {toPersianDigits(savedRun.totals.calculatedCount)} نفر محاسبه‌شده ·
-                    {toPersianDigits(savedRun.totals.netPayRial.toLocaleString('fa-IR'))} ریال خالص
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const snapshot = await loadSavedPayrollRun(savedRun.runId);
-                      if (snapshot) {
-                        setRunResult(snapshot);
-                        setLastSavedRunId(snapshot.runId);
-                        setStorageError(null);
-                      }
-                    } catch (error) {
-                      setStorageError(error instanceof Error ? error.message : 'بازیابی دوره ناموفق بود.');
-                    }
-                  }}
-                  className="text-xs font-semibold text-teal-700 hover:text-teal-900"
-                >
-                  نمایش Snapshot
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
       )}
 
       <section className="border border-slate-200 bg-white rounded-xl p-6 space-y-5">
