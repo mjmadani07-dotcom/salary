@@ -3,6 +3,7 @@ import { calculateServiceDurationJalali } from './employeeMaster';
 import type {
   PayrollSettlementCalculationResult,
   PayrollSettlementInput,
+  PayrollSettlementStatus,
 } from '../types/payrollSettlement';
 
 export interface PayrollSettlementIssue {
@@ -229,6 +230,32 @@ export function calculatePayrollSettlement(
   }
 
   return { issues, warnings };
+}
+
+
+export function validatePayrollSettlementTransition(
+  currentStatus: PayrollSettlementStatus | null,
+  nextStatus: PayrollSettlementStatus
+): string[] {
+  if (currentStatus === null) {
+    return nextStatus === 'draft'
+      ? []
+      : ['پرونده تسویه جدید باید ابتدا به‌صورت پیش‌نویس ذخیره شود.'];
+  }
+  const allowed: Record<PayrollSettlementStatus, PayrollSettlementStatus[]> = {
+    draft: ['draft', 'ready-for-review', 'cancelled'],
+    'ready-for-review': ['draft', 'ready-for-review', 'approved', 'cancelled'],
+    approved: ['paid'],
+    paid: [],
+    cancelled: [],
+  };
+  return allowed[currentStatus].includes(nextStatus)
+    ? []
+    : [currentStatus === 'paid'
+      ? 'پرونده پرداخت‌شده قابل تغییر نیست.'
+      : currentStatus === 'approved'
+        ? 'پرونده تأییدشده فقط با ثبت پرداخت می‌تواند تغییر وضعیت دهد.'
+        : 'انتقال وضعیت پرونده تسویه مجاز نیست.'];
 }
 
 export function validatePayrollSettlementWorkflow(
