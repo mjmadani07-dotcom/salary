@@ -27,7 +27,7 @@ The application should feel like a well-designed, spreadsheet-oriented desktop t
 ## 2. Target operating model
 
 - One finance manager operates the application.
-- The application runs on one Windows computer.
+- The application runs locally on one Windows computer using a supported browser; the current scope does not require a standalone installer.
 - Data is stored locally; internet access is not required for normal payroll work.
 - There is one employer/company context. Multi-company and multi-workspace support are not product requirements.
 - There are no application roles, concurrent users, cloud synchronization, server deployment, or enterprise approval chains.
@@ -189,7 +189,7 @@ The product direction is met when:
 4. **Monthly grid:** make the period payroll grid the primary workflow, using the central payroll engine and existing validation.
 5. **Reporting and exports:** consolidate employee results and period totals; align payslips and Excel exports with the same calculation result.
 6. **Local data safety:** verify persistence, migrations, backup and restore before removing or deprecating legacy screens.
-7. **Windows desktop readiness:** validate the simplified workflows in the Windows desktop build.
+7. **Windows readiness:** validate the local browser-based workflows on the target Windows computer. A standalone installer or native desktop package is not required by this release scope.
 
 Do not begin by deleting ledgers, changing legal formulas, redesigning the calculation engine, or adding new enterprise capabilities. First simplify the user journey and prove that the existing payroll calculations and data remain intact.
 
