@@ -1,0 +1,111 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type { PayrollRunResult } from './payrollRunEngine';
+import {
+  createInitialPayrollRunWorkflow,
+  validatePayrollRunWorkflowTransition,
+  validatePayrollRunWorkflowUpdate,
+} from './payrollRunWorkflow';
+
+function makeRun(overrides: Partial<PayrollRunResult> = {}): PayrollRunResult {
+  return {
+    runId: 'PAY-1405-01',
+    fiscalYear: '1405',
+    month: 1,
+    monthDays: 31,
+    status: 'ready-for-review',
+    periodIssues: [],
+    lines: [],
+    totals: {
+      employeeCount: 1,
+      calculatedCount: 1,
+      blockedCount: 0,
+      excludedCount: 0,
+      grossEarningsRial: 1000,
+      employeeInsuranceRial: 70,
+      payrollTaxRial: 0,
+      totalDeductionsRial: 70,
+      netPayRial: 930,
+      employerInsuranceRial: 230,
+      directEmployerCostRial: 1230,
+      monthlyReservesRial: 100,
+      ctcMonthlyRial: 1330,
+      ctcAnnualRial: 15960,
+    },
+    ...overrides,
+  };
+}
+
+test('initial workflow reflects calculation validation status', () => {
+  assert.equal(createInitialPayrollRunWorkflow(makeRun()).status, 'ready-for-review');
+  assert.equal(createInitialPayrollRunWorkflow(makeRun({ status: 'validation-failed' })).status, 'validation-failed');
+});
+
+test('monthly payroll lifecycle only allows ready → approved → paid → closed', () => {
+  assert.deepEqual(validatePayrollRunWorkflowTransition('ready-for-review', 'approved'), []);
+  assert.deepEqual(validatePayrollRunWorkflowTransition('approved', 'paid'), []);
+  assert.deepEqual(validatePayrollRunWorkflowTransition('paid', 'closed'), []);
+  assert.ok(validatePayrollRunWorkflowTransition('ready-for-review', 'paid').length > 0);
+  assert.ok(validatePayrollRunWorkflowTransition('approved', 'ready-for-review').length > 0);
+  assert.ok(validatePayrollRunWorkflowTransition('paid', 'approved').length > 0);
+  assert.ok(validatePayrollRunWorkflowTransition('closed', 'approved').length > 0);
+  assert.ok(validatePayrollRunWorkflowTransition('validation-failed', 'approved').length > 0);
+});
+
+test('approval requires a valid calculation, finance approver and authorization reference', () => {
+  const run = makeRun();
+  const current = createInitialPayrollRunWorkflow(run);
+  const next = {
+    ...current,
+    status: 'approved' as const,
+    approverName: '',
+    approvalReference: '',
+    approvedAt: new Date().toISOString(),
+  };
+  const issues = validatePayrollRunWorkflowUpdate(run, current, next);
+  assert.ok(issues.some((issue) => issue.code === 'APPROVER_REQUIRED'));
+  assert.ok(issues.some((issue) => issue.code === 'APPROVAL_REFERENCE_REQUIRED'));
+});
+
+test('payment requires a Jalali date, bank reference, exact amount or documented difference', () => {
+  const run = makeRun();
+  const current = {
+    ...createInitialPayrollRunWorkflow(run),
+    status: 'approved' as const,
+    approverName: 'مدیر مالی',
+    approvalReference: 'FIN-001',
+    approvedAt: new Date().toISOString(),
+  };
+  const invalid = {
+    ...current,
+    status: 'paid' as const,
+    paymentDate: '1405-01-31',
+    paymentReference: 'BANK-001',
+    paidAmountRial: 900,
+    paidAt: new Date().toISOString(),
+  };
+  assert.ok(validatePayrollRunWorkflowUpdate(run, current, invalid)
+    .some((issue) => issue.code === 'PAYMENT_DIFFERENCE_REASON_REQUIRED'));
+
+  const valid = { ...invalid, paymentDifferenceReason: 'کسور بانکی مستند' };
+  assert.deepEqual(validatePayrollRunWorkflowUpdate(run, current, valid), []);
+});
+
+test('closing requires a close reference', () => {
+  const run = makeRun();
+  const current = {
+    ...createInitialPayrollRunWorkflow(run),
+    status: 'paid' as const,
+    paymentDate: '1405-01-31',
+    paymentReference: 'BANK-001',
+    paidAmountRial: 930,
+    paidAt: new Date().toISOString(),
+  };
+  const issues = validatePayrollRunWorkflowUpdate(run, current, {
+    ...current,
+    status: 'closed',
+    closedAt: new Date().toISOString(),
+    closeReference: '',
+  });
+  assert.ok(issues.some((issue) => issue.code === 'CLOSE_REFERENCE_REQUIRED'));
+});
