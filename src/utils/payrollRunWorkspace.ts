@@ -76,17 +76,25 @@ function makeEmployeeFromMaster(
     }
 
     if (!saved) {
+      if (master.isMarried === undefined) {
+        masterDataIssues.push(
+          monthlyIssue(
+            'MONTHLY_MARITAL_STATUS_UNCONFIRMED',
+            'isMarried',
+            'وضعیت تأهل این کارمند را مشخص کنید.'
+          )
+        );
+      }
+      if (master.eligibleChildrenCount === undefined) {
+        masterDataIssues.push(
+          monthlyIssue(
+            'MONTHLY_CHILDREN_COUNT_UNCONFIRMED',
+            'childrenCount',
+            'تعداد فرزندان واجد شرایط را مشخص کنید؛ در صورت نداشتن فرزند، عدد صفر را وارد کنید.'
+          )
+        );
+      }
       masterDataIssues.push(
-        monthlyIssue(
-          'MONTHLY_MARITAL_STATUS_UNCONFIRMED',
-          'isMarried',
-          'وضعیت تأهل این کارمند را مشخص کنید.'
-        ),
-        monthlyIssue(
-          'MONTHLY_CHILDREN_COUNT_UNCONFIRMED',
-          'childrenCount',
-          'تعداد فرزندان واجد شرایط را مشخص کنید؛ در صورت نداشتن فرزند، عدد صفر را وارد کنید.'
-        ),
         monthlyIssue(
           'MONTHLY_720_DAY_INSURANCE_UNCONFIRMED',
           'has720DaysInsurance',
@@ -140,8 +148,8 @@ function makeEmployeeFromMaster(
       0,
     housingAllowanceRial: seed.housingAllowanceRial,
     workerCouponRial: seed.workerCouponRial,
-    isMarried: sourceInput?.isMarried ?? baseInput?.isMarried ?? false,
-    childrenCount: sourceInput?.childrenCount ?? baseInput?.childrenCount ?? 0,
+    isMarried: sourceInput?.isMarried ?? baseInput?.isMarried ?? master.isMarried ?? false,
+    childrenCount: sourceInput?.childrenCount ?? baseInput?.childrenCount ?? master.eligibleChildrenCount ?? 0,
     has720DaysInsurance:
       sourceInput?.has720DaysInsurance ?? baseInput?.has720DaysInsurance ?? false,
     overtimeHours: sourceInput?.overtimeHours ?? 0,
