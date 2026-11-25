@@ -115,6 +115,22 @@ test('calculates completed service years and remaining days from Jalali dates', 
   });
 });
 
+test('validates Esfand 30 only in Jalali leap years and preserves a leap-day employment anniversary', () => {
+  assert.ok(validateEmployeeMaster(makeEmployee({
+    hireDateJalali: '1404-12-30',
+  })).some((issue) => issue.code === 'INVALID_HIRE_DATE'));
+
+  assert.deepEqual(calculateServiceDurationJalali('1403-12-30', '1404-12-29'), {
+    completedYears: 1,
+    additionalDays: 0,
+  });
+
+  assert.throws(
+    () => calculateServiceDurationJalali('1404-12-30', '1405-01-01'),
+    /تاریخ شروع همکاری یا تاریخ محاسبه سابقه معتبر نیست/
+  );
+});
+
 test('blocks a wage change inside a payroll period instead of applying one rate to the whole month', () => {
   const employee = makeEmployee({
     contracts: [{ ...makeEmployee().contracts[0], effectiveToJalali: null }],
