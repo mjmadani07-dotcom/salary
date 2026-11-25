@@ -48,7 +48,10 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [x] Add a single development roadmap and synchronize the compliance/implementation notes and Pull Request summary with the actual branch state.
 - [x] Add a 1405 legal source review register; formal legal approval and issuer-signed primary copies remain outstanding.
 - [x] Audit the 8-sheet Excel reference workbook and record all employee, monthly, regulatory, settlement and report-selector inputs in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md).
-- [ ] Implement the missing and partial items in the Excel coverage matrix without removing or merging any source input. Secondary fields may use progressive disclosure, but each must remain independently stored and traceable.
+- [x] Add the missing employee-master inputs from the Excel coverage matrix (bank account/IBAN, family facts, cost center, wage type, seniority eligibility, insurance/tax flags and personnel notes) using backward-compatible optional fields.
+- [x] Seed stable marital/eligible-child facts and apply explicitly selected minimum/custom wage type and seniority eligibility when creating a new payroll period.
+- [ ] Apply the employee-level insurance/tax flags through an explicitly reconciled rule with the pay-item catalog.
+- [ ] Implement the remaining monthly and settlement inputs in the Excel coverage matrix without removing or merging any source input. Secondary fields may use progressive disclosure, but each must remain independently stored and traceable.
 
 ### Phase 2 — Legal rules and calculation integrity
 - [x] Create a structured 1405 legal source review register and identify source/implementation gaps.
@@ -65,10 +68,12 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 ### Phase 3 — Attendance/leave to payroll integration
 - [ ] Define the meaning of actual attendance days, paid days, paid leave, unpaid leave, absence and payable days.
 - [ ] Reconcile the current monthly attendance totals with the above model without breaking existing records.
-- [ ] Load the selected period's monthly attendance and leave records into the PayrollRun workspace, preserving the current records and snapshot compatibility.
-- [ ] Reconcile paid leave, sick leave, unpaid leave, absence and payable days; do not assume that unlike categories are interchangeable.
-- [ ] Add explicit confirmation/invalidation gates for reviewed unpaid leave and worked/payable days.
-- [ ] Prevent automatic/double deduction: the manager must confirm the monthly work/payroll-day input has already been reconciled; no legal formula is guessed.
+- [x] Load selected-period attendance and leave records into the PayrollRun workspace for unsnapshotted periods, without overlaying historical saved snapshots.
+- [x] Synchronize workdays, overtime, night work, holiday work, variable bonus and annual worked days between PayrollRun and the monthly attendance ledger.
+- [x] Require an exact unpaid-leave acknowledgement and invalidate it when payable/worked days change; no automatic unpaid-leave deduction is guessed.
+- [ ] Integrate paid leave into the monthly payable-day reconciliation.
+- [ ] Add distinct sick-leave, absence and mission-day inputs and define their approved treatment.
+- [ ] Prevent duplicate or unreviewed monthly values when a period is recalculated, restored or exported.
 - [ ] Define the legally/contractually approved conversion from attendance and leave categories to payable days before automating any deduction.
 - [ ] Keep daily event capture, shift rosters and mission data as separate extensions after the monthly model is stable.
 
@@ -121,4 +126,4 @@ The current branch is a development baseline, not a legally approved production 
 
 Current work branch: `feat/lightweight-payroll-workbench`.
 
-The 8-sheet Excel input audit is documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). The audit confirms that employee, monthly, regulatory and settlement inputs are not yet fully represented in the current UI/data/calculation path. The current PayrollRunView also does not yet ingest the separate attendance and leave ledgers. Latest verified code CI before the audit-documentation commits is [45581424659](https://github.com/mjmadani07-dotcom/salary/actions/runs/45581424659), which passed 64 tests, TypeScript validation and production build at code commit `7d89ff875fc63912a6aaccff4a3c9b5788e16ab7`. The pull request remains open and unmerged.
+The 8-sheet Excel input audit is documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). Employee-master fields have been extended compatibly, family facts can seed new payroll periods, and effective wage type/seniority eligibility are applied when explicitly recorded. The selected-period attendance/leave ledgers are now loaded into unsnapshotted PayrollRun workspaces; six monthly attendance values synchronize bidirectionally, and unpaid-leave reconciliation is a blocking review gate. Paid leave, sick leave, mission, separate allowance categories, signed corrections, payment date, debt deductions, employee insurance/tax flags and settlement inputs are still outstanding. Latest verified code CI [45611741782](https://github.com/mjmadani07-dotcom/salary/actions/runs/45611741782) passed 68 tests, TypeScript validation and production build at code commit `29e66e1c7f5a4c1bfa6c5dc48671c2253fe7aee6`. Documentation-only updates may have newer commits. The pull request remains open and unmerged.
