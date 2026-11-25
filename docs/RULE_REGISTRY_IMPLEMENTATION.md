@@ -93,27 +93,30 @@ Files:
 - `npm test` / `bun run test` runs the test suite.
 - GitHub Actions validates tests, TypeScript and production build on pushes to this branch and pull requests to main.
 
-## Important limitations not closed by this change
+## Current limitations and remaining work
 
-1. **Legal approval is pending.** The registry has source references, but the 1404/1405 legal source pack and all rule interpretations still require review and sign-off.
-2. **Some classifications represent the current engine behavior.** In particular welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap remain review items.
-3. **Dependent eligibility is not implemented.** The existing input still accepts a child count and a 720-day insurance boolean; it does not yet hold per-child eligibility evidence or actual insurance history.
-4. **Seniority eligibility is still input-driven.** The engine has not yet been connected to employment start dates or last seniority-increase dates.
-5. **Local persistence is device-bound.** New installations store employee entries and payroll snapshots in the current browser profile without a mandatory vault passphrase. The application has no built-in backup/restore yet, so clearing browser data or losing the device can destroy local records. Older installations with an already-configured encrypted vault still require their original passphrase. Windows account/device protection and a separate backup remain necessary.
-6. **Employment history and statutory ledgers remain incomplete.** Contracts, wage history, actual insurance history, per-dependent eligibility, attendance, leave ledger, loans, deductions and payment workflow remain future work.
-7. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
+1. **Legal approval is pending.** The 1404/1405 registry contains source references, but both RuleSets and unresolved legal classifications still require documented review and sign-off.
+2. **Catalog coverage is incomplete.** Welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap, mission expenses and special insurance cases remain review items.
+3. **Dependent eligibility is not implemented.** The current payroll input accepts a child count and a 720-day insurance boolean; it does not retain per-child eligibility evidence or actual insurance history.
+4. **Seniority eligibility remains incomplete.** Employee start dates and effective wage history are available, but the engine still needs legally reviewed seniority eligibility and group-specific progression rules.
+5. **Attendance and leave ledgers are implemented at monthly-total/balance level.** Attendance totals feed matching PayrollRun inputs. Leave balances are stored with carry-forward recalculation. Daily events, shifts, mission and the controlled conversion between attendance, paid leave, unpaid leave and payable days are not complete. Unpaid leave is not yet connected to payroll deductions.
+6. **Loans and deductions are not implemented.** Advance, loan, installment, repayment and other documented deduction records must be introduced as a separate employee ledger.
+7. **Approval and payment workflow is not implemented.** PayrollRun calculations and snapshots exist, but approval, payment, close and correction states do not.
+8. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
+9. **Backup/restore and native Windows packaging are not implemented.** New-install data is local to the current browser profile. Existing encrypted-vault records remain supported and require their original passphrase; new installations do not require a vault passphrase.
+10. **The full operational EOS system is deferred.** Existing EOS calculation/simulator features remain in the product, but no Accountability Chart, Scorecard/Rocks operating workflow or EOS administration work is planned in the current scope.
 
 ## Required next work
 
-1. Complete the legal source pack and sign off the RuleSets.
-2. Expand the catalog and make every formula consume catalog/rule data rather than hardcoded constants.
-3. Add legal date-effective rules for seniority, work-time patterns, Friday/holiday work, mission, leave, annual bonus and severance.
-4. Convert the Excel builder and formula library into render/export adapters over the calculation output; no independent payroll formulas should remain.
-5. Add a simple, tested backup/restore workflow for the single-device payroll database and prepare the Windows desktop packaging. Do not introduce company/workspace authorization or multi-user infrastructure unless the product scope changes.
-6. Add employee contracts, wage history, group classification and dependent eligibility records.
-7. Add attendance, shift, mission, leave, loan and deduction ledgers.
-8. Add YTD/multi-source tax, audit, approval/payment and correction workflows.
-9. Add data migration, backup/restore and access-control tests.
+1. Keep the compliance specification, implementation notes and pull-request description synchronized with the actual branch state.
+2. Complete the legal source pack and obtain documented legal review/sign-off for each active annual RuleSet and unresolved pay-item classification. Do not invent legal outcomes in code.
+3. Expand the central catalog and make every formula consume versioned rule/catalog data rather than hardcoded constants.
+4. Complete statutory/contractual eligibility data: employee insurance history, per-dependent evidence, seniority/group classification and employment/wage changes within a period.
+5. Define and test the semantics of attendance days and payable days, then connect monthly attendance and leave records to payroll without double-counting or applying unapproved deductions.
+6. Add the separate employee advance/loan/installment/repayment and other documented-deduction ledger.
+7. Add the single-operator payroll workflow: validation, review, approval, paid, closed and correction snapshots, with audit trace.
+8. Add YTD/multi-source tax and the remaining acceptance/regression scenarios after legal rules are approved.
+9. Build and test local backup/restore before preparing native Windows packaging. Do not add multi-company/workspace authorization, multi-user access or cloud infrastructure unless the product scope changes.
 
 ## Operational warning
 
