@@ -218,6 +218,10 @@ export function EmployeeDirectoryView() {
   const save = async () => {
     const now = new Date().toISOString();
     const existing = employees.find((employee) => employee.employeeId === editingId);
+    if (!draft.insuranceSubject || !draft.taxSubject) {
+      setError('وضعیت شمول بیمه و مالیات باید برای هر کارمند صریحاً مشخص شود.');
+      return;
+    }
     const record: EmployeeMasterRecord = {
       employeeId: editingId ?? crypto.randomUUID(),
       personnelCode: draft.personnelCode.trim(),
