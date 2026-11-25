@@ -7,6 +7,7 @@ import {
 } from '../data/payrollPayItemCatalog';
 import type { PayrollInput, PayrollResult } from './payrollEngine';
 import type { PayrollRunResult } from './payrollRunEngine';
+import type { PayrollRunWorkflow } from '../types/payrollRunWorkflow';
 import type { PayrollSettlementCase } from '../types/payrollSettlement';
 
 export interface EosExcelConfig {
@@ -387,7 +388,7 @@ export async function downloadPayrollExcelWorkbook(
  * function intentionally contains no payroll formula or recalculation.
  */
 export async function buildPayrollRunExcelWorkbook(
-  run: PayrollRunResult
+  run: PayrollRunResult & { workflow?: PayrollRunWorkflow }
 ): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'مرجع حقوق و دستمزد ایران';
@@ -1014,7 +1015,7 @@ export async function buildPayrollRunExcelWorkbook(
 }
 
 export async function downloadPayrollRunExcelWorkbook(
-  run: PayrollRunResult
+  run: PayrollRunResult & { workflow?: PayrollRunWorkflow }
 ): Promise<void> {
   const workbook = await buildPayrollRunExcelWorkbook(run);
   const buffer = await workbook.xlsx.writeBuffer();
