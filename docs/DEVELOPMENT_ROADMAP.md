@@ -59,7 +59,8 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [x] Preserve job title, cost centre, bank account/IBAN, insurance number and leave balance in payroll-run output snapshots for historical reporting.
 - [x] Complete grouped XLSX outputs from the same PayrollRunResult: detailed A:AN calculation register plus AO:BA supplementary fields, monthly KPIs and cost-centre grouping, printable per-employee payslips, bank transfer register, item/tax details and warnings.
 - [x] Add an explicitly non-final settlement output sheet for engine-calculated Eid/severance and leave balance; missing months-worked, leave-encashment and other-claims inputs stay blank rather than being inferred.
-- [ ] Complete formula-by-formula legal reconciliation for all 22 columns, including tax-base differences and overlap between holiday work, Friday work and overtime.
+- [x] Complete the technical formula-by-formula comparison for the 22 monthly columns and record differences in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md).
+- [ ] Obtain finance/legal decisions for the unresolved tax-base differences and overlap between holiday work, Friday work and overtime; this is an external approval gate, not a reason to copy Excel formulas blindly.
 - [x] Add explicit settlement inputs for months and days worked, separate wage bases with source/confirmation, verified leave balance and encashment basis, prior advances/payments, other claims and authorized deductions.
 - [x] Add settlement calculations: Eid pro-rata by actual worked days (not Excel's month shortcut), severance by actual service duration, and unused leave without applying the annual 9-day carryover cap at termination.
 - [x] Add encrypted/local settlement persistence, draft/review/approved/paid transitions, append-only audit events, immutable approved/paid cases and dedicated Excel export.
@@ -169,8 +170,8 @@ The current branch is a development baseline, not a legally approved production 
 ## 6. Current status
 
 - Work branch: `feat/lightweight-payroll-workbench`.
-- Baseline commit at the start of the finalization pass: `721746e99e13233fab684fd908f909d57b0143be` (`Clarify local Windows browser deployment in product scope`).
-- CI run for that baseline: [`45672793817`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45672793817), completed successfully. Regression-test, TypeScript-check and production-build jobs all passed. The preceding verified test summary recorded 117 passing tests; this is not a substitute for operational acceptance.
+- Latest verified closeout commit: `5bdde3846208f28b3edef8214f751ca115d8c7ff`.
+- CI run: [`45683393546`](https://github.com/mjmadani07-dotcom/salary/actions/runs/45683393546), completed successfully: 117 tests passed, TypeScript check passed and Vite production build passed. This verifies automated code checks only, not legal approval or operational acceptance.
 - Monthly shift-pattern capture, period-scoped persistence, Article 56 rate differentiation and suppression of the Article 58 35% non-shift premium for rotating patterns are implemented. The shift allowance wage base and item classification remain legal-review items.
 - The 20 Excel legal parameters are now traceable to the versioned RuleSet; hourly divisor, overtime multiplier, non-shift night premium and months-per-year are consumed by the calculation/validation code. The annual leave carryover cap is configured but not applied pending legal review. Rule changes are controlled through reviewed RuleSet releases, not direct operator editing.
 - Monthly attendance and leave ledgers, paid-leave integration, unpaid-leave acknowledgement, employee debt tracking, employee master/contract history, batch payroll calculation and XLSX reports are implemented to the documented boundaries.
@@ -189,7 +190,7 @@ The Phase 7 milestone above is the sole finish line. The following execution ord
 | Order | Work package | Owner / evidence | Completion rule |
 |---|---|---|---|
 | F0 | Freeze feature scope | Development | No new screens, modules, integrations or architecture changes. Only defects, release blockers, proof tests and data-safety fixes are allowed. |
-| F1 | Reconcile implementation against the Excel coverage matrix and all 22 monthly inputs | Development + finance owner | Every field has a code destination, calculation/output destination or a documented external/manual control. Differences from Excel formulas are explained and tested; Excel formulas are not presumed legally correct. |
+| F1 | Reconcile implementation against the Excel coverage matrix and all 22 monthly inputs | Development + finance owner | **Technical mapping completed** in the coverage matrix, including all 20 legal parameters in versioned RuleSets. Finance/legal decisions on unresolved formula differences and employee-specific applicability remain external acceptance items. |
 | F2 | Close technical calculation gaps that can be decided from approved rules | Development | Add regression tests only after the applicable interpretation is approved. Unapproved wage bases, tax/insurance classifications, leave/day rules and mission rules remain blocked or visibly pending; they are not guessed. |
 | F3 | Close data-safety and recovery proof | Development + device operator | Test backup/export and restore on a clean browser profile; verify record counts, open restored periods, legacy Vault compatibility and schema migration; document second-location backup procedure. |
 | F4 | Run end-to-end acceptance | Development + finance owner | Verify a complete period from employee selection through calculation, payslips, XLSX, approval, payment, close and correction run. All views must reconcile to the same immutable result. |
