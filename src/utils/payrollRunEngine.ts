@@ -228,6 +228,21 @@ export function calculatePayrollRun(
 
     try {
       const result = calculatePayroll(employee.payrollInput);
+      if (result.netPayRial < 0) {
+        return {
+          employeeId,
+          personnelCode,
+          fullName: employee.fullName,
+          status: 'blocked',
+          issues: [{
+            code: 'NEGATIVE_NET_PAY',
+            message: 'کسورات از مبلغ ناخالص قابل پرداخت بیشتر شده است؛ پیش از تأیید حقوق باید مبالغ و مجوز کسورات بررسی شوند.',
+            field: 'payrollInput',
+          }],
+          payrollInput: employee.payrollInput,
+          result,
+        };
+      }
       return {
         employeeId,
         personnelCode,
