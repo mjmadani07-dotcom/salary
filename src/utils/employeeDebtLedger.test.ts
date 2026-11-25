@@ -29,6 +29,12 @@ test('validates installment and manual repayment plans without introducing inter
     purpose: 'Advance', repaymentPlan: 'manual', monthlyInstallmentRial: null,
     firstDueFiscalYear: null, firstDueMonth: null, installmentLimit: null, notes: '',
   }), []);
+  assert.ok(validateEmployeeDebtAccount({
+    employeeId: 'emp-1', personnelCode: '1001', employeeName: 'Test Employee',
+    debtType: 'loan', principalRial: 1_000_000, issueDateJalali: '1405-01-01',
+    purpose: 'Loan', repaymentPlan: 'fixed-installment', monthlyInstallmentRial: 200_000,
+    firstDueFiscalYear: '1405', firstDueMonth: 2, installmentLimit: 3, notes: '',
+  }).some(item => item.code === 'INSTALLMENT_SCHEDULE_SHORTFALL'));
 });
 
 test('blocks invalid amounts, invalid dates and an installment date before issue', () => {
@@ -97,4 +103,11 @@ test('requires repayment year and month to match its Jalali date', () => {
   const invalid = { ...repayment(100_000), month: 2 };
   assert.ok(validateDebtRepayment(invalid, account, [])
     .some(item => item.code === 'REPAYMENT_PERIOD_MISMATCH'));
+});
+
+test('rejects a repayment dated before the issue date even within the same month', () => {
+  const accountIssuedLater = { ...account, issueDateJalali: '1405-01-20' };
+  const earlierRepayment = repayment(100_000, '1405-01-15');
+  assert.ok(validateDebtRepayment(earlierRepayment, accountIssuedLater, [])
+    .some(item => item.code === 'REPAYMENT_BEFORE_ISSUE'));
 });
