@@ -283,6 +283,16 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     confirmation?: RequiredMonthlyIssue
   ): PayrollRunEmployee => {
     let issues = [...(employee.masterDataIssues ?? [])];
+    if (Object.prototype.hasOwnProperty.call(payrollPatch, 'shiftWorkPattern')) {
+      issues = issues.filter((issue) => issue.code !== 'MONTHLY_SHIFT_PATTERN_UNCONFIRMED');
+      if (!payrollPatch.shiftWorkPattern) {
+        issues.push({
+          code: 'MONTHLY_SHIFT_PATTERN_UNCONFIRMED',
+          field: 'shiftWorkPattern',
+          message: 'الگوی نوبت‌کاری این کارمند را برای همین ماه مشخص کنید.',
+        });
+      }
+    }
     if (confirmation) {
       issues = issues.filter((issue) => issue.code !== confirmation.code);
       if (!confirmation.confirmed) {
@@ -1356,6 +1366,29 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                               <span className="text-[11px] text-slate-500">مبالغ به {unit}</span>
                             </div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                              <label className="space-y-1 text-xs text-slate-600">الگوی کار در ماه
+                                <select
+                                  disabled={disabled}
+                                  value={employee.payrollInput.shiftWorkPattern ?? ''}
+                                  onChange={(e) => {
+                                    const updated = updateEmployee(employee, {
+                                      shiftWorkPattern: e.target.value
+                                        ? e.target.value as NonNullable<PayrollInput['shiftWorkPattern']>
+                                        : undefined,
+                                    });
+                                    void persistEmployee(updated);
+                                  }}
+                                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100"
+                                >
+                                  <option value="">انتخاب الگوی کار...</option>
+                                  <option value="non-shift">غیرنوبتی</option>
+                                  <option value="morning-evening">صبح و عصر (۱۰٪)</option>
+                                  <option value="morning-evening-night">صبح، عصر و شب (۱۵٪)</option>
+                                  <option value="morning-night">صبح و شب (۲۲٫۵٪)</option>
+                                  <option value="evening-night">عصر و شب (۲۲٫۵٪)</option>
+                                </select>
+                                <span className="block text-[10px] leading-4 text-slate-500">الگو باید مطابق گردش واقعی شیفت‌ها در همین ماه انتخاب شود؛ نرخ‌های نوبت‌کاری طبق ماده ۵۶ هستند.</span>
+                              </label>
                               <div className="rounded-lg border border-slate-200 bg-white p-3">
                                 <div className="text-xs text-slate-500">مرخصی استحقاقی استفاده‌شده</div>
                                 <div className="mt-2 text-sm font-semibold tabular-nums text-slate-800">{toPersianDigits(employee.payrollInput.paidLeaveDays ?? 0)} روز</div>
