@@ -52,7 +52,15 @@ function makeEmployee(
 }
 
 test('calculates every employee through the central engine and aggregates results', () => {
-  const first = makeEmployee();
+  const first = makeEmployee({
+    jobTitle: 'کارشناس مالی',
+    costCenter: 'اداری',
+    bankAccountNumber: '0123456789',
+    bankIban: 'IR000000000000000000000000',
+    insuranceNumber: 'INS-001',
+    hireDateJalali: '1400-01-01',
+    leaveBalanceDays: 7.5,
+  });
   const second = makeEmployee({
     employeeId: 'emp-002',
     personnelCode: 'P-002',
@@ -66,6 +74,10 @@ test('calculates every employee through the central engine and aggregates result
   assert.equal(run.totals.employeeCount, 2);
   assert.equal(run.totals.calculatedCount, 2);
   assert.equal(run.totals.blockedCount, 0);
+  assert.equal(run.lines[0].jobTitle, 'کارشناس مالی');
+  assert.equal(run.lines[0].costCenter, 'اداری');
+  assert.equal(run.lines[0].bankAccountNumber, '0123456789');
+  assert.equal(run.lines[0].leaveBalanceDays, 7.5);
   assert.equal(
     run.totals.grossEarningsRial,
     run.lines.reduce((sum, line) => sum + (line.result?.grossEarningsRial ?? 0), 0)
