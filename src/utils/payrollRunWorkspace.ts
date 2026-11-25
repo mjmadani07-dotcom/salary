@@ -95,8 +95,11 @@ function makeEmployeeFromMaster(
     }
   }
 
+  const periodRelevantTermIssues = terms.issues.filter((issue) =>
+    !(snapshotLine && snapshotLine.status !== 'excluded' && issue.code === 'EMPLOYEE_INACTIVE')
+  );
   masterDataIssues.push(
-    ...terms.issues.map((issue) => ({
+    ...periodRelevantTermIssues.map((issue) => ({
       code: issue.code,
       message: issue.message,
       field: issue.field,
@@ -157,7 +160,7 @@ function makeEmployeeFromMaster(
     employeeId: master.employeeId,
     personnelCode: master.personnelCode,
     fullName: `${master.firstName} ${master.lastName}`.trim(),
-    isActive: master.status === 'active',
+    isActive: snapshotLine ? snapshotLine.status !== 'excluded' : master.status === 'active',
     payrollInput,
     masterDataIssues,
   };
