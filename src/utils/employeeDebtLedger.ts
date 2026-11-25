@@ -148,7 +148,9 @@ export function calculateDebtScheduleSummary(
     return {
       outstandingRial, paidToDateRial, currentInstallmentRial: 0,
       overdueRial: 0, totalDueRial: 0, installmentNumber: null,
-      installmentsRemaining: account.installmentLimit,
+      installmentsRemaining: outstandingRial <= 0
+        ? (account.installmentLimit === null ? null : 0)
+        : account.installmentLimit,
     };
   }
 
