@@ -99,6 +99,19 @@ export function validatePayrollInput(input: PayrollInput): PayrollInputIssue[] {
     'nightShiftHours',
     'holidayHours',
     'variableBonusRial',
+    'annualWorkedDays',
+    'serviceYearsForSeverance',
+    'serviceExtraDaysForSeverance',
+  ];
+
+  for (const field of nonNegativeFields) {
+    const value = input[field];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      add(field, 'INVALID_NON_NEGATIVE_NUMBER', `${String(field)} must be a finite non-negative number.`);
+    }
+  }
+
+  const optionalNonNegativeFields: Array<keyof PayrollInput> = [
     'paidLeaveDays',
     'sickLeaveDays',
     'unpaidAbsenceDays',
@@ -109,14 +122,12 @@ export function validatePayrollInput(input: PayrollInput): PayrollInputIssue[] {
     'loanDeductionRial',
     'advanceDeductionRial',
     'otherDeductionsRial',
-    'annualWorkedDays',
-    'serviceYearsForSeverance',
-    'serviceExtraDaysForSeverance',
   ];
-
-  for (const field of nonNegativeFields) {
+  for (const field of optionalNonNegativeFields) {
     const value = input[field];
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    if (value !== undefined &&
+      (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+    ) {
       add(field, 'INVALID_NON_NEGATIVE_NUMBER', `${String(field)} must be a finite non-negative number.`);
     }
   }
