@@ -85,6 +85,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, MonthlyAttendanceRecord>>({});
   const [unpaidLeaveByEmployee, setUnpaidLeaveByEmployee] = useState<Record<string, number>>({});
+  const [expandedDetailsEmployeeIds, setExpandedDetailsEmployeeIds] = useState<Set<string>>(() => new Set());
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
   const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
   const [snapshotEmployeeIds, setSnapshotEmployeeIds] = useState<Set<string>>(() => new Set());
@@ -502,6 +503,32 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     return next;
   };
 
+  const updateMonthlyNumber = (
+    employee: PayrollRunEmployee,
+    field: 'sickLeaveDays' | 'unpaidAbsenceDays' | 'fridayHours' | 'missionDays' |
+      'insuredBenefitsRial' | 'nonInsuredBenefitsRial' | 'loanDeductionRial' |
+      'advanceDeductionRial' | 'otherDeductionsRial' | 'signedCorrectionRial',
+    rawValue: string,
+    multiplier = 1,
+  ) => updateEmployee(employee, {
+    [field]: numberValue(rawValue) * multiplier,
+  } as Partial<PayrollInput>);
+
+  const updateMonthlyText = (
+    employee: PayrollRunEmployee,
+    field: 'payslipId' | 'paymentDate' | 'monthlyNotes',
+    value: string,
+  ) => updateEmployee(employee, { [field]: value });
+
+  const toggleMonthlyDetails = (employeeId: string) => {
+    setExpandedDetailsEmployeeIds((current) => {
+      const next = new Set(current);
+      if (next.has(employeeId)) next.delete(employeeId);
+      else next.add(employeeId);
+      return next;
+    });
+  };
+
   const filteredEmployees = useMemo(() => {
     const query = searchText.trim().toLocaleLowerCase();
     if (!query) return employees;
@@ -854,6 +881,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                     <th className="min-w-24 p-3">فرزند واجد شرایط</th>
                     <th className="min-w-32 p-3">سابقه بیمه ۷۲۰ روز</th>
                     <th className="min-w-28 p-3">کارکرد سالانه</th>
+                    <th className="min-w-32 p-3">ورودی‌های تکمیلی اکسل</th>
                     <th className="min-w-44 p-3">وضعیت داده‌ها</th>
                   </tr>
                 </thead>
@@ -873,6 +901,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                       `${inputClass(width)} ${missing ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : ''}`;
 
                     return (
+                      <>
                       <tr
                         key={employee.employeeId}
                         className={employee.isActive ? 'hover:bg-slate-50/70' : 'bg-slate-50 text-slate-400'}
@@ -1060,6 +1089,16 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                           />
                         </td>
                         <td className={cellClass}>
+                          <button
+                            type="button"
+                            disabled={!employee.isActive || isSaving}
+                            onClick={() => toggleMonthlyDetails(employee.employeeId)}
+                            className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                          >
+                            {expandedDetailsEmployeeIds.has(employee.employeeId) ? 'بستن جزئیات' : 'ورودی‌های بیشتر'}
+                          </button>
+                        </td>
+                        <td className={cellClass}>
                           {displayedIssues.length > 0 ? (
                             <div className="max-w-56">
                               <div className="text-xs font-semibold text-amber-800">
@@ -1079,6 +1118,67 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                           )}
                         </td>
                       </tr>
+                      {expandedDetailsEmployeeIds.has(employee.employeeId) && (
+                        <tr key={`${employee.employeeId}-excel-details`} className="bg-slate-50/70">
+                          <td colSpan={14} className="border-b border-slate-200 p-4">
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <div className="text-sm font-semibold text-slate-800">ورودی‌های تکمیلی فایل اکسل · {employee.fullName}</div>
+                                <p className="mt-1 text-xs text-slate-500">این فیلدها مستقل از هم ذخیره می‌شوند. مرخصی استحقاقی از دفتر مرخصی خوانده می‌شود؛ مرخصی استعلاجی و غیبت بدون حقوق جداگانه‌اند.</p>
+                              </div>
+                              <span className="text-[11px] text-slate-500">مبالغ به {unit}</span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                                <div className="text-xs text-slate-500">مرخصی استحقاقی استفاده‌شده</div>
+                                <div className="mt-2 text-sm font-semibold tabular-nums text-slate-800">{toPersianDigits(employee.payrollInput.paidLeaveDays ?? 0)} روز</div>
+                                <div className="mt-1 text-[10px] text-slate-500">منبع: دفتر مرخصی؛ برای جلوگیری از ثبت دوگانه فقط در همان دفتر ویرایش می‌شود.</div>
+                              </div>
+                              <label className="space-y-1 text-xs text-slate-600">مرخصی استعلاجی (روز)
+                                <input type="number" min={0} max={periodMonthDays} step={0.5} disabled={disabled} value={employee.payrollInput.sickLeaveDays ?? 0} onChange={(e) => updateMonthlyNumber(employee, 'sickLeaveDays', e.target.value)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">غیبت بدون حقوق (روز)
+                                <input type="number" min={0} max={periodMonthDays} step={0.5} disabled={disabled} value={employee.payrollInput.unpaidAbsenceDays ?? 0} onChange={(e) => updateMonthlyNumber(employee, 'unpaidAbsenceDays', e.target.value)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">جمعه‌کاری (ساعت)
+                                <input type="number" min={0} step={0.5} disabled={disabled} value={employee.payrollInput.fridayHours ?? 0} onChange={(e) => updateMonthlyNumber(employee, 'fridayHours', e.target.value)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">مأموریت (روز)
+                                <input type="number" min={0} max={periodMonthDays} step={0.5} disabled={disabled} value={employee.payrollInput.missionDays ?? 0} onChange={(e) => updateMonthlyNumber(employee, 'missionDays', e.target.value)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">مزایای مشمول بیمه ({unit})
+                                <input type="number" min={0} step={1} disabled={disabled} value={Math.round((employee.payrollInput.insuredBenefitsRial ?? 0) / unitMultiplier)} onChange={(e) => updateMonthlyNumber(employee, 'insuredBenefitsRial', e.target.value, unitMultiplier)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">مزایای غیرمشمول بیمه ({unit})
+                                <input type="number" min={0} step={1} disabled={disabled} value={Math.round((employee.payrollInput.nonInsuredBenefitsRial ?? 0) / unitMultiplier)} onChange={(e) => updateMonthlyNumber(employee, 'nonInsuredBenefitsRial', e.target.value, unitMultiplier)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">قسط وام ({unit})
+                                <input type="number" min={0} step={1} disabled={disabled} value={Math.round((employee.payrollInput.loanDeductionRial ?? 0) / unitMultiplier)} onChange={(e) => updateMonthlyNumber(employee, 'loanDeductionRial', e.target.value, unitMultiplier)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">مساعده ({unit})
+                                <input type="number" min={0} step={1} disabled={disabled} value={Math.round((employee.payrollInput.advanceDeductionRial ?? 0) / unitMultiplier)} onChange={(e) => updateMonthlyNumber(employee, 'advanceDeductionRial', e.target.value, unitMultiplier)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">سایر کسورات ({unit})
+                                <input type="number" min={0} step={1} disabled={disabled} value={Math.round((employee.payrollInput.otherDeductionsRial ?? 0) / unitMultiplier)} onChange={(e) => updateMonthlyNumber(employee, 'otherDeductionsRial', e.target.value, unitMultiplier)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">اصلاح مثبت/منفی ({unit})
+                                <input type="number" step={1} disabled={disabled} value={Math.round((employee.payrollInput.signedCorrectionRial ?? 0) / unitMultiplier)} onChange={(e) => updateMonthlyNumber(employee, 'signedCorrectionRial', e.target.value, unitMultiplier)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">شناسه فیش
+                                <input type="text" maxLength={80} disabled={disabled} value={employee.payrollInput.payslipId ?? ''} onChange={(e) => updateMonthlyText(employee, 'payslipId', e.target.value)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                              <label className="space-y-1 text-xs text-slate-600">تاریخ پرداخت
+                                <input type="text" placeholder="1405-01-31" disabled={disabled} value={employee.payrollInput.paymentDate ?? ''} onChange={(e) => updateMonthlyText(employee, 'paymentDate', e.target.value)} onBlur={() => void persistEmployee(employee)} className={inputClass('w-full')} />
+                              </label>
+                            </div>
+                            <label className="mt-3 block space-y-1 text-xs text-slate-600">یادداشت
+                              <textarea rows={2} disabled={disabled} value={employee.payrollInput.monthlyNotes ?? ''} onChange={(e) => updateMonthlyText(employee, 'monthlyNotes', e.target.value)} onBlur={() => void persistEmployee(employee)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100" />
+                            </label>
+                            <p className="mt-3 text-[11px] leading-5 text-amber-800">قسط وام، مساعده و سایر کسورات در این جدول به‌صورت مبلغ ماهانه دستی وارد می‌شوند؛ تا اتصال دفتر بدهی، آن‌ها را هم‌زمان از دفتر بدهی و این قسمت ثبت نکنید. مأموریت و مزایای غیرمشمول/مشمول با طبقه‌بندی فعلی فایل مرجع در محاسبه لحاظ می‌شوند، اما وضعیت حقوقی هر قلم نیازمند بازبینی است.</p>
+                          </td>
+                        </tr>
+                      )}
+                      </>
                     );
                   })}
                 </tbody>
