@@ -174,6 +174,14 @@ export function PayrollReportsView({ onNavigateToPayroll }: PayrollReportsViewPr
                     {toPersianDigits(run.totals.calculatedCount)} نفر · خالص {format(run.totals.netPayRial)}
                   </div>
                   <div className="mt-1 text-[11px] text-slate-400">
+                    {run.workflow?.status === 'closed' ? 'بسته‌شده'
+                      : run.workflow?.status === 'paid' ? 'پرداخت‌شده'
+                      : run.workflow?.status === 'approved' ? 'تأییدشده'
+                      : run.workflow?.status === 'ready-for-review' ? 'آماده بررسی مالی'
+                      : run.workflow?.status === 'validation-failed' ? 'دارای خطای اعتبارسنجی'
+                      : 'قدیمی / بدون گردش تأیید'}
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-400">
                     {new Date(run.savedAt).toLocaleString('fa-IR')}
                   </div>
                 </button>
@@ -194,6 +202,11 @@ export function PayrollReportsView({ onNavigateToPayroll }: PayrollReportsViewPr
                     <p className="mt-1 text-xs text-slate-500">
                       {selectedRun.runId} · ذخیره‌شده در {new Date(selectedRun.savedAt).toLocaleString('fa-IR')}
                     </p>
+                    {selectedRun.workflow?.correctionOfRunId && (
+                      <p className="mt-1 text-xs font-semibold text-amber-700">
+                        اصلاحیه Snapshot: {selectedRun.workflow.correctionOfRunId}
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"
