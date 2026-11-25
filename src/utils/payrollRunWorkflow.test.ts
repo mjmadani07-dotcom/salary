@@ -6,6 +6,7 @@ import {
   validatePayrollRunSnapshotDeletion,
   validatePayrollRunWorkflowTransition,
   validatePayrollRunWorkflowUpdate,
+  validatePayrollCorrectionRun,
 } from './payrollRunWorkflow';
 
 function makeRun(overrides: Partial<PayrollRunResult> = {}): PayrollRunResult {
@@ -53,6 +54,39 @@ test('correction snapshots retain their source run and mandatory reason in the i
   assert.equal(workflow.correctionReason, 'اصلاح روزهای کارکرد با استناد به لیست تأییدشده');
   assert.match(workflow.auditTrail[0].note ?? '', /PAY-1405-01/);
   assert.match(workflow.auditTrail[0].note ?? '', /لیست تأییدشده/);
+});
+
+test('correction run requires a locked source, identical period and non-empty reason', () => {
+  const source = {
+    ...makeRun({ runId: 'PAY-1405-01' }),
+    workflow: { status: 'closed' as const },
+  };
+  const samePeriod = { fiscalYear: '1405', month: 1, monthDays: 31 };
+  assert.deepEqual(
+    validatePayrollCorrectionRun(source, samePeriod, 'اصلاح مستند'),
+    []
+  );
+
+  assert.ok(validatePayrollCorrectionRun(source, samePeriod, ' ')
+    .some((message) => message.includes('علت اصلاح')));
+  assert.ok(validatePayrollCorrectionRun(source, { ...samePeriod, month: 2 }, 'اصلاح')
+    .some((message) => message.includes('همان سال، ماه')));
+  assert.ok(validatePayrollCorrectionRun(
+    { ...source, workflow: { status: 'ready-for-review' as const } },
+    samePeriod,
+    'اصلاح'
+  ).some((message) => message.includes('تأییدشده، پرداخت‌شده یا بسته‌شده')));
+});
+
+test('correction validation accepts approved, paid and closed source states', () => {
+  const base = makeRun({ runId: 'PAY-1405-01' });
+  const target = { fiscalYear: '1405', month: 1, monthDays: 31 };
+  for (const status of ['approved', 'paid', 'closed'] as const) {
+    assert.deepEqual(
+      validatePayrollCorrectionRun({ ...base, workflow: { status } }, target, 'اصلاح مستند'),
+      []
+    );
+  }
 });
 
 test('correction source and reason cannot be changed after a correction snapshot is created', () => {
