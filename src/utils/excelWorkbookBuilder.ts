@@ -7,6 +7,7 @@ import {
 } from '../data/payrollPayItemCatalog';
 import type { PayrollInput, PayrollResult } from './payrollEngine';
 import type { PayrollRunResult } from './payrollRunEngine';
+import type { PayrollSettlementCase } from '../types/payrollSettlement';
 
 export interface EosExcelConfig {
   seatName: string;
@@ -1027,3 +1028,221 @@ export async function downloadPayrollRunExcelWorkbook(
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Exports settlement cases and their append-only workflow events.
+ * The workbook contains snapshot values only; it never recalculates entitlements.
+ */
+export async function buildPayrollSettlementExcelWorkbook(
+  cases: PayrollSettlementCase[]
+): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'مرجع حقوق و دستمزد ایران';
+  workbook.created = new Date();
+  workbook.title = 'پرونده‌های عیدی و تسویه';
+  workbook.subject = 'Payroll termination settlement case register';
+  workbook.description = 'Settlement inputs, approved calculation snapshots and workflow history. No formulas are embedded.';
+
+  const settlement = workbook.addWorksheet('پرونده‌های تسویه', {
+    views: [{ rightToLeft: true, state: 'frozen', xSplit: 4, ySplit: 1 }],
+  });
+  settlement.columns = [
+    { header: 'شناسه پرونده', width: 30 },
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام کارمند', width: 26 },
+    { header: 'سال مالی', width: 12 },
+    { header: 'شروع همکاری', width: 16 },
+    { header: 'خاتمه همکاری', width: 16 },
+    { header: 'علت خاتمه', width: 24 },
+    { header: 'ماه کارکرد سال', width: 16 },
+    { header: 'روز کارکرد سال', width: 16 },
+    { header: 'روز تقویمی سال', width: 16 },
+    { header: 'مدت سابقه کامل (سال)', width: 20 },
+    { header: 'روز اضافه سابقه', width: 18 },
+    { header: 'روز سابقه معادل', width: 18 },
+    { header: 'مبنای روزانه عیدی', width: 20 },
+    { header: 'مرجع مبنای عیدی', width: 42 },
+    { header: 'تأیید مبنای عیدی', width: 18 },
+    { header: 'سقف عیدی سالانه پیش از تناسب', width: 28 },
+    { header: 'عیدی استحقاقی', width: 20 },
+    { header: 'عیدی علی‌الحساب', width: 20 },
+    { header: 'مانده عیدی', width: 20 },
+    { header: 'مبنای ماهانه سنوات', width: 22 },
+    { header: 'مرجع مبنای سنوات', width: 42 },
+    { header: 'تأیید مبنای سنوات', width: 18 },
+    { header: 'ضریب سنوات', width: 14 },
+    { header: 'سنوات استحقاقی', width: 20 },
+    { header: 'سنوات پرداخت قبلی', width: 22 },
+    { header: 'مانده سنوات', width: 20 },
+    { header: 'مانده مرخصی (روز)', width: 18 },
+    { header: 'تأیید مانده مرخصی', width: 20 },
+    { header: 'مبنای روزانه بازخرید', width: 22 },
+    { header: 'مرجع مبنای مرخصی', width: 42 },
+    { header: 'بازخرید مرخصی', width: 20 },
+    { header: 'سایر مطالبات', width: 20 },
+    { header: 'شرح سایر مطالبات', width: 36 },
+    { header: 'کسورات مجاز', width: 20 },
+    { header: 'مرجع مجوز کسورات', width: 42 },
+    { header: 'جمع ناخالص مطالبات', width: 24 },
+    { header: 'قابل پرداخت قبل از مالیات', width: 28 },
+    { header: 'وضعیت پرونده', width: 20 },
+    { header: 'نام تأییدکننده', width: 24 },
+    { header: 'مرجع تأیید', width: 30 },
+    { header: 'تاریخ پرداخت', width: 16 },
+    { header: 'مرجع پرداخت', width: 30 },
+    { header: 'مبلغ پرداخت واقعی', width: 22 },
+    { header: 'علت اختلاف پرداخت', width: 38 },
+    { header: 'وضعیت RuleSet', width: 20 },
+    { header: 'هشدارها و کنترل‌ها', width: 70 },
+    { header: 'یادداشت پرونده', width: 50 },
+  ];
+  styleHeaderRow(settlement.getRow(1), 'FF0F766E');
+
+  const reasonLabels: Record<PayrollSettlementCase['reason'], string> = {
+    'contract-end': 'پایان قرارداد / خاتمه همکاری',
+    resignation: 'استعفا',
+    dismissal: 'فسخ / اخراج',
+    retirement: 'بازنشستگی',
+    'total-disability': 'ازکارافتادگی کلی',
+    death: 'فوت',
+    'workshop-closure': 'تعطیلی کارگاه',
+    'work-related-incapacity': 'کاهش توانایی ناشی از کار',
+    other: 'سایر',
+  };
+  const statusLabels: Record<PayrollSettlementCase['status'], string> = {
+    draft: 'پیش‌نویس',
+    'ready-for-review': 'آماده بازبینی',
+    approved: 'تأییدشده',
+    paid: 'پرداخت‌شده',
+    cancelled: 'لغوشده',
+  };
+
+  cases.forEach((item) => {
+    const result = item.calculation;
+    const warningText = result?.legalReviewRequiredItems.join('؛ ') ?? 'هنوز محاسبه معتبر ثبت نشده است.';
+    settlement.addRow([
+      item.settlementId,
+      item.personnelCode,
+      item.employeeName,
+      item.fiscalYear,
+      item.hireDateJalali,
+      item.terminationDateJalali,
+      reasonLabels[item.reason],
+      item.monthsWorkedInYear,
+      item.annualWorkedDays,
+      item.annualCalendarDays,
+      result?.completedServiceYears ?? null,
+      result?.additionalServiceDays ?? null,
+      result?.recognizedServiceYears ?? null,
+      item.eidDailyWageBasisRial,
+      item.eidWageBasisReference,
+      item.eidWageBasisConfirmed ? 'بله' : 'خیر',
+      result?.eidMaximumBeforeProrationRial ?? null,
+      result?.eidEntitlementRial ?? null,
+      item.eidAdvancePaidRial,
+      result?.eidBalanceRial ?? null,
+      item.severanceMonthlyWageBasisRial,
+      item.severanceWageBasisReference,
+      item.severanceWageBasisConfirmed ? 'بله' : 'خیر',
+      result?.severanceMultiplier ?? null,
+      result?.severanceEntitlementRial ?? null,
+      item.priorSeverancePaidRial,
+      result?.severanceBalanceRial ?? null,
+      item.leaveBalanceDays,
+      item.leaveBalanceConfirmed ? 'بله' : 'خیر',
+      item.leaveDailyBasisRial,
+      item.leaveBasisReference,
+      result?.leaveEncashmentRial ?? null,
+      item.otherClaimsRial,
+      item.otherClaimsDescription,
+      item.approvedDeductionsRial,
+      item.deductionAuthorizationReference,
+      result?.totalGrossEntitlementRial ?? null,
+      result?.payableBeforeTaxRial ?? null,
+      statusLabels[item.status],
+      item.approverName ?? '',
+      item.approvalReference ?? '',
+      item.paymentDate ?? '',
+      item.paymentReference ?? '',
+      item.paidAmountRial ?? null,
+      item.paymentDifferenceReason ?? '',
+      result?.ruleSetApprovalStatus ?? '',
+      warningText,
+      item.notes,
+    ]);
+  });
+  setRialFormat(settlement, [
+    14, 17, 18, 19, 20, 21, 25, 26, 27, 30, 32, 33, 35, 37, 38, 44,
+  ]);
+  settlement.autoFilter = { from: 'A1', to: 'AV1' };
+
+  const audit = workbook.addWorksheet('گردش پرونده‌ها', {
+    views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+  });
+  audit.columns = [
+    { header: 'شناسه پرونده', width: 30 },
+    { header: 'کد پرسنلی', width: 16 },
+    { header: 'نام کارمند', width: 26 },
+    { header: 'شناسه رویداد', width: 34 },
+    { header: 'نوع رویداد', width: 24 },
+    { header: 'وضعیت پس از رویداد', width: 22 },
+    { header: 'زمان ثبت', width: 30 },
+    { header: 'ثبت‌کننده', width: 24 },
+    { header: 'مرجع سند', width: 36 },
+    { header: 'توضیح', width: 50 },
+  ];
+  styleHeaderRow(audit.getRow(1), 'FF334155');
+  cases.forEach((item) => {
+    (item.auditTrail ?? []).forEach((event) => {
+      audit.addRow([
+        item.settlementId,
+        item.personnelCode,
+        item.employeeName,
+        event.eventId,
+        event.eventType,
+        statusLabels[event.status],
+        event.occurredAt,
+        event.actorName ?? '',
+        event.reference ?? '',
+        event.note ?? '',
+      ]);
+    });
+  });
+  audit.autoFilter = { from: 'A1', to: 'J1' };
+
+  const note = workbook.addWorksheet('راهنمای خروجی', {
+    views: [{ rightToLeft: true }],
+  });
+  note.columns = [{ width: 120 }];
+  note.getCell('A1').value =
+    'این فایل فقط مقادیر ورودی، محاسبات ذخیره‌شده و گردش پرونده را صادر می‌کند؛ هیچ فرمول مستقلی اجرا نمی‌شود. مبلغ قابل پرداخت در این نسخه قبل از مالیات و کسورات قانونی احتمالی است و وضعیت RuleSet باید بررسی شود. مبانی مزد عیدی، سنوات و بازخرید مرخصی باید جداگانه با سند تأیید شوند. پرونده تأییدشده فقط با ثبت پرداخت تغییر می‌کند و پرونده پرداخت‌شده غیرقابل‌ویرایش است.';
+  note.getCell('A1').alignment = { vertical: 'top', horizontal: 'right', wrapText: true };
+  note.getRow(1).height = 90;
+
+  workbook.worksheets.forEach((sheet) => {
+    sheet.eachRow((row) => styleDataRow(row));
+    if (sheet.name !== 'راهنمای خروجی') styleHeaderRow(sheet.getRow(1));
+    sheet.views = [{ rightToLeft: true, state: 'frozen', ySplit: 1 }];
+  });
+
+  return workbook;
+}
+
+export async function downloadPayrollSettlementExcelWorkbook(
+  cases: PayrollSettlementCase[]
+): Promise<void> {
+  const workbook = await buildPayrollSettlementExcelWorkbook(cases);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer as BlobPart], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'Iran-Payroll-Settlements.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
