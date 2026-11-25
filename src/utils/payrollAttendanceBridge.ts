@@ -55,6 +55,9 @@ export function hydratePayrollEmployeeFromAttendance(
       overtimeHours: attendance.overtimeHours,
       nightShiftHours: attendance.nightShiftHours,
       shiftWorkPattern: attendance.shiftWorkPattern ?? employee.payrollInput.shiftWorkPattern,
+      shiftWorkPatternPeriod: attendance.shiftWorkPattern
+        ? `${attendance.fiscalYear}-${String(attendance.month).padStart(2, '0')}`
+        : employee.payrollInput.shiftWorkPatternPeriod,
       holidayHours: attendance.holidayHours,
       variableBonusRial: attendance.variableBonusRial,
       annualWorkedDays: attendance.annualWorkedDays,
