@@ -97,6 +97,9 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const [expandedDetailsEmployeeIds, setExpandedDetailsEmployeeIds] = useState<Set<string>>(() => new Set());
   const [runResult, setRunResult] = useState<(PayrollRunResult & { workflow?: PayrollRunWorkflow }) | null>(null);
   const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
+  const [correctionOfRunId, setCorrectionOfRunId] = useState<string | null>(null);
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [correctionSnapshotSaved, setCorrectionSnapshotSaved] = useState(false);
   const [snapshotEmployeeIds, setSnapshotEmployeeIds] = useState<Set<string>>(() => new Set());
   const [searchText, setSearchText] = useState('');
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -148,6 +151,9 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     let active = true;
     setIsLoadingLocalData(true);
     setStorageError(null);
+    setCorrectionOfRunId(null);
+    setCorrectionReason('');
+    setCorrectionSnapshotSaved(false);
 
     const loadWorkspace = async () => {
       try {
@@ -214,6 +220,11 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         setRunResult(savedRun ?? null);
         setLastSavedRunId(savedRun?.runId ?? null);
         setSnapshotEmployeeIds(snapshotIds);
+        if (savedRun?.workflow?.correctionOfRunId) {
+          setCorrectionOfRunId(savedRun.workflow.correctionOfRunId);
+          setCorrectionReason(savedRun.workflow.correctionReason ?? '');
+          setCorrectionSnapshotSaved(true);
+        }
       } catch (error) {
         if (active) {
           setStorageError(
@@ -229,6 +240,9 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           setRunResult(null);
           setLastSavedRunId(null);
           setSnapshotEmployeeIds(new Set());
+          setCorrectionOfRunId(null);
+          setCorrectionReason('');
+          setCorrectionSnapshotSaved(false);
         }
       } finally {
         if (active) setIsLoadingLocalData(false);
@@ -734,12 +748,25 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     (employee.masterDataIssues?.length ?? 0) > 0
   ).length;
 
+  const beginCorrectionRun = () => {
+    if (!runResult || !['approved', 'paid', 'closed'].includes(runResult.workflow?.status ?? '')) return;
+    setCorrectionOfRunId(runResult.runId);
+    setCorrectionReason('');
+    setCorrectionSnapshotSaved(false);
+    setRunResult(null);
+    setLastSavedRunId(null);
+    // Re-resolve current employee master/contract/wage data while preserving
+    // the period inputs carried by the locked source snapshot.
+    setSnapshotEmployeeIds(new Set());
+    setStorageError(null);
+  };
+
   const calculateRun = async () => {
     if (employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting || periodLocked) return;
-    const correctionOfRunId =
-      runResult && lastSavedRunId === runResult.runId
-        ? runResult.runId
-        : undefined;
+    if (correctionOfRunId && !correctionReason.trim()) {
+      setStorageError('برای محاسبه Snapshot اصلاحی، علت اصلاح را ثبت کنید.');
+      return;
+    }
     setIsSaving(true);
     setStorageError(null);
     setRunResult(null);
@@ -833,11 +860,16 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     )).filter((message): message is string => message !== null);
 
     try {
-      await savePayrollRunSnapshot(result, correctionOfRunId);
+      await savePayrollRunSnapshot(
+        result,
+        correctionOfRunId ?? undefined,
+        correctionOfRunId ? correctionReason.trim() : undefined,
+      );
       const persistedSnapshot = await loadSavedPayrollRun(result.runId);
       if (persistedSnapshot) setRunResult(persistedSnapshot);
       setLastSavedRunId(result.runId);
       setSnapshotEmployeeIds(new Set(result.lines.map((line) => line.employeeId)));
+      if (correctionOfRunId) setCorrectionSnapshotSaved(true);
       if (employeeSaveErrors.length > 0) {
         setStorageError(
           `Snapshot دوره ذخیره شد، اما ذخیره آخرین ورودی برخی کارکنان ناموفق بود: ${employeeSaveErrors.slice(0, 3).join('؛ ')}`
@@ -1054,7 +1086,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                 <button
                   type="button"
                   onClick={() => void calculateRun()}
-                  disabled={employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting || periodLocked}
+                  disabled={employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting || periodLocked || Boolean(correctionOfRunId && !correctionReason.trim())}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Calculator className="h-4 w-4" />
@@ -1099,7 +1131,34 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
 
             {periodLocked && (
               <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-900">
-                این دوره در وضعیت «{runResult?.workflow?.status === 'approved' ? 'تأییدشده' : runResult?.workflow?.status === 'paid' ? 'پرداخت‌شده' : 'بسته‌شده'}» قرار دارد و ورودی‌ها قفل شده‌اند. برای اصلاح، باید یک Snapshot اصلاحی مستقل و قابل ردیابی ایجاد شود؛ این Snapshot قبلی بازنویسی نمی‌شود.
+                <div>این دوره در وضعیت «{runResult?.workflow?.status === 'approved' ? 'تأییدشده' : runResult?.workflow?.status === 'paid' ? 'پرداخت‌شده' : 'بسته‌شده'}» قرار دارد و ورودی‌ها قفل شده‌اند. برای اصلاح، Snapshot اصلی حفظ می‌شود و یک Snapshot مستقل ساخته خواهد شد.</div>
+                <button
+                  type="button"
+                  onClick={beginCorrectionRun}
+                  className="mt-2 rounded-md border border-amber-700 px-3 py-1.5 font-semibold hover:bg-amber-100"
+                >
+                  شروع اصلاح این دوره
+                </button>
+              </div>
+            )}
+            {correctionOfRunId && (
+              <div className="border-b border-indigo-200 bg-indigo-50 px-4 py-3 text-xs leading-6 text-indigo-950">
+                <div className="font-semibold">حالت اصلاح دوره</div>
+                <div>Snapshot مبنا: {correctionOfRunId}. نسخه اصلی حفظ می‌شود و هر بار محاسبه، Snapshot اصلاحی مستقل و قابل ردیابی می‌سازد.</div>
+                <label className="mt-2 block">
+                  <span className="mb-1 block font-semibold">علت اصلاح (الزامی)</span>
+                  <textarea
+                    rows={2}
+                    value={correctionReason}
+                    onChange={(event) => setCorrectionReason(event.target.value)}
+                    disabled={isSaving || correctionSnapshotSaved}
+                    placeholder="مثلاً اصلاح کارکرد بر اساس لیست تأییدشده واحد منابع انسانی"
+                    className="w-full rounded-md border border-indigo-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-600 disabled:bg-slate-100"
+                  />
+                </label>
+                {correctionSnapshotSaved && (
+                  <p className="mt-1 text-indigo-800">Snapshot اصلاحی ذخیره شده است. در صورت نیاز به تغییر بیشتر، همین علت و مرجع اصلی برای نسخه اصلاحی بعدی حفظ می‌شود.</p>
+                )}
               </div>
             )}
             <div className="overflow-x-auto" onPaste={handleGridPaste}>
