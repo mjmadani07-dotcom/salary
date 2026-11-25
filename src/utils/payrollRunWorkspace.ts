@@ -76,6 +76,24 @@ function makeEmployeeFromMaster(
     }
 
     if (!saved) {
+      if (master.insuranceSubject === undefined) {
+        masterDataIssues.push(
+          monthlyIssue(
+            'MASTER_INSURANCE_SUBJECT_UNCONFIRMED',
+            'insuranceSubject',
+            'وضعیت شمول بیمه این کارمند را در پرونده پرسنلی مشخص کنید.'
+          )
+        );
+      }
+      if (master.taxSubject === undefined) {
+        masterDataIssues.push(
+          monthlyIssue(
+            'MASTER_TAX_SUBJECT_UNCONFIRMED',
+            'taxSubject',
+            'وضعیت شمول مالیات این کارمند را در پرونده پرسنلی مشخص کنید.'
+          )
+        );
+      }
       if (master.isMarried === undefined) {
         masterDataIssues.push(
           monthlyIssue(
@@ -167,6 +185,8 @@ function makeEmployeeFromMaster(
     childrenCount: sourceInput?.childrenCount ?? baseInput?.childrenCount ?? master.eligibleChildrenCount ?? 0,
     has720DaysInsurance:
       sourceInput?.has720DaysInsurance ?? baseInput?.has720DaysInsurance ?? false,
+    insuranceSubject: sourceInput?.insuranceSubject ?? baseInput?.insuranceSubject ?? master.insuranceSubject,
+    taxSubject: sourceInput?.taxSubject ?? baseInput?.taxSubject ?? master.taxSubject,
     overtimeHours: sourceInput?.overtimeHours ?? 0,
     nightShiftHours: sourceInput?.nightShiftHours ?? 0,
     holidayHours: sourceInput?.holidayHours ?? 0,
