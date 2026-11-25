@@ -46,6 +46,7 @@ test('1405 RuleSet is explicitly pending legal approval', () => {
   assert.equal(ruleSet.effectiveFromJalali, '1405-01-01');
   assert.equal(ruleSet.effectiveToJalali, null);
   assert.ok(ruleSet.sourceRefs.includes('SRC-003'));
+  assert.ok(ruleSet.sourceRefs.includes('SRC-014'));
 });
 
 test('progressive tax calculates only the slice within each bracket', () => {
