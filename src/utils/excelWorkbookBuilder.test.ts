@@ -203,7 +203,7 @@ test('multi-employee export contains calculation, payslip, monthly summary, bank
 
   assert.equal(payslip.getCell('A1').value, 'فیش حقوق و دستمزد');
   assert.ok(payslip.rowCount > 20);
-  assert.equal(settlement.getCell('C1').value?.toString().startsWith('توجه:'), true);
+  assert.equal(settlement.getCell('A1').value?.toString().startsWith('توجه:'), true);
   assert.equal(settlement.getCell('D3').value, firstInput.annualWorkedDays);
   assert.equal(settlement.getCell('K3').value, 7.5);
   assert.equal(settlement.getCell('N3').value, result.eidPayableRial + result.severancePayableRial);
