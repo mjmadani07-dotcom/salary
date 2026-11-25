@@ -28,6 +28,12 @@ export function validateEmployeeMaster(
   if (!employee.personnelCode.trim()) add('PERSONNEL_CODE_REQUIRED', 'personnelCode', 'کد پرسنلی الزامی است.');
   if (!employee.firstName.trim()) add('FIRST_NAME_REQUIRED', 'firstName', 'نام الزامی است.');
   if (!employee.lastName.trim()) add('LAST_NAME_REQUIRED', 'lastName', 'نام خانوادگی الزامی است.');
+  if (
+    employee.eligibleChildrenCount !== undefined &&
+    (!Number.isInteger(employee.eligibleChildrenCount) || employee.eligibleChildrenCount < 0)
+  ) {
+    add('INVALID_ELIGIBLE_CHILDREN_COUNT', 'eligibleChildrenCount', 'تعداد فرزندان واجد شرایط باید عدد صحیح و غیرمنفی باشد.');
+  }
   if (!isJalaliDate(employee.hireDateJalali)) add('INVALID_HIRE_DATE', 'hireDateJalali', 'تاریخ شروع همکاری باید به شکل 1405-01-01 باشد.');
   if (employee.terminationDateJalali && !isJalaliDate(employee.terminationDateJalali)) {
     add('INVALID_TERMINATION_DATE', 'terminationDateJalali', 'تاریخ پایان همکاری معتبر نیست.');
