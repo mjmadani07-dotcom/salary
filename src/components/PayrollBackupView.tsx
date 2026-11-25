@@ -67,17 +67,26 @@ export function PayrollBackupView() {
         `تاریخ پشتیبان: ${new Date(backup.createdAt).toLocaleString('fa-IR')}\n` +
         `نسخه پایگاه داده: ${backup.sourceDatabaseVersion}\n` +
         `تعداد رکوردها: ${recordCount}\n\n${securityNote}\n\n` +
-        'پیش از ادامه، از اطلاعات فعلی نسخه پشتیبان گرفته‌ای؟'
+        'پیش از جایگزینی، نرم‌افزار به‌طور خودکار از اطلاعات فعلی فایل پشتیبان ایمنی می‌سازد. ادامه می‌دهید؟'
       );
       if (!accepted) {
         setFeedback({ kind: 'info', text: 'بازیابی لغو شد؛ هیچ داده‌ای تغییر نکرد.' });
         return;
       }
 
+      // Keep a complete rollback copy before replacing any current local data.
+      // If exporting the safety copy fails, restore is not attempted.
+      const safetyBackup = await exportPayrollDatabaseBackup();
+      const safetyTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      downloadJson(
+        JSON.stringify(safetyBackup, null, 2),
+        `iran-payroll-pre-restore-backup-${safetyTimestamp}.json`
+      );
+
       await restorePayrollDatabaseBackup(backup);
       setFeedback({
         kind: 'success',
-        text: 'بازیابی کامل شد. نرم‌افزار برای بارگذاری داده‌های بازیابی‌شده دوباره راه‌اندازی می‌شود.',
+        text: 'بازیابی کامل شد. نسخه ایمنی اطلاعات قبلی نیز دریافت شد. نرم‌افزار برای بارگذاری داده‌های بازیابی‌شده دوباره راه‌اندازی می‌شود.',
       });
       window.location.reload();
     } catch (error) {
