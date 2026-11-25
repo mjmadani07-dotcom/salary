@@ -132,20 +132,35 @@ function makeEmployeeFromMaster(
 
   const sourceInput = snapshotLine?.payrollInput;
   const baseInput = sourceInput ?? saved?.payrollInput;
+  const effectiveWage = terms.wage;
+  const resolvedDailyBaseWage = effectiveWage
+    ? effectiveWage.wageType === 'minimum'
+      ? seed.minDailyWageRial
+      : effectiveWage.wageType === 'custom'
+        ? Math.max(effectiveWage.dailyBaseWageRial, seed.minDailyWageRial)
+        : effectiveWage.dailyBaseWageRial
+    : saved?.payrollInput.dailyBaseWageRial ?? seed.minDailyWageRial;
+
+  if (
+    effectiveWage?.wageType === 'custom' &&
+    effectiveWage.dailyBaseWageRial < seed.minDailyWageRial
+  ) {
+    masterDataIssues.push({
+      code: 'CUSTOM_WAGE_BELOW_STATUTORY_MINIMUM',
+      field: 'wageHistory',
+      message: 'مزد سفارشی کمتر از حداقل مزد مصوب است؛ حداقل مصوب برای محاسبه اعمال می‌شود.',
+    });
+  }
+
   const payrollInput: PayrollInput = {
     year: seed.year,
     monthDays: seed.monthDays,
     workDays: sourceInput?.workDays ?? seed.monthDays,
-    dailyBaseWageRial:
-      sourceInput?.dailyBaseWageRial ??
-      terms.wage?.dailyBaseWageRial ??
-      saved?.payrollInput.dailyBaseWageRial ??
-      seed.minDailyWageRial,
-    dailySeniorityRial:
-      sourceInput?.dailySeniorityRial ??
-      terms.wage?.dailySeniorityRial ??
-      saved?.payrollInput.dailySeniorityRial ??
-      0,
+    dailyBaseWageRial: sourceInput?.dailyBaseWageRial ?? resolvedDailyBaseWage,
+    dailySeniorityRial: sourceInput?.dailySeniorityRial ??
+      (effectiveWage?.seniorityEligible === false
+        ? 0
+        : effectiveWage?.dailySeniorityRial ?? saved?.payrollInput.dailySeniorityRial ?? 0),
     housingAllowanceRial: seed.housingAllowanceRial,
     workerCouponRial: seed.workerCouponRial,
     isMarried: sourceInput?.isMarried ?? baseInput?.isMarried ?? master.isMarried ?? false,
