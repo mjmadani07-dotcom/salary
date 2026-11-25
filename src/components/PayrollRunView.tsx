@@ -109,6 +109,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
 
   const format = (value: number) => formatMoney(value, unit);
   const periodLabel = `سال ${toPersianDigits(year)} · ${MONTH_OPTIONS[month - 1]} · ${toPersianDigits(periodMonthDays)} روزه`;
+  const periodLocked = ['approved', 'paid', 'closed'].includes(runResult?.workflow?.status ?? '');
 
   useEffect(() => {
     let active = true;
@@ -723,7 +724,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   ).length;
 
   const calculateRun = async () => {
-    if (employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting) return;
+    if (employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting || periodLocked) return;
     setIsSaving(true);
     setStorageError(null);
     setRunResult(null);
@@ -1036,7 +1037,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                 <button
                   type="button"
                   onClick={() => void calculateRun()}
-                  disabled={employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting}
+                  disabled={employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting || periodLocked}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Calculator className="h-4 w-4" />
@@ -1055,14 +1056,14 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                     value={monthlyExcelPasteText}
                     onChange={(event) => setMonthlyExcelPasteText(event.target.value)}
                     placeholder="محدوده ۲۲ ستونی شیت «کارکرد ماهانه» را در اکسل انتخاب و کپی کنید، سپس اینجا بچسبانید."
-                    disabled={isMonthlyExcelImporting || isSaving}
+                    disabled={isMonthlyExcelImporting || isSaving || periodLocked}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100"
                   />
                 </label>
                 <button
                   type="button"
                   onClick={() => void importMonthlyExcelRows()}
-                  disabled={!monthlyExcelPasteText.trim() || isMonthlyExcelImporting || isSaving}
+                  disabled={!monthlyExcelPasteText.trim() || isMonthlyExcelImporting || isSaving || periodLocked}
                   className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
@@ -1079,6 +1080,11 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
               )}
             </div>
 
+            {periodLocked && (
+              <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-900">
+                این دوره در وضعیت «{runResult?.workflow?.status === 'approved' ? 'تأییدشده' : runResult?.workflow?.status === 'paid' ? 'پرداخت‌شده' : 'بسته‌شده'}» قرار دارد و ورودی‌ها قفل شده‌اند. برای اصلاح، باید یک Snapshot اصلاحی مستقل و قابل ردیابی ایجاد شود؛ این Snapshot قبلی بازنویسی نمی‌شود.
+              </div>
+            )}
             <div className="overflow-x-auto" onPaste={handleGridPaste}>
               <table className="w-full min-w-[1660px] text-right text-sm">
                 <thead className="bg-slate-100 text-xs text-slate-700">
@@ -1101,7 +1107,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filteredEmployees.map((employee, rowIndex) => {
-                    const disabled = !employee.isActive || isSaving;
+                    const disabled = !employee.isActive || isSaving || periodLocked;
                     const rowIssues = employee.masterDataIssues ?? [];
                     const calculatedLine = runResult?.lines.find((line) => line.employeeId === employee.employeeId);
                     const displayedIssues = rowIssues.length > 0 ? rowIssues : calculatedLine?.issues ?? [];
