@@ -21,6 +21,15 @@ export interface PayrollRunEmployee {
   isActive: boolean;
   payrollInput: PayrollInput;
   masterDataIssues?: PayrollRunLineIssue[];
+  /** Optional employee master metadata carried into immutable payroll exports. */
+  jobTitle?: string;
+  costCenter?: string;
+  bankAccountNumber?: string;
+  bankIban?: string;
+  insuranceNumber?: string;
+  hireDateJalali?: string;
+  terminationDateJalali?: string | null;
+  leaveBalanceDays?: number;
 }
 
 export type PayrollRunLineStatus = 'calculated' | 'blocked' | 'excluded';
@@ -40,6 +49,15 @@ export interface PayrollRunLine {
   issues: PayrollRunLineIssue[];
   payrollInput: PayrollInput;
   result?: PayrollResult;
+  /** Snapshotted employee details needed by payslips, summaries and bank exports. */
+  jobTitle?: string;
+  costCenter?: string;
+  bankAccountNumber?: string;
+  bankIban?: string;
+  insuranceNumber?: string;
+  hireDateJalali?: string;
+  terminationDateJalali?: string | null;
+  leaveBalanceDays?: number;
 }
 
 export interface PayrollRunTotals {
@@ -180,6 +198,14 @@ export function calculatePayrollRun(
         fullName: employee.fullName,
         status: 'excluded',
         payrollInput: employee.payrollInput,
+        jobTitle: employee.jobTitle,
+        costCenter: employee.costCenter,
+        bankAccountNumber: employee.bankAccountNumber,
+        bankIban: employee.bankIban,
+        insuranceNumber: employee.insuranceNumber,
+        hireDateJalali: employee.hireDateJalali,
+        terminationDateJalali: employee.terminationDateJalali,
+        leaveBalanceDays: employee.leaveBalanceDays,
         issues: [
           ...issues,
           {
@@ -222,6 +248,14 @@ export function calculatePayrollRun(
         fullName: employee.fullName,
         status: 'blocked',
         payrollInput: employee.payrollInput,
+        jobTitle: employee.jobTitle,
+        costCenter: employee.costCenter,
+        bankAccountNumber: employee.bankAccountNumber,
+        bankIban: employee.bankIban,
+        insuranceNumber: employee.insuranceNumber,
+        hireDateJalali: employee.hireDateJalali,
+        terminationDateJalali: employee.terminationDateJalali,
+        leaveBalanceDays: employee.leaveBalanceDays,
         issues,
       };
     }
@@ -240,6 +274,14 @@ export function calculatePayrollRun(
             field: 'payrollInput',
           }],
           payrollInput: employee.payrollInput,
+          jobTitle: employee.jobTitle,
+          costCenter: employee.costCenter,
+          bankAccountNumber: employee.bankAccountNumber,
+          bankIban: employee.bankIban,
+          insuranceNumber: employee.insuranceNumber,
+          hireDateJalali: employee.hireDateJalali,
+          terminationDateJalali: employee.terminationDateJalali,
+          leaveBalanceDays: employee.leaveBalanceDays,
           result,
         };
       }
@@ -271,6 +313,14 @@ export function calculatePayrollRun(
         fullName: employee.fullName,
         status: 'blocked',
         payrollInput: employee.payrollInput,
+        jobTitle: employee.jobTitle,
+        costCenter: employee.costCenter,
+        bankAccountNumber: employee.bankAccountNumber,
+        bankIban: employee.bankIban,
+        insuranceNumber: employee.insuranceNumber,
+        hireDateJalali: employee.hireDateJalali,
+        terminationDateJalali: employee.terminationDateJalali,
+        leaveBalanceDays: employee.leaveBalanceDays,
         issues: engineIssues,
       };
     }
