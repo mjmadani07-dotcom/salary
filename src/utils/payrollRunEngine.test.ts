@@ -161,3 +161,21 @@ test('blocks payroll when effective employee master data is incomplete', () => {
   assert.equal(run.totals.blockedCount, 1);
   assert.ok(run.lines[0].issues.some((issue) => issue.code === 'NO_ACTIVE_CONTRACT'));
 });
+
+
+test('blocks an employee until unpaid-leave reconciliation is acknowledged', () => {
+  const employee = makeEmployee({
+    masterDataIssues: [{
+      code: 'UNPAID_LEAVE_REVIEW_REQUIRED',
+      message: 'روزهای کارکرد باید با مرخصی بدون حقوق ثبت‌شده تطبیق داده شود.',
+      field: 'reviewedUnpaidLeaveDays',
+    }],
+  });
+
+  const run = calculatePayrollRun(period, [employee]);
+
+  assert.equal(run.status, 'validation-failed');
+  assert.equal(run.totals.blockedCount, 1);
+  assert.equal(run.lines[0].status, 'blocked');
+  assert.ok(run.lines[0].issues.some(issue => issue.code === 'UNPAID_LEAVE_REVIEW_REQUIRED'));
+});
