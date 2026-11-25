@@ -726,6 +726,10 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
 
   const calculateRun = async () => {
     if (employees.length === 0 || isSaving || isLoadingLocalData || isMonthlyExcelImporting || periodLocked) return;
+    const correctionOfRunId =
+      runResult && lastSavedRunId === runResult.runId
+        ? runResult.runId
+        : undefined;
     setIsSaving(true);
     setStorageError(null);
     setRunResult(null);
@@ -819,7 +823,9 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     )).filter((message): message is string => message !== null);
 
     try {
-      await savePayrollRunSnapshot(result);
+      await savePayrollRunSnapshot(result, correctionOfRunId);
+      const persistedSnapshot = await loadSavedPayrollRun(result.runId);
+      if (persistedSnapshot) setRunResult(persistedSnapshot);
       setLastSavedRunId(result.runId);
       setSnapshotEmployeeIds(new Set(result.lines.map((line) => line.employeeId)));
       if (employeeSaveErrors.length > 0) {
