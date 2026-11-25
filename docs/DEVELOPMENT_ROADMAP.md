@@ -71,13 +71,20 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [ ] Keep daily event capture, shift rosters and mission data as separate extensions after the monthly model is stable.
 
 ### Phase 4 — Employee debt and deductions ledger
-- [ ] Record advances and loans as independent employee transactions.
-- [ ] Support principal, purpose, issue date, approved repayment method and installment schedule.
-- [ ] Record every installment payment/recovery and maintain outstanding balance.
-- [ ] Show due installments and proposed payroll deductions for a selected period.
-- [ ] Require finance-manager confirmation before a proposed deduction is included in a finalized payroll run.
-- [ ] Prevent duplicate deductions when a payroll run is recalculated or exported.
-- [ ] Keep lawful/contractual approval requirements explicit; do not assume every debt is automatically deductible from wages.
+
+Implemented initial tracking scope; see [EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md](./EMPLOYEE_DEBT_LEDGER_IMPLEMENTATION.md).
+
+- [x] Record advances and loans as independent employee accounts.
+- [x] Record principal, purpose, issue date and fixed-installment/manual repayment plan.
+- [x] Record each repayment as a separate transaction and maintain outstanding balance.
+- [x] Calculate current/overdue installments and show proposed due amounts by period.
+- [x] Keep other agreed deductions separate, with supporting reference and proposed/reviewed/cancelled status.
+- [x] Preserve legacy encrypted-vault compatibility while keeping new installations password-free.
+- [x] Do not auto-post installments or other deductions to payroll.
+- [ ] Obtain/record evidence and review of whether a proposed deduction is lawfully/contractually recoverable from wages.
+- [ ] Connect eligible reviewed deductions to the payroll approval/payment workflow, with explicit manager confirmation.
+- [ ] Prevent duplicate posting when a payroll run is recalculated, corrected or exported.
+- [ ] Add debt correction/reversal, account closure, write-off and termination settlement workflows.
 
 ### Phase 5 — Payroll approval and payment workflow
 - [ ] Implement Draft, Validation Failed, Ready for Review, Approved, Paid, Closed and Corrected states.
@@ -112,4 +119,4 @@ The current branch is a development baseline, not a legally approved production 
 
 Last verified development branch: `feat/payroll-rule-registry-engine`.
 
-The attendance/leave reconciliation review gate and the first 1405 legal-source register are implemented. The RuleSet now traces the approved-job-classification schedule as SRC-014 but keeps its application conditional on employee/workshop evidence. CI validation for the latest source-reference/test change is pending; prior runs [45563290173](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563290173) and [45563284500](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563284500) both passed 44 tests, TypeScript validation and production build. The pull request remains open and unmerged.
+The attendance/leave reconciliation review gate, first 1405 legal-source register and initial employee debt ledger are implemented. The RuleSet now traces the approved-job-classification schedule as SRC-014 but keeps its application conditional on employee/workshop evidence. CI validation for the latest source-reference/test change is pending; prior runs [45563290173](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563290173) and [45563284500](https://github.com/mjmadani07-dotcom/salary/actions/runs/45563284500) both passed 44 tests, TypeScript validation and production build. The pull request remains open and unmerged.
