@@ -51,6 +51,8 @@ export interface PayrollInput {
   hourlyDivisor?: 220 | 191.6;
   /** Current month's rotating-shift classification; undefined is retained only for legacy snapshots. */
   shiftWorkPattern?: import('../types/attendance').ShiftWorkPattern;
+  /** YYYY-MM key proving the shift pattern was confirmed for this payroll period. */
+  shiftWorkPatternPeriod?: string;
   // Annual Eid & Severance inputs
   annualWorkedDays: number;
   serviceYearsForSeverance: number;
