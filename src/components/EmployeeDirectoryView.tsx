@@ -63,6 +63,8 @@ export function EmployeeDirectoryView() {
   const [contracts, setContracts] = useState<EmploymentContract[]>([]);
   const [wageHistory, setWageHistory] = useState<WageHistoryEntry[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [selectedWageId, setSelectedWageId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,8 +106,14 @@ export function EmployeeDirectoryView() {
       setError('برای ثبت قرارداد، عنوان شغلی و تاریخ شروع قرارداد را وارد کنید.');
       return;
     }
-    setContracts((current) => [...current, contract].sort((a, b) => a.effectiveFromJalali.localeCompare(b.effectiveFromJalali)));
-    updateDraft({ contractNumber: '', jobTitle: '', contractFromJalali: '', contractToJalali: '' });
+    setContracts((current) => {
+      const next = selectedContractId
+        ? current.map((item) => item.contractId === selectedContractId ? { ...contract, contractId: selectedContractId } : item)
+        : [...current, contract];
+      return next.sort((a, b) => a.effectiveFromJalali.localeCompare(b.effectiveFromJalali));
+    });
+    setSelectedContractId(null);
+    updateDraft({ contractNumber: '', jobTitle: '', department: '', contractFromJalali: '', contractToJalali: '', weeklyHours: '44' });
   };
 
   const addWage = () => {
@@ -120,7 +128,13 @@ export function EmployeeDirectoryView() {
       setError('تاریخ اثر و مزد روزانه پایه معتبر را وارد کنید.');
       return;
     }
-    setWageHistory((current) => [...current, wage].sort((a, b) => a.effectiveFromJalali.localeCompare(b.effectiveFromJalali)));
+    setWageHistory((current) => {
+      const next = selectedWageId
+        ? current.map((item) => item.wageEntryId === selectedWageId ? { ...wage, wageEntryId: selectedWageId } : item)
+        : [...current, wage];
+      return next.sort((a, b) => a.effectiveFromJalali.localeCompare(b.effectiveFromJalali));
+    });
+    setSelectedWageId(null);
     updateDraft({ wageFromJalali: '', dailyBaseWageRial: '', dailySeniorityRial: '0' });
   };
 
@@ -129,12 +143,16 @@ export function EmployeeDirectoryView() {
     setContracts([]);
     setWageHistory([]);
     setEditingId(null);
+    setSelectedContractId(null);
+    setSelectedWageId(null);
     setError(null);
     setSuccess(null);
   };
 
   const startEdit = (employee: EmployeeMasterRecord) => {
     setEditingId(employee.employeeId);
+    const currentContract = [...employee.contracts].sort((a, b) => b.effectiveFromJalali.localeCompare(a.effectiveFromJalali))[0];
+    const currentWage = [...employee.wageHistory].sort((a, b) => b.effectiveFromJalali.localeCompare(a.effectiveFromJalali))[0];
     setDraft({
       ...EMPTY_DRAFT,
       personnelCode: employee.personnelCode,
@@ -145,7 +163,19 @@ export function EmployeeDirectoryView() {
       terminationDateJalali: employee.terminationDateJalali ?? '',
       status: employee.status,
       insuranceNumber: employee.insuranceNumber,
+      contractNumber: currentContract?.contractNumber ?? '',
+      contractType: currentContract?.contractType ?? 'fixed-term',
+      jobTitle: currentContract?.jobTitle ?? '',
+      department: currentContract?.department ?? '',
+      contractFromJalali: currentContract?.effectiveFromJalali ?? '',
+      contractToJalali: currentContract?.effectiveToJalali ?? '',
+      weeklyHours: String(currentContract?.weeklyHours ?? 44),
+      dailyBaseWageRial: currentWage ? String(currentWage.dailyBaseWageRial / multiplier) : '',
+      dailySeniorityRial: currentWage ? String(currentWage.dailySeniorityRial / multiplier) : '0',
+      wageFromJalali: currentWage?.effectiveFromJalali ?? '',
     });
+    setSelectedContractId(currentContract?.contractId ?? null);
+    setSelectedWageId(currentWage?.wageEntryId ?? null);
     setContracts(employee.contracts);
     setWageHistory(employee.wageHistory);
     setError(null);
@@ -254,7 +284,7 @@ export function EmployeeDirectoryView() {
         </div>
 
         <div className="border-t border-slate-100 pt-4 space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FileText className="h-4 w-4" /> قراردادهای استخدامی</h3>
+          <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FileText className="h-4 w-4" /> اطلاعات شغلی و قرارداد</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین قرارداد در فرم قرار می‌گیرد؛ ذخیره، همان سابقه را اصلاح می‌کند. برای افزودن قرارداد جدید، ابتدا فرم را خالی کنید.</p></div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="شماره قرارداد" value={draft.contractNumber} onChange={(value) => updateDraft({ contractNumber: value })} />
             <label className="space-y-1 text-xs text-slate-600">نوع قرارداد
@@ -268,29 +298,55 @@ export function EmployeeDirectoryView() {
             <Field label="پایان قرارداد (شمسی)" value={draft.contractToJalali} onChange={(value) => updateDraft({ contractToJalali: value })} placeholder="1405-12-29" />
             <Field label="ساعات هفتگی" value={draft.weeklyHours} onChange={(value) => updateDraft({ weeklyHours: value })} type="number" />
           </div>
-          <div className="flex justify-end"><button type="button" onClick={addContract} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"><Plus className="h-4 w-4" /> افزودن قرارداد به سوابق</button></div>
+          <div className="flex justify-end"><button type="button" onClick={addContract} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"><Plus className="h-4 w-4" /> {selectedContractId ? 'به‌روزرسانی قرارداد' : 'افزودن قرارداد به سوابق'}</button></div>
           <div className="space-y-2">
             {contracts.map((contract) => <div key={contract.contractId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-xs">
               <span className="font-semibold text-slate-800">{contract.jobTitle} · {CONTRACT_TYPES.find(([value]) => value === contract.contractType)?.[1]}</span>
               <span className="text-slate-600">{contract.effectiveFromJalali} تا {contract.effectiveToJalali ?? 'بدون تاریخ پایان'}</span>
-              <button type="button" onClick={() => setContracts((current) => current.filter((item) => item.contractId !== contract.contractId))} className="text-rose-700">حذف</button>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => {
+                  setSelectedContractId(contract.contractId);
+                  setDraft((current) => ({
+                    ...current,
+                    contractNumber: contract.contractNumber,
+                    contractType: contract.contractType,
+                    jobTitle: contract.jobTitle,
+                    department: contract.department,
+                    contractFromJalali: contract.effectiveFromJalali,
+                    contractToJalali: contract.effectiveToJalali ?? '',
+                    weeklyHours: String(contract.weeklyHours),
+                  }));
+                }} className="text-slate-700">ویرایش</button>
+                <button type="button" onClick={() => setContracts((current) => current.filter((item) => item.contractId !== contract.contractId))} className="text-rose-700">حذف</button>
+              </div>
             </div>)}
           </div>
         </div>
 
         <div className="border-t border-slate-100 pt-4 space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Wallet className="h-4 w-4" /> تاریخچه مزد</h3>
+          <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Wallet className="h-4 w-4" /> مزد و پایه سنوات</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین نرخ مزد نمایش داده می‌شود؛ با ذخیره، همان سابقه اصلاح می‌شود و سوابق قدیمی‌تر باقی می‌مانند.</p></div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label={`مزد روزانه پایه (${unit}) *`} value={draft.dailyBaseWageRial} onChange={(value) => updateDraft({ dailyBaseWageRial: value })} type="number" />
             <Field label={`پایه سنوات روزانه (${unit})`} value={draft.dailySeniorityRial} onChange={(value) => updateDraft({ dailySeniorityRial: value })} type="number" />
             <Field label="تاریخ اثر مزد (شمسی) *" value={draft.wageFromJalali} onChange={(value) => updateDraft({ wageFromJalali: value })} placeholder="1405-01-01" />
           </div>
-          <div className="flex justify-end"><button type="button" onClick={addWage} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"><Plus className="h-4 w-4" /> افزودن تغییر مزد به سوابق</button></div>
+          <div className="flex justify-end"><button type="button" onClick={addWage} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"><Plus className="h-4 w-4" /> {selectedWageId ? 'به‌روزرسانی مزد' : 'افزودن تغییر مزد به سوابق'}</button></div>
           <div className="space-y-2">
             {wageHistory.map((wage) => <div key={wage.wageEntryId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-xs">
               <span className="font-semibold text-slate-800">{wage.effectiveFromJalali}</span>
               <span className="text-slate-600">مزد روزانه: {formatMoney(wage.dailyBaseWageRial, unit)} · پایه سنوات: {formatMoney(wage.dailySeniorityRial, unit)}</span>
-              <button type="button" onClick={() => setWageHistory((current) => current.filter((item) => item.wageEntryId !== wage.wageEntryId))} className="text-rose-700">حذف</button>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => {
+                  setSelectedWageId(wage.wageEntryId);
+                  setDraft((current) => ({
+                    ...current,
+                    wageFromJalali: wage.effectiveFromJalali,
+                    dailyBaseWageRial: String(wage.dailyBaseWageRial / multiplier),
+                    dailySeniorityRial: String(wage.dailySeniorityRial / multiplier),
+                  }));
+                }} className="text-slate-700">ویرایش</button>
+                <button type="button" onClick={() => setWageHistory((current) => current.filter((item) => item.wageEntryId !== wage.wageEntryId))} className="text-rose-700">حذف</button>
+              </div>
             </div>)}
           </div>
         </div>
