@@ -89,6 +89,25 @@ export interface PayrollSettlementCalculationResult {
   legalReviewRequiredItems: string[];
 }
 
+export type PayrollSettlementAuditEventType =
+  | 'created'
+  | 'draft-updated'
+  | 'submitted-for-review'
+  | 'returned-to-draft'
+  | 'approved'
+  | 'paid'
+  | 'cancelled';
+
+export interface PayrollSettlementAuditEvent {
+  eventId: string;
+  eventType: PayrollSettlementAuditEventType;
+  occurredAt: string;
+  status: PayrollSettlementStatus;
+  actorName?: string;
+  reference?: string;
+  note?: string;
+}
+
 export interface PayrollSettlementCase extends PayrollSettlementInput {
   status: PayrollSettlementStatus;
   calculation?: PayrollSettlementCalculationResult;
@@ -101,4 +120,6 @@ export interface PayrollSettlementCase extends PayrollSettlementInput {
   paymentReference?: string;
   paidAmountRial?: number;
   paymentDifferenceReason?: string;
+  /** Append-only status/event history stored inside the same encrypted case. */
+  auditTrail?: PayrollSettlementAuditEvent[];
 }
