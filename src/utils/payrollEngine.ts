@@ -322,7 +322,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
       : 0;
 
   // 2. Hourly Rate & Overtime (30-day standard base / 220 hours, or optional 191.6)
-  const divisor = input.hourlyDivisor ?? 220;
+  const divisor = input.hourlyDivisor ?? reg.hourlyDivisorDefault;
   const monthly30BaseAndSeniority = sumOvertimeBase([
     {
       itemId: 'base-salary',
@@ -336,7 +336,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const hourlyNormalRateRial = Math.round(monthly30BaseAndSeniority / divisor);
 
   const overtimePayRial = Math.round(
-    input.overtimeHours * hourlyNormalRateRial * 1.4
+    input.overtimeHours * hourlyNormalRateRial * reg.overtimeMultiplier
   );
   const shiftWorkPremiumRate = input.shiftWorkPattern === 'morning-evening'
     ? reg.shiftWorkMorningEveningRate
@@ -352,14 +352,14 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   // Undefined pattern retains the historical 35% behavior for old snapshots.
   const nightShiftPayRial = isRotatingShiftWorker
     ? 0
-    : Math.round(input.nightShiftHours * hourlyNormalRateRial * 0.35);
+    : Math.round(input.nightShiftHours * hourlyNormalRateRial * reg.nonShiftNightPremiumRate);
   // Article 56 is a monthly percentage. Current wage proxy is the period's
   // base salary plus seniority; the exact wage-component map remains under review.
   const shiftWorkPremiumRial = Math.round(
     (basePayRial + seniorityPayRial) * shiftWorkPremiumRate
   );
   const holidayPayRial = Math.round(
-    input.holidayHours * hourlyNormalRateRial * 1.4
+    input.holidayHours * hourlyNormalRateRial * reg.overtimeMultiplier
   );
   // Friday premium is calculated from the same hourly wage base as overtime
   // (base wage + seniority), rather than silently omitting seniority as the
