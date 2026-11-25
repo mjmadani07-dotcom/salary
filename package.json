@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/utils/attendanceLedger.test.ts src/utils/leaveLedger.test.ts src/utils/employeeDebtLedger.test.ts src/utils/payrollEngine.test.ts src/utils/payrollRunEngine.test.ts src/utils/employeeMaster.test.ts src/utils/excelWorkbookBuilder.test.ts src/utils/payrollVaultCrypto.test.ts src/utils/payrollRunWorkspace.test.ts"
+    "test": "tsx --test src/utils/attendanceLedger.test.ts src/utils/leaveLedger.test.ts src/utils/employeeDebtLedger.test.ts src/utils/payrollEngine.test.ts src/utils/payrollRunEngine.test.ts src/utils/employeeMaster.test.ts src/utils/excelWorkbookBuilder.test.ts src/utils/payrollVaultCrypto.test.ts src/utils/payrollRunWorkspace.test.ts src/utils/payrollGridClipboard.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
