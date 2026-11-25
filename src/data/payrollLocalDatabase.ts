@@ -2,6 +2,7 @@ import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEn
 import type { EmployeeMasterRecord } from '../types/employee';
 import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/attendance';
 import type { MonthlyLeaveRecord, MonthlyLeaveDraft } from '../types/leave';
+import type { PayrollSettlementCase } from '../types/payrollSettlement';
 import type {
   EmployeeDebtAccount,
   EmployeeDebtAccountDraft,
@@ -37,7 +38,7 @@ import type {
 } from '../utils/payrollVaultCrypto';
 
 const DATABASE_NAME = 'iran-payroll-local';
-const DATABASE_VERSION = 6;
+const DATABASE_VERSION = 7;
 const EMPLOYEE_STORE = 'employees';
 const PAYROLL_RUN_STORE = 'payrollRuns';
 const EMPLOYEE_MASTER_STORE = 'employeeMasters';
@@ -46,6 +47,7 @@ const LEAVE_STORE = 'leaveRecords';
 const DEBT_ACCOUNT_STORE = 'employeeDebtAccounts';
 const DEBT_REPAYMENT_STORE = 'employeeDebtRepayments';
 const OTHER_DEDUCTION_STORE = 'employeeOtherDeductions';
+const SETTLEMENT_STORE = 'payrollSettlementCases';
 const ENCRYPTED_RECORD_STORE = 'encryptedRecords';
 const VAULT_METADATA_STORE = 'vaultMetadata';
 const VAULT_METADATA_ID = 'vault';
@@ -72,7 +74,7 @@ interface VaultMetadata {
 
 interface EncryptedRecord extends VaultCiphertext {
   id: string;
-  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance' | 'leave' | 'employeeDebt' | 'debtRepayment' | 'otherDeduction';
+  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance' | 'leave' | 'employeeDebt' | 'debtRepayment' | 'otherDeduction' | 'settlement';
   personnelCodeToken?: string;
   updatedAt: string;
 }
@@ -159,6 +161,13 @@ function openDatabase(): Promise<IDBDatabase> {
         deductionStore.createIndex('employee', 'employeeId', { unique: false });
         deductionStore.createIndex('period', ['fiscalYear', 'month'], { unique: false });
         deductionStore.createIndex('employeePeriod', ['employeeId', 'fiscalYear', 'month'], { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains(SETTLEMENT_STORE)) {
+        const settlementStore = database.createObjectStore(SETTLEMENT_STORE, { keyPath: 'settlementId' });
+        settlementStore.createIndex('employee', 'employeeId', { unique: false });
+        settlementStore.createIndex('status', 'status', { unique: false });
+        settlementStore.createIndex('updatedAt', 'updatedAt', { unique: false });
       }
 
       if (!database.objectStoreNames.contains(ENCRYPTED_RECORD_STORE)) {
@@ -349,6 +358,19 @@ async function createEncryptedOtherDeduction(
     kind: 'otherDeduction',
     ...(await encryptVaultPayload(keys, id, deduction)),
     updatedAt: deduction.updatedAt,
+  };
+}
+
+async function createEncryptedPayrollSettlement(
+  keys: PayrollVaultKeys,
+  settlement: PayrollSettlementCase
+): Promise<EncryptedRecord> {
+  const id = await createOpaqueRecordId(keys, 'settlement', settlement.settlementId);
+  return {
+    id,
+    kind: 'settlement',
+    ...(await encryptVaultPayload(keys, id, settlement)),
+    updatedAt: settlement.updatedAt,
   };
 }
 
@@ -719,6 +741,91 @@ export async function deleteEmployeeMasterRecord(employeeId: string): Promise<vo
   const completed = transactionComplete(transaction);
   transaction.objectStore(EMPLOYEE_MASTER_STORE).delete(employeeId);
   await completed;
+}
+
+
+export async function savePayrollSettlementCase(
+  input: PayrollSettlementCase
+): Promise<PayrollSettlementCase> {
+  const now = new Date().toISOString();
+  const normalized: PayrollSettlementCase = {
+    ...input,
+    settlementId: input.settlementId.trim(),
+    personnelCode: input.personnelCode.trim(),
+    employeeName: input.employeeName.trim(),
+    createdAt: input.createdAt || now,
+    updatedAt: now,
+  };
+  if (!normalized.settlementId || !normalized.employeeId || !normalized.personnelCode) {
+    throw new Error('شناسه پرونده، شناسه کارمند و کد پرسنلی برای ذخیره تسویه الزامی است.');
+  }
+
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const record = await createEncryptedPayrollSettlement(keys, normalized);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return normalized;
+  }
+
+  const transaction = database.transaction(SETTLEMENT_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(SETTLEMENT_STORE).put(normalized);
+  await completed;
+  return normalized;
+}
+
+export async function listPayrollSettlementCases(
+  limit = 200
+): Promise<PayrollSettlementCase[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  let cases: PayrollSettlementCase[];
+
+  if (!metadata) {
+    const transaction = database.transaction(SETTLEMENT_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    cases = await requestResult(
+      transaction.objectStore(SETTLEMENT_STORE).getAll() as IDBRequest<PayrollSettlementCase[]>
+    );
+    await completed;
+  } else {
+    const keys = requireUnlockedKeys();
+    const records = await getEncryptedRecords('settlement');
+    cases = await Promise.all(records.map((record) =>
+      decryptVaultPayload<PayrollSettlementCase>(keys, record.id, record)
+    ));
+  }
+
+  return cases
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, Math.max(0, limit));
+}
+
+export async function loadPayrollSettlementCase(
+  settlementId: string
+): Promise<PayrollSettlementCase | undefined> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (!metadata) {
+    const transaction = database.transaction(SETTLEMENT_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const record = await requestResult(
+      transaction.objectStore(SETTLEMENT_STORE).get(settlementId) as IDBRequest<PayrollSettlementCase | undefined>
+    );
+    await completed;
+    return record;
+  }
+
+  const keys = requireUnlockedKeys();
+  const id = await createOpaqueRecordId(keys, 'settlement', settlementId);
+  const record = await getEncryptedRecord(id);
+  if (!record) return undefined;
+  return decryptVaultPayload<PayrollSettlementCase>(keys, record.id, record);
 }
 
 export async function savePayrollRunSnapshot(
