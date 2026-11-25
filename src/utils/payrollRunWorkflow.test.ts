@@ -61,7 +61,7 @@ test('correction run requires a locked source, identical period and non-empty re
     ...makeRun({ runId: 'PAY-1405-01' }),
     workflow: { status: 'closed' as const },
   };
-  const samePeriod = { fiscalYear: '1405', month: 1, monthDays: 31 };
+  const samePeriod = { fiscalYear: '1405', month: 1, monthDays: 31 } as const;
   assert.deepEqual(
     validatePayrollCorrectionRun(source, samePeriod, 'اصلاح مستند'),
     []
@@ -80,7 +80,7 @@ test('correction run requires a locked source, identical period and non-empty re
 
 test('correction validation accepts approved, paid and closed source states', () => {
   const base = makeRun({ runId: 'PAY-1405-01' });
-  const target = { fiscalYear: '1405', month: 1, monthDays: 31 };
+  const target = { fiscalYear: '1405', month: 1, monthDays: 31 } as const;
   for (const status of ['approved', 'paid', 'closed'] as const) {
     assert.deepEqual(
       validatePayrollCorrectionRun({ ...base, workflow: { status } }, target, 'اصلاح مستند'),
