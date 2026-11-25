@@ -1,5 +1,26 @@
 import { isJalaliDate } from './employeeMaster';
 import type { PayrollRunResult } from './payrollRunEngine';
+
+export function createInitialPayrollRunWorkflow(
+  run: Pick<PayrollRunResult, 'status' | 'runId'>,
+  occurredAt = new Date().toISOString()
+): PayrollRunWorkflow {
+  const status: PayrollRunWorkflowStatus = run.status === 'ready-for-review'
+    ? 'ready-for-review'
+    : 'validation-failed';
+  return {
+    status,
+    auditTrail: [{
+      eventId: crypto.randomUUID(),
+      eventType: 'calculated',
+      occurredAt,
+      status,
+      note: `Snapshot ${run.runId} created from the central payroll engine`,
+    }],
+  };
+}
+
+
 import type { PayrollRunWorkflow, PayrollRunWorkflowStatus } from '../types/payrollRunWorkflow';
 
 export interface PayrollRunWorkflowValidationIssue {
@@ -41,6 +62,27 @@ export function validatePayrollRunWorkflowUpdate(
   if (current.status !== next.status) {
     validatePayrollRunWorkflowTransition(current.status, next.status)
       .forEach((message) => add('INVALID_WORKFLOW_TRANSITION', message));
+  }
+
+
+  if (current.status === 'approved') {
+    if (
+      next.approverName !== current.approverName ||
+      next.approvalReference !== current.approvalReference ||
+      next.approvedAt !== current.approvedAt
+    ) {
+      add('APPROVAL_METADATA_IMMUTABLE', 'اطلاعات تأیید پس از ثبت قابل تغییر نیست.');
+    }
+  }
+  if (current.status === 'paid') {
+    const immutableFields: Array<keyof PayrollRunWorkflow> = [
+      'approverName', 'approvalReference', 'approvedAt',
+      'paymentDate', 'paymentReference', 'paidAmountRial',
+      'paymentDifferenceReason', 'paidAt',
+    ];
+    if (immutableFields.some((field) => current[field] !== next[field])) {
+      add('PAYMENT_METADATA_IMMUTABLE', 'اطلاعات تأیید و پرداخت پس از ثبت قابل تغییر نیست.');
+    }
   }
 
   if (next.status === 'approved') {
