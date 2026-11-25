@@ -2,6 +2,23 @@ import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEn
 import type { EmployeeMasterRecord } from '../types/employee';
 import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/attendance';
 import type { MonthlyLeaveRecord, MonthlyLeaveDraft } from '../types/leave';
+import type {
+  EmployeeDebtAccount,
+  EmployeeDebtAccountDraft,
+  EmployeeDebtRepayment,
+  EmployeeDebtRepaymentDraft,
+  EmployeeOtherDeduction,
+  EmployeeOtherDeductionDraft,
+  OtherDeductionReviewStatus,
+} from '../types/employeeDebt';
+import {
+  createDebtRepaymentId,
+  createEmployeeDebtId,
+  createOtherDeductionId,
+  validateDebtRepayment,
+  validateEmployeeDebtAccount,
+  validateOtherDeduction,
+} from '../utils/employeeDebtLedger';
 import { createAttendanceId, validateMonthlyAttendance } from '../utils/attendanceLedger';
 import { calculateLeaveClosingBalance, createLeaveId, validateMonthlyLeave } from '../utils/leaveLedger';
 import {
@@ -20,12 +37,15 @@ import type {
 } from '../utils/payrollVaultCrypto';
 
 const DATABASE_NAME = 'iran-payroll-local';
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 6;
 const EMPLOYEE_STORE = 'employees';
 const PAYROLL_RUN_STORE = 'payrollRuns';
 const EMPLOYEE_MASTER_STORE = 'employeeMasters';
 const ATTENDANCE_STORE = 'attendanceRecords';
 const LEAVE_STORE = 'leaveRecords';
+const DEBT_ACCOUNT_STORE = 'employeeDebtAccounts';
+const DEBT_REPAYMENT_STORE = 'employeeDebtRepayments';
+const OTHER_DEDUCTION_STORE = 'employeeOtherDeductions';
 const ENCRYPTED_RECORD_STORE = 'encryptedRecords';
 const VAULT_METADATA_STORE = 'vaultMetadata';
 const VAULT_METADATA_ID = 'vault';
@@ -52,7 +72,7 @@ interface VaultMetadata {
 
 interface EncryptedRecord extends VaultCiphertext {
   id: string;
-  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance' | 'leave';
+  kind: 'employee' | 'employeeMaster' | 'payrollRun' | 'attendance' | 'leave' | 'employeeDebt' | 'debtRepayment' | 'otherDeduction';
   personnelCodeToken?: string;
   updatedAt: string;
 }
@@ -119,6 +139,26 @@ function openDatabase(): Promise<IDBDatabase> {
         const leaveStore = database.createObjectStore(LEAVE_STORE, { keyPath: 'leaveId' });
         leaveStore.createIndex('employeeYear', ['employeeId', 'fiscalYear'], { unique: false });
         leaveStore.createIndex('period', ['fiscalYear', 'month'], { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains(DEBT_ACCOUNT_STORE)) {
+        const debtStore = database.createObjectStore(DEBT_ACCOUNT_STORE, { keyPath: 'debtId' });
+        debtStore.createIndex('employee', 'employeeId', { unique: false });
+        debtStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains(DEBT_REPAYMENT_STORE)) {
+        const repaymentStore = database.createObjectStore(DEBT_REPAYMENT_STORE, { keyPath: 'repaymentId' });
+        repaymentStore.createIndex('debt', 'debtId', { unique: false });
+        repaymentStore.createIndex('employee', 'employeeId', { unique: false });
+        repaymentStore.createIndex('period', ['fiscalYear', 'month'], { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains(OTHER_DEDUCTION_STORE)) {
+        const deductionStore = database.createObjectStore(OTHER_DEDUCTION_STORE, { keyPath: 'deductionId' });
+        deductionStore.createIndex('employee', 'employeeId', { unique: false });
+        deductionStore.createIndex('period', ['fiscalYear', 'month'], { unique: false });
+        deductionStore.createIndex('employeePeriod', ['employeeId', 'fiscalYear', 'month'], { unique: false });
       }
 
       if (!database.objectStoreNames.contains(ENCRYPTED_RECORD_STORE)) {
@@ -270,6 +310,45 @@ async function createEncryptedLeave(
     kind: 'leave',
     ...(await encryptVaultPayload(keys, id, leave)),
     updatedAt: leave.updatedAt,
+  };
+}
+
+async function createEncryptedDebtAccount(
+  keys: PayrollVaultKeys,
+  account: EmployeeDebtAccount
+): Promise<EncryptedRecord> {
+  const id = await createOpaqueRecordId(keys, 'employeeDebt', account.debtId);
+  return {
+    id,
+    kind: 'employeeDebt',
+    ...(await encryptVaultPayload(keys, id, account)),
+    updatedAt: account.updatedAt,
+  };
+}
+
+async function createEncryptedDebtRepayment(
+  keys: PayrollVaultKeys,
+  repayment: EmployeeDebtRepayment
+): Promise<EncryptedRecord> {
+  const id = await createOpaqueRecordId(keys, 'debtRepayment', repayment.repaymentId);
+  return {
+    id,
+    kind: 'debtRepayment',
+    ...(await encryptVaultPayload(keys, id, repayment)),
+    updatedAt: repayment.createdAt,
+  };
+}
+
+async function createEncryptedOtherDeduction(
+  keys: PayrollVaultKeys,
+  deduction: EmployeeOtherDeduction
+): Promise<EncryptedRecord> {
+  const id = await createOpaqueRecordId(keys, 'otherDeduction', deduction.deductionId);
+  return {
+    id,
+    kind: 'otherDeduction',
+    ...(await encryptVaultPayload(keys, id, deduction)),
+    updatedAt: deduction.updatedAt,
   };
 }
 
@@ -896,4 +975,257 @@ export async function deleteMonthlyLeave(leaveId: string): Promise<void> {
   const completed = transactionComplete(transaction);
   transaction.objectStore(LEAVE_STORE).delete(leaveId);
   await completed;
+}
+
+
+
+// Employee advances, loans and repayments are stored as an auditable local ledger.
+// Installments are suggestions only; this layer never posts a payroll deduction.
+export async function listEmployeeDebtAccounts(employeeId?: string): Promise<EmployeeDebtAccount[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  let records: EmployeeDebtAccount[];
+  if (!metadata) {
+    const transaction = database.transaction(DEBT_ACCOUNT_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(DEBT_ACCOUNT_STORE);
+    records = await requestResult(
+      (employeeId ? store.index('employee').getAll(employeeId) : store.getAll())
+        as IDBRequest<EmployeeDebtAccount[]>
+    );
+    await completed;
+  } else {
+    const keys = requireUnlockedKeys();
+    const encrypted = await getEncryptedRecords('employeeDebt');
+    const decoded = await Promise.all(encrypted.map(record =>
+      decryptVaultPayload<EmployeeDebtAccount>(keys, record.id, record)
+    ));
+    records = decoded.filter(record => !employeeId || record.employeeId === employeeId);
+  }
+  return records.sort((a, b) =>
+    b.issueDateJalali.localeCompare(a.issueDateJalali) ||
+    a.employeeName.localeCompare(b.employeeName)
+  );
+}
+
+export async function saveEmployeeDebtAccount(
+  input: EmployeeDebtAccountDraft
+): Promise<EmployeeDebtAccount> {
+  const issues = validateEmployeeDebtAccount(input);
+  if (issues.length) throw new Error(issues.map(issue => issue.message).join(' '));
+  const now = new Date().toISOString();
+  const normalized: EmployeeDebtAccount = {
+    ...input,
+    debtId: createEmployeeDebtId(),
+    personnelCode: input.personnelCode.trim(),
+    employeeName: input.employeeName.trim(),
+    purpose: input.purpose.trim(),
+    notes: input.notes.trim(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const record = await createEncryptedDebtAccount(keys, normalized);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return normalized;
+  }
+  const transaction = database.transaction(DEBT_ACCOUNT_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(DEBT_ACCOUNT_STORE).put(normalized);
+  await completed;
+  return normalized;
+}
+
+export async function listDebtRepayments(
+  employeeId?: string,
+  debtId?: string
+): Promise<EmployeeDebtRepayment[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  let records: EmployeeDebtRepayment[];
+  if (!metadata) {
+    const transaction = database.transaction(DEBT_REPAYMENT_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(DEBT_REPAYMENT_STORE);
+    records = await requestResult(
+      (debtId
+        ? store.index('debt').getAll(debtId)
+        : employeeId
+          ? store.index('employee').getAll(employeeId)
+          : store.getAll()) as IDBRequest<EmployeeDebtRepayment[]>
+    );
+    await completed;
+    if (employeeId && debtId) records = records.filter(item => item.employeeId === employeeId);
+  } else {
+    const keys = requireUnlockedKeys();
+    const encrypted = await getEncryptedRecords('debtRepayment');
+    const decoded = await Promise.all(encrypted.map(record =>
+      decryptVaultPayload<EmployeeDebtRepayment>(keys, record.id, record)
+    ));
+    records = decoded.filter(record =>
+      (!employeeId || record.employeeId === employeeId) &&
+      (!debtId || record.debtId === debtId)
+    );
+  }
+  return records.sort((a, b) =>
+    a.repaymentDateJalali.localeCompare(b.repaymentDateJalali) ||
+    a.createdAt.localeCompare(b.createdAt)
+  );
+}
+
+export async function recordDebtRepayment(
+  input: EmployeeDebtRepaymentDraft
+): Promise<EmployeeDebtRepayment> {
+  const accounts = await listEmployeeDebtAccounts(input.employeeId);
+  const account = accounts.find(item => item.debtId === input.debtId);
+  if (!account) throw new Error('حساب مساعده/وام انتخاب‌شده پیدا نشد.');
+  const previous = await listDebtRepayments(input.employeeId, input.debtId);
+  const issues = validateDebtRepayment(input, account, previous);
+  if (issues.length) throw new Error(issues.map(issue => issue.message).join(' '));
+  const normalized: EmployeeDebtRepayment = {
+    ...input,
+    repaymentId: createDebtRepaymentId(),
+    personnelCode: input.personnelCode.trim(),
+    reference: input.reference.trim(),
+    notes: input.notes.trim(),
+    createdAt: new Date().toISOString(),
+  };
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const record = await createEncryptedDebtRepayment(keys, normalized);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return normalized;
+  }
+  const transaction = database.transaction(DEBT_REPAYMENT_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(DEBT_REPAYMENT_STORE).put(normalized);
+  await completed;
+  return normalized;
+}
+
+export async function listEmployeeOtherDeductions(
+  fiscalYear: string,
+  month: number,
+  employeeId?: string
+): Promise<EmployeeOtherDeduction[]> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  let records: EmployeeOtherDeduction[];
+  if (!metadata) {
+    const transaction = database.transaction(OTHER_DEDUCTION_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(OTHER_DEDUCTION_STORE);
+    records = await requestResult(
+      (employeeId
+        ? store.index('employeePeriod').getAll([employeeId, fiscalYear, month])
+        : store.index('period').getAll([fiscalYear, month])
+      ) as IDBRequest<EmployeeOtherDeduction[]>
+    );
+    await completed;
+  } else {
+    const keys = requireUnlockedKeys();
+    const encrypted = await getEncryptedRecords('otherDeduction');
+    const decoded = await Promise.all(encrypted.map(record =>
+      decryptVaultPayload<EmployeeOtherDeduction>(keys, record.id, record)
+    ));
+    records = decoded.filter(record =>
+      record.fiscalYear === fiscalYear && record.month === month &&
+      (!employeeId || record.employeeId === employeeId)
+    );
+  }
+  return records.sort((a, b) =>
+    a.employeeName.localeCompare(b.employeeName) || a.createdAt.localeCompare(b.createdAt)
+  );
+}
+
+export async function saveEmployeeOtherDeduction(
+  input: EmployeeOtherDeductionDraft
+): Promise<EmployeeOtherDeduction> {
+  const issues = validateOtherDeduction(input);
+  if (issues.length) throw new Error(issues.map(issue => issue.message).join(' '));
+  const now = new Date().toISOString();
+  const normalized: EmployeeOtherDeduction = {
+    ...input,
+    deductionId: createOtherDeductionId(),
+    personnelCode: input.personnelCode.trim(),
+    employeeName: input.employeeName.trim(),
+    title: input.title.trim(),
+    authorizationReference: input.authorizationReference.trim(),
+    notes: input.notes.trim(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const record = await createEncryptedOtherDeduction(keys, normalized);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return normalized;
+  }
+  const transaction = database.transaction(OTHER_DEDUCTION_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(OTHER_DEDUCTION_STORE).put(normalized);
+  await completed;
+  return normalized;
+}
+
+export async function updateEmployeeOtherDeductionReview(
+  deductionId: string,
+  reviewStatus: OtherDeductionReviewStatus,
+  authorizationReference: string
+): Promise<EmployeeOtherDeduction> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  let current: EmployeeOtherDeduction | undefined;
+  let keys: PayrollVaultKeys | undefined;
+  if (metadata) {
+    keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'otherDeduction', deductionId);
+    const encrypted = await getEncryptedRecord(id);
+    if (encrypted) current = await decryptVaultPayload<EmployeeOtherDeduction>(keys, encrypted.id, encrypted);
+  } else {
+    const transaction = database.transaction(OTHER_DEDUCTION_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    current = await requestResult(
+      transaction.objectStore(OTHER_DEDUCTION_STORE).get(deductionId) as IDBRequest<EmployeeOtherDeduction | undefined>
+    );
+    await completed;
+  }
+  if (!current) throw new Error('رکورد کسور موردنظر پیدا نشد.');
+  const normalized: EmployeeOtherDeduction = {
+    ...current,
+    reviewStatus,
+    authorizationReference: authorizationReference.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  const issues = validateOtherDeduction(normalized);
+  if (issues.length) throw new Error(issues.map(issue => issue.message).join(' '));
+  if (metadata && keys) {
+    const record = await createEncryptedOtherDeduction(keys, normalized);
+    const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
+    const completed = transactionComplete(transaction);
+    transaction.objectStore(ENCRYPTED_RECORD_STORE).put(record);
+    await completed;
+    return normalized;
+  }
+  const transaction = database.transaction(OTHER_DEDUCTION_STORE, 'readwrite');
+  const completed = transactionComplete(transaction);
+  transaction.objectStore(OTHER_DEDUCTION_STORE).put(normalized);
+  await completed;
+  return normalized;
 }
