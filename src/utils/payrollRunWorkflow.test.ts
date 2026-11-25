@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { PayrollRunResult } from './payrollRunEngine';
 import {
   createInitialPayrollRunWorkflow,
+  validatePayrollRunSnapshotDeletion,
   validatePayrollRunWorkflowTransition,
   validatePayrollRunWorkflowUpdate,
 } from './payrollRunWorkflow';
@@ -39,6 +40,13 @@ function makeRun(overrides: Partial<PayrollRunResult> = {}): PayrollRunResult {
 test('initial workflow reflects calculation validation status', () => {
   assert.equal(createInitialPayrollRunWorkflow(makeRun()).status, 'ready-for-review');
   assert.equal(createInitialPayrollRunWorkflow(makeRun({ status: 'validation-failed' })).status, 'validation-failed');
+});
+
+test('only validation-failed payroll snapshots may be discarded', () => {
+  assert.deepEqual(validatePayrollRunSnapshotDeletion('validation-failed'), []);
+  for (const status of ['ready-for-review', 'approved', 'paid', 'closed'] as const) {
+    assert.ok(validatePayrollRunSnapshotDeletion(status).length > 0, status);
+  }
 });
 
 test('monthly payroll lifecycle only allows ready → approved → paid → closed', () => {
