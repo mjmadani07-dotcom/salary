@@ -58,6 +58,29 @@ test('progressive tax calculates only the slice within each bracket', () => {
   assert.equal(result.steps.reduce((sum, step) => sum + step.taxAmountRial, 0), 55_000_000);
 });
 
+test('1405 monthly salary tax brackets match the published 40-million-toman exemption and progressive rates', () => {
+  const ruleSet = getPayrollRuleSet('1405');
+  const regulations = ruleSet.regulations;
+
+  assert.equal(regulations.taxMonthlyExemptionRial, 400_000_000);
+  assert.deepEqual(
+    regulations.taxBrackets.map(({ minMonthlyRial, maxMonthlyRial, rate }) => ({
+      minMonthlyRial, maxMonthlyRial, rate,
+    })),
+    [
+      { minMonthlyRial: 0, maxMonthlyRial: 400_000_000, rate: 0 },
+      { minMonthlyRial: 400_000_000, maxMonthlyRial: 800_000_000, rate: 0.10 },
+      { minMonthlyRial: 800_000_000, maxMonthlyRial: 1_000_000_000, rate: 0.15 },
+      { minMonthlyRial: 1_000_000_000, maxMonthlyRial: 1_200_000_000, rate: 0.20 },
+      { minMonthlyRial: 1_200_000_000, maxMonthlyRial: 1_400_000_000, rate: 0.25 },
+      { minMonthlyRial: 1_400_000_000, maxMonthlyRial: null, rate: 0.30 },
+    ],
+  );
+
+  const result = calculateProgressiveTax(1_500_000_000, regulations.taxBrackets);
+  assert.equal(result.totalTax, 190_000_000);
+});
+
 test('minimum wage, gross pay, insurance and tax use catalog classifications', () => {
   const result = calculatePayroll(makeInput());
 
