@@ -27,6 +27,10 @@ export function validateMonthlyAttendance(record: MonthlyAttendanceDraft): Atten
       add('INVALID_' + field.toUpperCase(), field, 'مقدار این قلم نمی‌تواند منفی یا نامعتبر باشد.');
     }
   }
+  if (record.reviewedUnpaidLeaveDays !== undefined &&
+      (!Number.isFinite(record.reviewedUnpaidLeaveDays) || record.reviewedUnpaidLeaveDays < 0 || record.reviewedUnpaidLeaveDays > record.monthDays)) {
+    add('INVALID_REVIEWED_UNPAID_LEAVE_DAYS', 'reviewedUnpaidLeaveDays', 'روزهای مرخصی بدون حقوق تأییدشده باید بین صفر و طول ماه باشد.');
+  }
   if (!Number.isInteger(record.annualWorkedDays) || record.annualWorkedDays < 0 || record.annualWorkedDays > 366) {
     add('INVALID_ANNUAL_WORKED_DAYS', 'annualWorkedDays', 'کارکرد سالانه باید عددی بین صفر تا ۳۶۶ باشد.');
   }
@@ -35,4 +39,26 @@ export function validateMonthlyAttendance(record: MonthlyAttendanceDraft): Atten
 
 export function createAttendanceId(employeeId: string, fiscalYear: string, month: number): string {
   return [employeeId, fiscalYear, String(month).padStart(2, '0')].join(':');
+}
+
+
+/**
+ * A non-zero unpaid-leave entry must be explicitly reconciled with the
+ * attendance/payroll-day input. The ledger does not deduct the days itself.
+ */
+export function getUnpaidLeavePayrollReviewIssue(
+  unpaidLeaveUsedDays: number,
+  reviewedUnpaidLeaveDays?: number
+): AttendanceIssue | null {
+  if (!Number.isFinite(unpaidLeaveUsedDays) || unpaidLeaveUsedDays <= 0) return null;
+  const expected = Math.round(unpaidLeaveUsedDays * 100) / 100;
+  const reviewed = reviewedUnpaidLeaveDays === undefined
+    ? undefined
+    : Math.round(reviewedUnpaidLeaveDays * 100) / 100;
+  if (reviewed === expected) return null;
+  return {
+    code: 'UNPAID_LEAVE_REVIEW_REQUIRED',
+    field: 'reviewedUnpaidLeaveDays',
+    message: `در دفتر مرخصی ${expected} روز مرخصی بدون حقوق ثبت شده است. روزهای کارکرد/پرداختی را با سوابق تطبیق دهید و در دفتر کارکرد همین تعداد روز را صریحاً تأیید کنید. سامانه این روزها را خودکار از حقوق کم نمی‌کند.`,
+  };
 }
