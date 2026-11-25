@@ -3,6 +3,9 @@ import type { EmployeeMasterRecord } from '../types/employee';
 import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/attendance';
 import type { MonthlyLeaveRecord, MonthlyLeaveDraft } from '../types/leave';
 import type { PayrollSettlementCase, PayrollSettlementAuditEventType } from '../types/payrollSettlement';
+import type { PayrollRunWorkflow, PayrollRunWorkflowEventType } from '../types/payrollRunWorkflow';
+import { createInitialPayrollRunWorkflow } from '../types/payrollRunWorkflow';
+import { validatePayrollRunWorkflowUpdate } from '../utils/payrollRunWorkflow';
 import { validatePayrollSettlementTransition } from '../utils/payrollSettlement';
 import type {
   EmployeeDebtAccount,
@@ -64,6 +67,8 @@ interface StoredEmployee extends PayrollRunEmployee {
 
 export interface StoredPayrollRun extends PayrollRunResult {
   savedAt: string;
+  /** Optional for backward compatibility with historical snapshots. */
+  workflow?: PayrollRunWorkflow;
 }
 
 interface VaultMetadata {
@@ -1009,24 +1014,19 @@ export async function loadPayrollSettlementCase(
   return decryptVaultPayload<PayrollSettlementCase>(keys, record.id, record);
 }
 
-export async function savePayrollRunSnapshot(
-  run: PayrollRunResult
+async function writeStoredPayrollRunSnapshot(
+  snapshot: StoredPayrollRun
 ): Promise<void> {
-  const snapshot: StoredPayrollRun = {
-    ...run,
-    savedAt: new Date().toISOString(),
-  };
   const database = await openDatabase();
   const metadata = await readVaultMetadata(database);
-
   if (metadata) {
     const keys = requireUnlockedKeys();
-    const id = await createOpaqueRecordId(keys, 'payrollRun', run.runId);
+    const id = await createOpaqueRecordId(keys, 'payrollRun', snapshot.runId);
     const record: EncryptedRecord = {
       id,
       kind: 'payrollRun',
       ...(await encryptVaultPayload(keys, id, snapshot)),
-      updatedAt: snapshot.savedAt,
+      updatedAt: new Date().toISOString(),
     };
     const transaction = database.transaction(ENCRYPTED_RECORD_STORE, 'readwrite');
     const completed = transactionComplete(transaction);
@@ -1039,6 +1039,95 @@ export async function savePayrollRunSnapshot(
   const completed = transactionComplete(transaction);
   transaction.objectStore(PAYROLL_RUN_STORE).put(snapshot);
   await completed;
+}
+
+export async function savePayrollRunSnapshot(
+  run: PayrollRunResult
+): Promise<void> {
+  const database = await openDatabase();
+  const metadata = await readVaultMetadata(database);
+  if (metadata) {
+    const keys = requireUnlockedKeys();
+    const id = await createOpaqueRecordId(keys, 'payrollRun', run.runId);
+    if (await getEncryptedRecord(id)) {
+      throw new Error('Snapshot حقوق تکراری است؛ برای اصلاح، محاسبه جدید با شناسه مستقل بسازید.');
+    }
+  } else {
+    const transaction = database.transaction(PAYROLL_RUN_STORE, 'readonly');
+    const completed = transactionComplete(transaction);
+    const existing = await requestResult(
+      transaction.objectStore(PAYROLL_RUN_STORE).get(run.runId) as IDBRequest<StoredPayrollRun | undefined>
+    );
+    await completed;
+    if (existing) throw new Error('Snapshot حقوق تکراری است؛ محاسبه قبلی بازنویسی نمی‌شود.');
+  }
+
+  const savedAt = new Date().toISOString();
+  const snapshot: StoredPayrollRun = {
+    ...run,
+    savedAt,
+    workflow: createInitialPayrollRunWorkflow(run, savedAt),
+  };
+  await writeStoredPayrollRunSnapshot(snapshot);
+}
+
+function createPayrollRunWorkflowEvent(
+  eventType: PayrollRunWorkflowEventType,
+  workflow: PayrollRunWorkflow,
+  occurredAt: string
+): PayrollRunWorkflow['auditTrail'][number] {
+  const event = {
+    eventId: crypto.randomUUID(),
+    eventType,
+    occurredAt,
+    status: workflow.status,
+    ...(eventType === 'approved' && workflow.approverName
+      ? { actorName: workflow.approverName.trim() }
+      : {}),
+    ...(eventType === 'approved' && workflow.approvalReference
+      ? { reference: workflow.approvalReference.trim() }
+      : {}),
+    ...(eventType === 'paid' && workflow.paymentReference
+      ? { reference: workflow.paymentReference.trim() }
+      : {}),
+    ...(eventType === 'closed' && workflow.closeReference
+      ? { reference: workflow.closeReference.trim() }
+      : {}),
+  };
+  return event;
+}
+
+export async function savePayrollRunWorkflow(
+  runId: string,
+  nextWorkflow: PayrollRunWorkflow
+): Promise<StoredPayrollRun> {
+  const currentRun = await loadSavedPayrollRun(runId);
+  if (!currentRun) throw new Error('Snapshot دوره برای تغییر وضعیت پیدا نشد.');
+
+  const currentWorkflow = currentRun.workflow ?? createInitialPayrollRunWorkflow(currentRun, currentRun.savedAt);
+  const issues = validatePayrollRunWorkflowUpdate(currentRun, currentWorkflow, nextWorkflow);
+  if (issues.length > 0) {
+    throw new Error(issues.map((issue) => issue.message).join(' '));
+  }
+
+  const eventType: PayrollRunWorkflowEventType =
+    nextWorkflow.status === 'approved' ? 'approved'
+      : nextWorkflow.status === 'paid' ? 'paid'
+        : 'closed';
+  const occurredAt = new Date().toISOString();
+  const workflow: PayrollRunWorkflow = {
+    ...nextWorkflow,
+    auditTrail: [
+      ...currentWorkflow.auditTrail,
+      createPayrollRunWorkflowEvent(eventType, nextWorkflow, occurredAt),
+    ],
+  };
+  const updated: StoredPayrollRun = {
+    ...currentRun,
+    workflow,
+  };
+  await writeStoredPayrollRunSnapshot(updated);
+  return updated;
 }
 
 export async function listSavedPayrollRuns(
