@@ -95,6 +95,8 @@ Files:
 
 ## Current limitations and remaining work
 
+The current 1405 legal-source review register is maintained in [LEGAL_REVIEW_REGISTER.md](./LEGAL_REVIEW_REGISTER.md). The 1405 RuleSet now references SRC-014 for the approved job-classification/seniority schedule, but it does not apply that schedule automatically: employee/workshop approval and job-group evidence are not yet stored. The tax-circular identifier is 200/1405/59 (not 59/1405/200); its 'customary limits' treatment remains pending legal interpretation and approval.
+
 1. **Legal approval is pending.** The 1404/1405 registry contains source references, but both RuleSets and unresolved legal classifications still require documented review and sign-off.
 2. **Catalog coverage is incomplete.** Welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap, mission expenses and special insurance cases remain review items.
 3. **Dependent eligibility is not implemented.** The current payroll input accepts a child count and a 720-day insurance boolean; it does not retain per-child eligibility evidence or actual insurance history.
