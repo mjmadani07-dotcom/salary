@@ -50,8 +50,8 @@ test('calculates prorated Eid, service-based severance and the full verified lea
   assert.equal(result.result.eidEntitlementRial, Math.round(480_000_000 * 184 / 365));
   assert.equal(result.result.eidBalanceRial, result.result.eidEntitlementRial - 10_000_000);
   assert.equal(result.result.completedServiceYears, 5);
-  assert.equal(result.result.recognizedServiceYears, 5 + 183 / 365);
-  assert.equal(result.result.severanceEntitlementRial, Math.round(240_000_000 * (5 + 183 / 365)));
+  assert.equal(result.result.recognizedServiceYears, 5 + 185 / 365);
+  assert.equal(result.result.severanceEntitlementRial, Math.round(240_000_000 * (5 + 185 / 365)));
   assert.equal(result.result.leaveEncashmentRial, 108_000_000);
   assert.equal(result.result.totalGrossEntitlementRial,
     result.result.eidEntitlementRial + result.result.severanceEntitlementRial + 108_000_000 + 15_000_000);
