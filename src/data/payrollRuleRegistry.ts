@@ -25,6 +25,7 @@ export interface YearRegulation {
   insuranceEmployerBaseRate: number;
   unemploymentInsuranceRate: number;
   insuranceCeilingMultiplier: number;
+  fridayWorkPremiumRate: number;
   taxMonthlyExemptionRial: number;
   taxAnnualExemptionRial: number;
   eidTaxExemptionCapRial: number;
@@ -81,6 +82,7 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
       insuranceEmployerBaseRate: 0.20,
       unemploymentInsuranceRate: 0.03,
       insuranceCeilingMultiplier: 7,
+      fridayWorkPremiumRate: 0.4,
       taxMonthlyExemptionRial: 400_000_000,
       taxAnnualExemptionRial: 4_800_000_000,
       eidTaxExemptionCapRial: 400_000_000,
@@ -124,6 +126,7 @@ export const RULE_SETS: Record<FiscalYear, PayrollRuleSet> = {
       insuranceEmployerBaseRate: 0.20,
       unemploymentInsuranceRate: 0.03,
       insuranceCeilingMultiplier: 7,
+      fridayWorkPremiumRate: 0.4,
       taxMonthlyExemptionRial: 240_000_000,
       taxAnnualExemptionRial: 2_880_000_000,
       eidTaxExemptionCapRial: 240_000_000,
@@ -183,6 +186,7 @@ export function validatePayrollRuleSet(
     ['insuranceEmployerBaseRate', reg.insuranceEmployerBaseRate],
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
     ['insuranceCeilingMultiplier', reg.insuranceCeilingMultiplier],
+    ['fridayWorkPremiumRate', reg.fridayWorkPremiumRate],
     ['taxMonthlyExemptionRial', reg.taxMonthlyExemptionRial],
     ['taxAnnualExemptionRial', reg.taxAnnualExemptionRial],
     ['eidTaxExemptionCapRial', reg.eidTaxExemptionCapRial],
@@ -202,6 +206,7 @@ export function validatePayrollRuleSet(
     ['insuranceEmployerBaseRate', reg.insuranceEmployerBaseRate],
     ['unemploymentInsuranceRate', reg.unemploymentInsuranceRate],
     ['otherLevelsIncreaseRate', reg.otherLevelsIncreaseRate],
+    ['fridayWorkPremiumRate', reg.fridayWorkPremiumRate],
   ] as Array<[string, number]>) {
     if (rate < 0 || rate > 1) {
       issues.push({
