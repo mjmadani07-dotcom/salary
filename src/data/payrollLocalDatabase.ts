@@ -4,7 +4,7 @@ import type { MonthlyAttendanceRecord, MonthlyAttendanceDraft } from '../types/a
 import type { MonthlyLeaveRecord, MonthlyLeaveDraft } from '../types/leave';
 import type { PayrollSettlementCase, PayrollSettlementAuditEventType } from '../types/payrollSettlement';
 import type { PayrollRunWorkflow, PayrollRunWorkflowEventType } from '../types/payrollRunWorkflow';
-import { createInitialPayrollRunWorkflow, validatePayrollRunWorkflowUpdate } from '../utils/payrollRunWorkflow';
+import { createInitialPayrollRunWorkflow, validatePayrollRunSnapshotDeletion, validatePayrollRunWorkflowUpdate } from '../utils/payrollRunWorkflow';
 import { validatePayrollSettlementTransition } from '../utils/payrollSettlement';
 import type {
   EmployeeDebtAccount,
@@ -1222,6 +1222,15 @@ export async function loadSavedPayrollRun(
 }
 
 export async function deleteSavedPayrollRun(runId: string): Promise<void> {
+  const current = await loadSavedPayrollRun(runId);
+  if (!current) return;
+  const workflow = current.workflow ??
+    createInitialPayrollRunWorkflow(current, current.savedAt);
+  const deletionIssues = validatePayrollRunSnapshotDeletion(workflow.status);
+  if (deletionIssues.length > 0) {
+    throw new Error(deletionIssues.join(' '));
+  }
+
   const database = await openDatabase();
   const metadata = await readVaultMetadata(database);
   if (metadata) {
