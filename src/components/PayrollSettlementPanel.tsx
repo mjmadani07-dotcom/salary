@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { CheckCircle2, ClipboardCheck, FilePlus2, Save } from 'lucide-react';
 import type { PayrollRunResult } from '../utils/payrollRunEngine';
 import type { StoredPayrollRun } from '../data/payrollLocalDatabase';
@@ -82,7 +83,7 @@ function Field({
   hint,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
   hint?: string;
 }) {
   return (
@@ -208,7 +209,7 @@ export function PayrollSettlementPanel({ run, unit }: PayrollSettlementPanelProp
 
   const approve = () => {
     if (!form) return;
-    const next = { ...form, status: 'approved' as const };
+    const next = { ...form, status: 'approved' as const, approvedAt: new Date().toISOString() };
     const issues = validatePayrollSettlementWorkflow(next);
     if (issues.length > 0) {
       setFeedback(issues.join(' '));
