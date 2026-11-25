@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { getPayrollRuleSet, listPayrollRuleSets, validatePayrollRuleSet } from '../data/payrollRuleRegistry';
-import { calculatePayroll, calculateProgressiveTax } from './payrollEngine';
+import { calculatePayroll, calculateProgressiveTax, validatePayrollInput } from './payrollEngine';
 import { calculateOtherLevelsDailyWage } from './wageRules';
 import type { PayrollInput } from './payrollEngine';
 
