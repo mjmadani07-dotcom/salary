@@ -99,7 +99,7 @@ Files:
 2. **Catalog coverage is incomplete.** Welfare-benefit tax treatment, marriage allowance, child allowance evidence, overtime and night/holiday overlap, mission expenses and special insurance cases remain review items.
 3. **Dependent eligibility is not implemented.** The current payroll input accepts a child count and a 720-day insurance boolean; it does not retain per-child eligibility evidence or actual insurance history.
 4. **Seniority eligibility remains incomplete.** Employee start dates and effective wage history are available, but the engine still needs legally reviewed seniority eligibility and group-specific progression rules.
-5. **Attendance and leave ledgers are implemented at monthly-total/balance level.** Attendance totals feed matching PayrollRun inputs. Leave balances are stored with carry-forward recalculation. Daily events, shifts, mission and the controlled conversion between attendance, paid leave, unpaid leave and payable days are not complete. Unpaid leave is not yet connected to payroll deductions.
+5. **Attendance and leave ledgers are implemented at monthly-total/balance level.** Attendance totals feed matching PayrollRun inputs. Leave balances are stored with carry-forward recalculation. The finance manager must reconcile the monthly work/payroll-day input with the exact unpaid-leave quantity; PayrollRun blocks an employee when that review is missing or stale. No automatic deduction is applied. Daily events, shifts, mission and the legally/contractually controlled conversion between attendance, paid leave, unpaid leave and payable days are not complete.
 6. **Loans and deductions are not implemented.** Advance, loan, installment, repayment and other documented deduction records must be introduced as a separate employee ledger.
 7. **Approval and payment workflow is not implemented.** PayrollRun calculations and snapshots exist, but approval, payment, close and correction states do not.
 8. **No retroactive/YTD tax engine has been introduced.** Current monthly progressive tax remains the existing behavior.
@@ -112,7 +112,7 @@ Files:
 2. Complete the legal source pack and obtain documented legal review/sign-off for each active annual RuleSet and unresolved pay-item classification. Do not invent legal outcomes in code.
 3. Expand the central catalog and make every formula consume versioned rule/catalog data rather than hardcoded constants.
 4. Complete statutory/contractual eligibility data: employee insurance history, per-dependent evidence, seniority/group classification and employment/wage changes within a period.
-5. Define and test the semantics of attendance days and payable days, then connect monthly attendance and leave records to payroll without double-counting or applying unapproved deductions.
+5. Define and test the full semantics of attendance days and payable days. The unpaid-leave review gate is implemented; further daily/shift data and any automatic day/money conversion require a documented legal/contractual policy and double-deduction tests.
 6. Add the separate employee advance/loan/installment/repayment and other documented-deduction ledger.
 7. Add the single-operator payroll workflow: validation, review, approval, paid, closed and correction snapshots, with audit trace.
 8. Add YTD/multi-source tax and the remaining acceptance/regression scenarios after legal rules are approved.
