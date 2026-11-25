@@ -1,241 +1,98 @@
 import { useState } from 'react';
-import { YEAR_REGULATIONS } from './data/payrollRegulations';
-import { formatMoney, toPersianDigits } from './utils/payrollEngine';
-import { UnifiedPayrollProvider, useUnifiedPayroll } from './state/UnifiedPayrollContext';
-import { ResearchReportView } from './components/ResearchReportView';
-import { PayrollCalculatorView } from './components/PayrollCalculatorView';
-import { PayrollRunView } from './components/PayrollRunView';
 import { EmployeeDirectoryView } from './components/EmployeeDirectoryView';
-import { AttendanceView } from './components/AttendanceView';
-import { LeaveLedgerView } from './components/LeaveLedgerView';
-import { EmployeeDebtLedgerView } from './components/EmployeeDebtLedgerView';
-import { EmployerCostView } from './components/EmployerCostView';
-import { EosCompensationView } from './components/EosCompensationView';
-import { ApplicabilityMatrixView } from './components/ApplicabilityMatrixView';
-import { ExcelVaultView } from './components/ExcelVaultView';
+import { PayrollRunView } from './components/PayrollRunView';
+import { PayrollReportsView } from './components/PayrollReportsView';
+import { UnifiedPayrollProvider, useUnifiedPayroll } from './state/UnifiedPayrollContext';
 
-type ActiveTab = 'report' | 'employees' | 'attendance' | 'leave' | 'debts' | 'run' | 'calculator' | 'ctc' | 'eos' | 'excel';
-type ReportSubView = 'laws' | 'matrix';
+type ActiveTab = 'employees' | 'run' | 'reports';
+
+const NAV_ITEMS: Array<{ id: ActiveTab; label: string }> = [
+  { id: 'employees', label: 'کارکنان' },
+  { id: 'run', label: 'حقوق ماهانه' },
+  { id: 'reports', label: 'گزارش و خروجی' },
+];
 
 function AppShell() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('report');
-  const [reportSubView, setReportSubView] = useState<ReportSubView>('laws');
-  const { state, computed, updateState } = useUnifiedPayroll();
+  const [activeTab, setActiveTab] = useState<ActiveTab>('run');
+  const { state, updateState } = useUnifiedPayroll();
   const { year, unit } = state;
-
-  const reg = YEAR_REGULATIONS[year];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      {/* Top Bar Contract: 3 zones separated by gap-8 */}
       <header className="bg-white border-b border-slate-200 no-print">
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
-          {/* Zone 1: Single text element wordmark */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('report');
-              setReportSubView('laws');
-            }}
-            className="text-base md:text-lg font-extrabold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            مرجع حقوق و دستمزد ایران
-          </button>
-
-          {/* Zone 2: 5 concise single-line nav links */}
-          <nav
-            aria-label="ناوبری اصلی"
-            className="hidden lg:flex items-center gap-5 text-sm font-medium text-slate-600"
-          >
-            <button
-              type="button"
-              onClick={() => setActiveTab('report')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'report'
-                  ? 'border-teal-700 text-slate-900 font-semibold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              قوانین و مشمولیت
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('employees')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'employees'
-                  ? 'border-teal-700 text-slate-900 font-semibold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              پرونده کارکنان
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('attendance')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'attendance' ? 'border-teal-700 text-slate-900 font-semibold' : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              ثبت کارکرد
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('leave')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'leave' ? 'border-teal-700 text-slate-900 font-semibold' : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              دفتر مرخصی
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('debts')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'debts' ? 'border-teal-700 text-slate-900 font-semibold' : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              دفتر بدهی کارکنان
-            </button>
+        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 min-h-16 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 py-3">
+          <div className="flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={() => setActiveTab('run')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'run'
-                  ? 'border-teal-700 text-slate-900 font-semibold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
+              className="text-base md:text-lg font-extrabold tracking-tight text-slate-900 whitespace-nowrap"
             >
-              پردازش دوره حقوق
+              حقوق و هزینه کارکنان
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('calculator')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'calculator'
-                  ? 'border-teal-700 text-slate-900 font-semibold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              فیش حقوقی
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('ctc')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'ctc'
-                  ? 'border-teal-700 text-slate-900 font-semibold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              هزینه کارفرما (CTC)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('eos')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'eos'
-                  ? 'border-teal-700 text-slate-900 font-semibold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              جبران خدمات EOS
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('excel')}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === 'excel'
-                  ? 'border-teal-700 text-slate-900 font-semibold'
-                  : 'border-transparent hover:text-slate-900'
-              }`}
-            >
-              مرجع فرمول‌ها
-            </button>
-          </nav>
-
-          {/* Zone 3: 1 primary action */}
-          <div className="flex items-center shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveTab('ctc')}
-              className="px-4 py-2 text-xs md:text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              محاسبه هزینه کارفرما
-            </button>
+            <div className="flex items-center gap-2 lg:hidden">
+              <span className="text-xs text-slate-500">سال {year}</span>
+            </div>
           </div>
-        </div>
 
-        {/* Mobile/Tablet Tab Switcher */}
-        <div className="lg:hidden border-t border-slate-200 px-4 py-2 flex items-center gap-2 overflow-x-auto">
-          {(
-            [
-              ['report', 'قوانین و مشمولیت'],
-              ['employees', 'پرونده کارکنان'],
-              ['attendance', 'ثبت کارکرد'],
-              ['leave', 'دفتر مرخصی'],
-              ['debts', 'دفتر بدهی'],
-              ['run', 'پردازش دوره'],
-              ['calculator', 'فیش حقوقی'],
-              ['ctc', 'هزینه کارفرما'],
-              ['eos', 'جبران خدمات EOS'],
-              ['excel', 'مرجع فرمول‌ها'],
-            ] as [ActiveTab, string][]
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap shrink-0 cursor-pointer ${
-                activeTab === id
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          <nav aria-label="ناوبری اصلی" className="flex items-center gap-2 overflow-x-auto">
+            {NAV_ITEMS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                aria-current={activeTab === id ? 'page' : undefined}
+                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  activeTab === id
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
         </div>
       </header>
 
-      {/* Workspace Toolbar (Year, Unit & Unified Live Employee Summary) */}
       <div className="bg-white border-b border-slate-200 no-print">
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Fiscal Year Segmented Control */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">سال محاسبات</span>
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => updateState({ year: '1405' })}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  year === '1405'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                aria-pressed={year === '1405'}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  year === '1405' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                مصوبه ۱۴۰۵
+                ۱۴۰۵
               </button>
               <button
                 type="button"
                 onClick={() => updateState({ year: '1404' })}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  year === '1404'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                aria-pressed={year === '1404'}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  year === '1404' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                مصوبه ۱۴۰۴
+                ۱۴۰۴
               </button>
             </div>
+          </div>
 
-            {/* Currency Unit Segmented Control */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+          <div className="h-6 w-px bg-slate-200" aria-hidden="true" />
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">واحد مبلغ</span>
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => updateState({ unit: 'rial' })}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  unit === 'rial'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                aria-pressed={unit === 'rial'}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  unit === 'rial' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 ریال
@@ -243,104 +100,30 @@ function AppShell() {
               <button
                 type="button"
                 onClick={() => updateState({ unit: 'toman' })}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  unit === 'toman'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                aria-pressed={unit === 'toman'}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  unit === 'toman' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 تومان
               </button>
             </div>
-
-            {/* Report vs Applicability Matrix Sub-Switcher when on Report tab */}
-            {activeTab === 'report' && (
-              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setReportSubView('laws')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    reportSubView === 'laws'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  گزارش قوانین و فرمول‌ها
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportSubView('matrix')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    reportSubView === 'matrix'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  جدول مشمولیت بیمه و مالیات
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="text-xs text-slate-600 flex flex-wrap items-center gap-2 tabular-nums">
-            <span className="font-semibold text-slate-900">
-              پرونده متصل: {state.employeeName || 'پرسنل نمونه'}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              خالص دریافتی:{' '}
-              <strong className="text-teal-700 font-bold">
-                {formatMoney(computed.payrollResult.netPayRial, unit)}
-              </strong>
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              هزینه کارفرما (CTC):{' '}
-              <strong className="text-slate-900 font-bold">
-                {formatMoney(computed.totalCtcMonthlyRial, unit)}
-              </strong>
-            </span>
-            <span aria-hidden="true" className="hidden 2xl:inline">
-              ·
-            </span>
-            <span className="hidden 2xl:inline text-slate-500">
-              حداقل مزد روزانه {toPersianDigits(year)}: {formatMoney(reg.minDailyWageRial, unit)}
-            </span>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'report' && reportSubView === 'laws' && (
-          <ResearchReportView
-            onNavigateCalculator={() => setActiveTab('calculator')}
-            onNavigateCtc={() => setActiveTab('ctc')}
-          />
-        )}
-        {activeTab === 'report' && reportSubView === 'matrix' && (
-          <ApplicabilityMatrixView />
-        )}
+      <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         {activeTab === 'employees' && <EmployeeDirectoryView />}
-        {activeTab === 'attendance' && <AttendanceView />}
-        {activeTab === 'leave' && <LeaveLedgerView />}
-        {activeTab === 'debts' && <EmployeeDebtLedgerView />}
         {activeTab === 'run' && <PayrollRunView />}
-        {activeTab === 'calculator' && <PayrollCalculatorView />}
-        {activeTab === 'ctc' && <EmployerCostView />}
-        {activeTab === 'eos' && <EosCompensationView />}
-        {activeTab === 'excel' && <ExcelVaultView />}
+        {activeTab === 'reports' && (
+          <PayrollReportsView onNavigateToPayroll={() => setActiveTab('run')} />
+        )}
       </main>
 
-      {/* Quiet Editorial Footer */}
       <footer className="border-t border-slate-200 bg-white mt-auto no-print">
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <div>
-            مرجع قوانین کار ایران، تحلیل هزینه کارفرما (CTC) و نظام جبران خدمات EOS · منطبق با مصوبات ۱۴۰۴ و ۱۴۰۵
-          </div>
-          <div>
-            تمامی تب‌ها و خروجی اکسل به صورت لحظه‌ای به یک موتور محاسباتی واحد متصل هستند.
-          </div>
+        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+          <span>سامانه محلی محاسبه حقوق، خالص دریافتی و هزینه کارفرما (CTC)</span>
+          <span>تمام محاسبات از موتور مرکزی و داده‌های ذخیره‌شده روی همین دستگاه انجام می‌شوند.</span>
         </div>
       </footer>
     </div>
