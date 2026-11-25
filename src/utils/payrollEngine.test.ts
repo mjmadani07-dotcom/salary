@@ -44,6 +44,10 @@ test('1405 RuleSet is explicitly pending legal approval', () => {
   assert.equal(ruleSet.version, 1);
   assert.equal(ruleSet.approvalStatus, 'pending-legal-review');
   assert.equal(ruleSet.regulations.fridayWorkPremiumRate, 0.4);
+  assert.equal(ruleSet.regulations.shiftWorkMorningEveningRate, 0.10);
+  assert.equal(ruleSet.regulations.shiftWorkMorningEveningNightRate, 0.15);
+  assert.equal(ruleSet.regulations.shiftWorkMorningNightRate, 0.225);
+  assert.equal(ruleSet.regulations.shiftWorkEveningNightRate, 0.225);
   assert.equal(ruleSet.effectiveFromJalali, '1405-01-01');
   assert.equal(ruleSet.effectiveToJalali, null);
   assert.ok(ruleSet.sourceRefs.includes('SRC-003'));
@@ -135,6 +139,46 @@ test('Friday premium uses the same base wage plus seniority hourly basis as over
   assert.equal(result.fridayWorkPayRial, Math.round(2 * expectedHourlyBasis * 0.4));
 });
 
+test('rotating shift premiums use Article 56 rates and suppress the non-shift 35% night premium', () => {
+  const base = {
+    dailyBaseWageRial: 10_000_000,
+    dailySeniorityRial: 1_000_000,
+    housingAllowanceRial: 0,
+    workerCouponRial: 0,
+    nightShiftHours: 12,
+  };
+  const morningEvening = calculatePayroll(makeInput({ ...base, shiftWorkPattern: 'morning-evening' }));
+  const morningEveningNight = calculatePayroll(makeInput({ ...base, shiftWorkPattern: 'morning-evening-night' }));
+  const morningNight = calculatePayroll(makeInput({ ...base, shiftWorkPattern: 'morning-night' }));
+  const eveningNight = calculatePayroll(makeInput({ ...base, shiftWorkPattern: 'evening-night' }));
+
+  assert.equal(morningEvening.shiftWorkPremiumRial, 33_000_000);
+  assert.equal(morningEveningNight.shiftWorkPremiumRial, 49_500_000);
+  assert.equal(morningNight.shiftWorkPremiumRial, 74_250_000);
+  assert.equal(eveningNight.shiftWorkPremiumRial, 74_250_000);
+  assert.equal(morningEvening.nightShiftPayRial, 0);
+  assert.equal(morningEveningNight.nightShiftPayRial, 0);
+  assert.equal(morningNight.nightShiftPayRial, 0);
+  assert.equal(eveningNight.nightShiftPayRial, 0);
+});
+
+test('non-shift and legacy rows retain the 35% hourly night premium without a shift allowance', () => {
+  const input = makeInput({
+    dailyBaseWageRial: 10_000_000,
+    dailySeniorityRial: 200_000,
+    nightShiftHours: 8,
+    shiftWorkPattern: 'non-shift',
+  });
+  const nonShift = calculatePayroll(input);
+  const legacy = calculatePayroll(makeInput({ ...input, shiftWorkPattern: undefined }));
+
+  const expected = Math.round(nonShift.hourlyNormalRateRial * 8 * 0.35);
+  assert.equal(nonShift.nightShiftPayRial, expected);
+  assert.equal(legacy.nightShiftPayRial, expected);
+  assert.equal(nonShift.shiftWorkPremiumRial, 0);
+  assert.equal(legacy.shiftWorkPremiumRial, 0);
+});
+
 test('insurance ceiling is applied to the 30-day monthly base', () => {
   const result = calculatePayroll(
     makeInput({ dailyBaseWageRial: 60_000_000 })
@@ -186,6 +230,9 @@ test('flags possible double counting when premium hour categories overlap', () =
   ));
   assert.ok(result.legalReviewRequiredItems.some((item) =>
     item.includes('تعطیل‌کاری عمومی همراه')
+  ));
+  assert.ok(result.legalReviewRequiredItems.some((item) =>
+    item.includes('رضایت کارگر') && item.includes('مستند روزانه')
   ));
 });
 
