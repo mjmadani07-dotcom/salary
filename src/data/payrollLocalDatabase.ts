@@ -1079,8 +1079,31 @@ async function writeStoredPayrollRunSnapshot(
 
 export async function savePayrollRunSnapshot(
   run: PayrollRunResult,
-  correctionOfRunId?: string
+  correctionOfRunId?: string,
+  correctionReason?: string
 ): Promise<void> {
+  if (correctionOfRunId) {
+    if (!correctionReason?.trim()) {
+      throw new Error('برای Snapshot اصلاحی، ثبت علت اصلاح الزامی است.');
+    }
+    const sourceRun = await loadSavedPayrollRun(correctionOfRunId);
+    if (!sourceRun) throw new Error('Snapshot اصلی برای اصلاح پیدا نشد.');
+    if (
+      sourceRun.fiscalYear !== run.fiscalYear ||
+      sourceRun.month !== run.month ||
+      sourceRun.monthDays !== run.monthDays
+    ) {
+      throw new Error('Snapshot اصلاحی باید دقیقاً به همان سال، ماه و تعداد روز دوره اصلی مربوط باشد.');
+    }
+    const sourceStatus = sourceRun.workflow?.status ??
+      createInitialPayrollRunWorkflow(sourceRun, sourceRun.savedAt).status;
+    if (!['approved', 'paid', 'closed'].includes(sourceStatus)) {
+      throw new Error('فقط دوره تأییدشده، پرداخت‌شده یا بسته‌شده می‌تواند مبنای Snapshot اصلاحی باشد.');
+    }
+  } else if (correctionReason?.trim()) {
+    throw new Error('ثبت علت اصلاح بدون مرجع Snapshot اصلی مجاز نیست.');
+  }
+
   const database = await openDatabase();
   const metadata = await readVaultMetadata(database);
   if (metadata) {
@@ -1103,7 +1126,7 @@ export async function savePayrollRunSnapshot(
   const snapshot: StoredPayrollRun = {
     ...run,
     savedAt,
-    workflow: createInitialPayrollRunWorkflow(run, savedAt, correctionOfRunId),
+    workflow: createInitialPayrollRunWorkflow(run, savedAt, correctionOfRunId, correctionReason),
   };
   await writeStoredPayrollRunSnapshot(snapshot);
 }
