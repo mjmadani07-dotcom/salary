@@ -17,6 +17,9 @@ import {
   getPayrollVaultStatus,
   isPayrollVaultUnlocked,
   listEmployeeMasterRecords,
+  listMonthlyAttendance,
+  listAnnualLeaveRecords,
+  saveMonthlyAttendance,
   listSavedEmployees,
   listSavedPayrollRuns,
   loadSavedPayrollRun,
@@ -26,11 +29,17 @@ import {
   unlockPayrollVault,
 } from '../data/payrollLocalDatabase';
 import type { EmployeeMasterRecord } from '../types/employee';
+import type { MonthlyAttendanceRecord } from '../types/attendance';
 import {
   calculateServiceDurationJalali,
   resolveEmployeeTerms,
 } from '../utils/employeeMaster';
 import { createPayrollWorkspaceEmployees } from '../utils/payrollRunWorkspace';
+import {
+  createMonthlyAttendanceDraftFromPayrollEmployee,
+  hydratePayrollEmployeeFromAttendance,
+  MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE,
+} from '../utils/payrollAttendanceBridge';
 import { PAYROLL_GRID_PASTE_FIELDS, parsePayrollGridPasteCell } from '../utils/payrollGridClipboard';
 import type { PayrollGridPasteField } from '../utils/payrollGridClipboard';
 import { downloadPayrollRunExcelWorkbook } from '../utils/excelWorkbookBuilder';
@@ -74,6 +83,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const [periodMonthDays, setPeriodMonthDays] = useState<29 | 30 | 31>(31);
   const [employees, setEmployees] = useState<PayrollRunEmployee[]>([]);
   const [employeeMasters, setEmployeeMasters] = useState<EmployeeMasterRecord[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<Record<string, MonthlyAttendanceRecord>>({});
+  const [unpaidLeaveByEmployee, setUnpaidLeaveByEmployee] = useState<Record<string, number>>({});
   const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
   const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
   const [snapshotEmployeeIds, setSnapshotEmployeeIds] = useState<Set<string>>(() => new Set());
@@ -113,6 +124,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     if (vaultPhase !== 'unlocked') {
       setEmployees([]);
       setEmployeeMasters([]);
+      setAttendanceRecords({});
+      setUnpaidLeaveByEmployee({});
       setRunResult(null);
       setLastSavedRunId(null);
       setSnapshotEmployeeIds(new Set());
@@ -126,10 +139,12 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
 
     const loadWorkspace = async () => {
       try {
-        const [savedEmployees, masters, savedRuns] = await Promise.all([
+        const [savedEmployees, masters, savedRuns, attendanceRows, leaveRows] = await Promise.all([
           listSavedEmployees(),
           listEmployeeMasterRecords(),
           listSavedPayrollRuns(100),
+          listMonthlyAttendance(year, month),
+          listAnnualLeaveRecords(year),
         ]);
         if (!active) return;
 
@@ -143,6 +158,16 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           : undefined;
         if (!active) return;
 
+        const attendanceByEmployee = Object.fromEntries(
+          attendanceRows.map((record) => [record.employeeId, record]),
+        );
+        const selectedLeaveByEmployee = Object.fromEntries(
+          leaveRows
+            .filter((record) => record.month === month)
+            .map((record) => [record.employeeId, record]),
+        );
+        const snapshotIds = new Set(savedRun?.lines.map((line) => line.employeeId) ?? []);
+
         const rows = createPayrollWorkspaceEmployees({
           year,
           month,
@@ -155,11 +180,27 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           savedRun,
         });
 
+        const hydratedRows = rows.map((employee) => {
+          if (!employee.isActive || snapshotIds.has(employee.employeeId)) return employee;
+          return hydratePayrollEmployeeFromAttendance(
+            employee,
+            attendanceByEmployee[employee.employeeId],
+            selectedLeaveByEmployee[employee.employeeId],
+          );
+        });
+
         setEmployeeMasters(masters);
-        setEmployees(rows);
+        setAttendanceRecords(attendanceByEmployee);
+        setUnpaidLeaveByEmployee(Object.fromEntries(
+          Object.entries(selectedLeaveByEmployee).map(([employeeId, record]) => [
+            employeeId,
+            record.unpaidLeaveUsedDays,
+          ]),
+        ));
+        setEmployees(hydratedRows);
         setRunResult(savedRun ?? null);
         setLastSavedRunId(savedRun?.runId ?? null);
-        setSnapshotEmployeeIds(new Set(savedRun?.lines.map((line) => line.employeeId) ?? []));
+        setSnapshotEmployeeIds(snapshotIds);
       } catch (error) {
         if (active) {
           setStorageError(
@@ -169,6 +210,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
           );
           setEmployees([]);
           setEmployeeMasters([]);
+          setAttendanceRecords({});
+          setUnpaidLeaveByEmployee({});
           setRunResult(null);
           setLastSavedRunId(null);
           setSnapshotEmployeeIds(new Set());
@@ -211,6 +254,8 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     setVaultPassword('');
     setEmployees([]);
     setEmployeeMasters([]);
+    setAttendanceRecords({});
+    setUnpaidLeaveByEmployee({});
     setRunResult(null);
     setLastSavedRunId(null);
     setSnapshotEmployeeIds(new Set());
@@ -234,6 +279,13 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
       }
     }
 
+    const workDaysChanged = payrollPatch.workDays !== undefined &&
+      payrollPatch.workDays !== employee.payrollInput.workDays;
+    if (workDaysChanged && (unpaidLeaveByEmployee[employee.employeeId] ?? 0) > 0) {
+      issues = issues.filter((issue) => issue.code !== MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code);
+      issues.push(MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE);
+    }
+
     const updated: PayrollRunEmployee = {
       ...employee,
       payrollInput: { ...employee.payrollInput, ...payrollPatch },
@@ -247,9 +299,31 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     return updated;
   };
 
+  const saveEmployeeAndAttendance = async (employee: PayrollRunEmployee) => {
+    await saveEmployee(employee);
+    if (!employee.isActive ||
+      hasIssue(employee, 'MONTHLY_WORK_DAYS_UNCONFIRMED') ||
+      hasIssue(employee, 'MONTHLY_ANNUAL_WORKED_DAYS_UNCONFIRMED')) {
+      return;
+    }
+
+    const attendanceDraft = createMonthlyAttendanceDraftFromPayrollEmployee(
+      employee,
+      year,
+      month,
+      periodMonthDays,
+      attendanceRecords[employee.employeeId],
+    );
+    const savedAttendance = await saveMonthlyAttendance(attendanceDraft);
+    setAttendanceRecords((current) => ({
+      ...current,
+      [employee.employeeId]: savedAttendance,
+    }));
+  };
+
   const persistEmployee = async (employee: PayrollRunEmployee) => {
     try {
-      await saveEmployee(employee);
+      await saveEmployeeAndAttendance(employee);
       setStorageError(null);
     } catch (error) {
       setStorageError(
@@ -309,6 +383,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
       if (employeeIndex < 0 || !nextEmployees[employeeIndex].isActive) return;
 
       let updated = nextEmployees[employeeIndex];
+      const previousWorkDays = updated.payrollInput.workDays;
       const cells = line.split('\t');
       cells.forEach((rawValue, columnOffset) => {
         const field = PAYROLL_GRID_PASTE_FIELDS[startColumn + columnOffset];
@@ -349,6 +424,19 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
         }
       });
 
+      if (
+        updated.payrollInput.workDays !== previousWorkDays &&
+        (unpaidLeaveByEmployee[updated.employeeId] ?? 0) > 0
+      ) {
+        const issues = (updated.masterDataIssues ?? []).filter(
+          (issue) => issue.code !== MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE.code,
+        );
+        updated = {
+          ...updated,
+          masterDataIssues: [...issues, MONTHLY_UNPAID_LEAVE_REVIEW_ISSUE],
+        };
+      }
+
       nextEmployees[employeeIndex] = updated;
       changedRows.set(updated.employeeId, updated);
     });
@@ -365,7 +453,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     const saveErrors = (await Promise.all(
       [...changedRows.values()].map(async (employee) => {
         try {
-          await saveEmployee(employee);
+          await saveEmployeeAndAttendance(employee);
           return null;
         } catch (error) {
           return error instanceof Error
@@ -513,7 +601,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
     const employeeSaveErrors = (await Promise.all(
       periodEmployees.map(async (employee) => {
         try {
-          await saveEmployee(employee);
+          await saveEmployeeAndAttendance(employee);
           return null;
         } catch (error) {
           return error instanceof Error ? error.message : `ذخیره ${employee.fullName} ناموفق بود.`;
