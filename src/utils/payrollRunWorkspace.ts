@@ -75,7 +75,6 @@ function makeEmployeeFromMaster(
       if (STABLE_CONFIRMATION_CODES.has(issue.code)) masterDataIssues.push(issue);
     }
 
-    if (!saved) {
       if (master.insuranceSubject === undefined) {
         masterDataIssues.push(
           monthlyIssue(
@@ -94,6 +93,7 @@ function makeEmployeeFromMaster(
           )
         );
       }
+    if (!saved) {
       if (master.isMarried === undefined) {
         masterDataIssues.push(
           monthlyIssue(
