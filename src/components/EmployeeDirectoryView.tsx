@@ -284,7 +284,10 @@ export function EmployeeDirectoryView() {
         </div>
 
         <div className="border-t border-slate-100 pt-4 space-y-3">
-          <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FileText className="h-4 w-4" /> اطلاعات شغلی و قرارداد</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین قرارداد در فرم قرار می‌گیرد؛ ذخیره، همان سابقه را اصلاح می‌کند. برای افزودن قرارداد جدید، ابتدا فرم را خالی کنید.</p></div>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FileText className="h-4 w-4" /> اطلاعات شغلی و قرارداد</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین قرارداد در فرم قرار می‌گیرد؛ ذخیره، همان سابقه را اصلاح می‌کند. سوابق قبلی حفظ می‌شوند.</p></div>
+            {selectedContractId && <button type="button" onClick={() => { setSelectedContractId(null); updateDraft({ contractNumber: '', jobTitle: '', department: '', contractFromJalali: '', contractToJalali: '', weeklyHours: '44' }); }} className="text-xs font-semibold text-slate-700">ثبت قرارداد جدید</button>}
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="شماره قرارداد" value={draft.contractNumber} onChange={(value) => updateDraft({ contractNumber: value })} />
             <label className="space-y-1 text-xs text-slate-600">نوع قرارداد
@@ -324,7 +327,10 @@ export function EmployeeDirectoryView() {
         </div>
 
         <div className="border-t border-slate-100 pt-4 space-y-3">
-          <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Wallet className="h-4 w-4" /> مزد و پایه سنوات</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین نرخ مزد نمایش داده می‌شود؛ با ذخیره، همان سابقه اصلاح می‌شود و سوابق قدیمی‌تر باقی می‌مانند.</p></div>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div><h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Wallet className="h-4 w-4" /> مزد و پایه سنوات</h3><p className="mt-1 text-xs text-slate-500">در ویرایش، آخرین نرخ مزد نمایش داده می‌شود؛ با ذخیره، همان سابقه اصلاح می‌شود و سوابق قدیمی‌تر باقی می‌مانند.</p></div>
+            {selectedWageId && <button type="button" onClick={() => { setSelectedWageId(null); updateDraft({ wageFromJalali: '', dailyBaseWageRial: '', dailySeniorityRial: '0' }); }} className="text-xs font-semibold text-slate-700">ثبت نرخ جدید</button>}
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label={`مزد روزانه پایه (${unit}) *`} value={draft.dailyBaseWageRial} onChange={(value) => updateDraft({ dailyBaseWageRial: value })} type="number" />
             <Field label={`پایه سنوات روزانه (${unit})`} value={draft.dailySeniorityRial} onChange={(value) => updateDraft({ dailySeniorityRial: value })} type="number" />
