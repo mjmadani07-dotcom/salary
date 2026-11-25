@@ -80,7 +80,7 @@ Files:
 - New installations use the local database directly; no separate account, workspace, server or passphrase setup is required.
 - Payroll remains a single-operator workflow: one finance manager uses the application to maintain employee records and calculate a payroll period for multiple employees.
 - Existing installations that already created the earlier encrypted vault remain supported. Those records are unlocked with their existing passphrase and are not silently converted or deleted.
-- The local database belongs to the current browser profile. The application does not yet include built-in backup/restore or native Windows packaging.
+- The local database belongs to the current browser profile. Versioned JSON backup/restore is implemented, including a safety copy before destructive restore; clean-profile and legacy-vault recovery tests remain operational acceptance gates. Native Windows installer packaging is outside the lightweight product scope.
 - Local storage must therefore be protected through the Windows user account and device security. Do not treat browser-local storage as a substitute for backups.
 
 ### 6. Regression tests and CI
