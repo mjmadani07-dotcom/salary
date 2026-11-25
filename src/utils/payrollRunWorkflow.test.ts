@@ -42,6 +42,42 @@ test('initial workflow reflects calculation validation status', () => {
   assert.equal(createInitialPayrollRunWorkflow(makeRun({ status: 'validation-failed' })).status, 'validation-failed');
 });
 
+test('correction snapshots retain their source run and mandatory reason in the initial audit event', () => {
+  const workflow = createInitialPayrollRunWorkflow(
+    makeRun({ runId: 'PAY-1405-01-CORR-1' }),
+    '2026-11-25T15:00:00.000Z',
+    'PAY-1405-01',
+    'اصلاح روزهای کارکرد با استناد به لیست تأییدشده'
+  );
+  assert.equal(workflow.correctionOfRunId, 'PAY-1405-01');
+  assert.equal(workflow.correctionReason, 'اصلاح روزهای کارکرد با استناد به لیست تأییدشده');
+  assert.match(workflow.auditTrail[0].note ?? '', /PAY-1405-01/);
+  assert.match(workflow.auditTrail[0].note ?? '', /لیست تأییدشده/);
+});
+
+test('correction source and reason cannot be changed after a correction snapshot is created', () => {
+  const run = makeRun({ runId: 'PAY-1405-01-CORR-1' });
+  const current = createInitialPayrollRunWorkflow(
+    run,
+    '2026-11-25T15:00:00.000Z',
+    'PAY-1405-01',
+    'اصلاح مستند'
+  );
+  const changedSource = {
+    ...current,
+    correctionOfRunId: 'PAY-1405-01-OTHER',
+  };
+  const changedReason = {
+    ...current,
+    correctionReason: 'علت جدید',
+  };
+  assert.ok(validatePayrollRunWorkflowUpdate(run, current, changedSource)
+    .some((issue) => issue.code === 'CORRECTION_METADATA_IMMUTABLE'));
+  assert.ok(validatePayrollRunWorkflowUpdate(run, current, changedReason)
+    .some((issue) => issue.code === 'CORRECTION_METADATA_IMMUTABLE'));
+});
+
+
 test('only validation-failed payroll snapshots may be discarded', () => {
   assert.deepEqual(validatePayrollRunSnapshotDeletion('validation-failed'), []);
   for (const status of ['ready-for-review', 'approved', 'paid', 'closed'] as const) {
