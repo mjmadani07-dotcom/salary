@@ -117,6 +117,21 @@ test('blocks invalid negative payroll inputs instead of silently calculating the
   assert.ok(run.lines[0].issues.some((issue) => issue.code === 'INVALID_NON_NEGATIVE_NUMBER'));
 });
 
+test('blocks a payroll line when deductions make net pay negative', () => {
+  const employee = makeEmployee({
+    payrollInput: makeInput({ otherDeductionsRial: 999_999_999_999 }),
+  });
+
+  const run = calculatePayrollRun(period, [employee]);
+
+  assert.equal(run.status, 'validation-failed');
+  assert.equal(run.lines[0].status, 'blocked');
+  assert.ok(run.lines[0].issues.some((issue) => issue.code === 'NEGATIVE_NET_PAY'));
+  assert.ok((run.lines[0].result?.netPayRial ?? 0) < 0);
+  assert.equal(run.totals.calculatedCount, 0);
+  assert.equal(run.totals.netPayRial, 0);
+});
+
 test('excludes inactive employees and keeps them visible in run audit lines', () => {
   const active = makeEmployee();
   const inactive = makeEmployee({
