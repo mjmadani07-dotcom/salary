@@ -17,6 +17,20 @@ export const PAYROLL_BACKUP_STORE_NAMES = [
 
 export type PayrollBackupStoreName = typeof PAYROLL_BACKUP_STORE_NAMES[number];
 
+export const PAYROLL_BACKUP_PLAINTEXT_STORE_NAMES = [
+  'employees',
+  'payrollRuns',
+  'employeeMasters',
+  'attendanceRecords',
+  'leaveRecords',
+  'employeeDebtAccounts',
+  'employeeDebtRepayments',
+  'employeeOtherDeductions',
+  'payrollSettlementCases',
+] as const;
+
+
+
 export interface PayrollDatabaseBackup {
   format: typeof PAYROLL_BACKUP_FORMAT;
   formatVersion: typeof PAYROLL_BACKUP_FORMAT_VERSION;
@@ -78,6 +92,13 @@ export function validatePayrollDatabaseBackup(
   if (value.vaultConfigured) {
     if (stores.vaultMetadata.length !== 1) {
       throw new Error('پشتیبان رمزگذاری‌شده فاقد مشخصات کامل Vault است.');
+    }
+    const plaintextStores = PAYROLL_BACKUP_PLAINTEXT_STORE_NAMES
+      .filter((name) => stores[name].length > 0);
+    if (plaintextStores.length > 0) {
+      throw new Error(
+        `پشتیبان با وضعیت Vault دارای اطلاعات خوانا در مخازن ${plaintextStores.join('، ')} است؛ ابتدا Vault را باز و مهاجرت رمزگذاری را کامل کنید.`
+      );
     }
   } else if (stores.vaultMetadata.length !== 0 || stores.encryptedRecords.length !== 0) {
     throw new Error('وضعیت رمزگذاری با محتوای مخازن پشتیبان سازگار نیست.');
