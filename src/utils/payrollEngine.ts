@@ -28,6 +28,22 @@ export interface PayrollInput {
   nightShiftHours: number;
   holidayHours: number;
   variableBonusRial: number;
+  /** Explicit Excel monthly inputs; optional for legacy saved payroll rows. */
+  paidLeaveDays?: number;
+  sickLeaveDays?: number;
+  unpaidAbsenceDays?: number;
+  fridayHours?: number;
+  missionDays?: number;
+  insuredBenefitsRial?: number;
+  nonInsuredBenefitsRial?: number;
+  loanDeductionRial?: number;
+  advanceDeductionRial?: number;
+  otherDeductionsRial?: number;
+  /** Signed adjustment to gross earnings; negative values are valid. */
+  signedCorrectionRial?: number;
+  /** Employee-level flags from the employee master. Undefined is legacy behavior. */
+  insuranceSubject?: boolean;
+  taxSubject?: boolean;
   hourlyDivisor?: 220 | 191.6;
   // Annual Eid & Severance inputs
   annualWorkedDays: number;
@@ -79,6 +95,16 @@ export function validatePayrollInput(input: PayrollInput): PayrollInputIssue[] {
     'nightShiftHours',
     'holidayHours',
     'variableBonusRial',
+    'paidLeaveDays',
+    'sickLeaveDays',
+    'unpaidAbsenceDays',
+    'fridayHours',
+    'missionDays',
+    'insuredBenefitsRial',
+    'nonInsuredBenefitsRial',
+    'loanDeductionRial',
+    'advanceDeductionRial',
+    'otherDeductionsRial',
     'annualWorkedDays',
     'serviceYearsForSeverance',
     'serviceExtraDaysForSeverance',
@@ -89,6 +115,13 @@ export function validatePayrollInput(input: PayrollInput): PayrollInputIssue[] {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
       add(field, 'INVALID_NON_NEGATIVE_NUMBER', `${String(field)} must be a finite non-negative number.`);
     }
+  }
+
+  if (
+    input.signedCorrectionRial !== undefined &&
+    (!Number.isFinite(input.signedCorrectionRial))
+  ) {
+    add('signedCorrectionRial', 'INVALID_SIGNED_CORRECTION', 'Signed payroll correction must be a finite number.');
   }
 
   if (!Number.isInteger(input.childrenCount)) {
@@ -145,7 +178,12 @@ export interface PayrollResult {
   overtimePayRial: number;
   nightShiftPayRial: number;
   holidayPayRial: number;
+  fridayWorkPayRial: number;
+  missionPayRial: number;
+  insuredBenefitsRial: number;
+  nonInsuredBenefitsRial: number;
   variableBonusRial: number;
+  signedCorrectionRial: number;
   grossEarningsRial: number;
 
   // Insurance
@@ -165,6 +203,10 @@ export interface PayrollResult {
   effectiveTaxRate: number;
 
   // Totals
+  loanDeductionRial: number;
+  advanceDeductionRial: number;
+  otherDeductionsRial: number;
+  manualDeductionsRial: number;
   totalDeductionsRial: number;
   netPayRial: number;
   totalEmployerCostRial: number; // Immediate cash + 23% insurance
@@ -271,6 +313,18 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const holidayPayRial = Math.round(
     input.holidayHours * hourlyNormalRateRial * 1.4
   );
+  const fridayHourlyRateRial = Math.round(
+    (input.dailyBaseWageRial * 30) / divisor
+  );
+  const fridayWorkPayRial = Math.round(
+    (input.fridayHours ?? 0) * fridayHourlyRateRial * reg.fridayWorkPremiumRate
+  );
+  const missionPayRial = Math.round(
+    input.dailyBaseWageRial * (input.missionDays ?? 0)
+  );
+  const insuredBenefitsRial = Math.round(input.insuredBenefitsRial ?? 0);
+  const nonInsuredBenefitsRial = Math.round(input.nonInsuredBenefitsRial ?? 0);
+  const signedCorrectionRial = Math.round(input.signedCorrectionRial ?? 0);
   const variableBonusRial = Math.max(0, Math.round(input.variableBonusRial));
 
   const housingTaxableExcess = Math.max(
@@ -300,7 +354,12 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     { itemId: 'overtime', amountRial: overtimePayRial },
     { itemId: 'night-shift', amountRial: nightShiftPayRial },
     { itemId: 'holiday-work', amountRial: holidayPayRial },
+    { itemId: 'friday-work-premium', amountRial: fridayWorkPayRial },
+    { itemId: 'mission-allowance', amountRial: missionPayRial },
+    { itemId: 'insured-benefit', amountRial: insuredBenefitsRial },
+    { itemId: 'non-insured-benefit', amountRial: nonInsuredBenefitsRial },
     { itemId: 'variable-bonus', amountRial: variableBonusRial },
+    { itemId: 'signed-correction', amountRial: signedCorrectionRial },
   ];
 
   const grossEarningsRial = payItemLines.reduce((total, line) => {
@@ -311,7 +370,9 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   }, 0);
 
   // 3. Social Security Insurance: the central pay-item catalog controls inclusion.
-  const insuranceSubjectEarningsRial = sumInsuranceBasis(payItemLines);
+  const insuranceSubjectEarningsRial = input.insuranceSubject === false
+    ? 0
+    : sumInsuranceBasis(payItemLines);
 
   const insuranceMonthlyCeilingRial =
     reg.minDailyWageRial * reg.insuranceCeilingMultiplier * input.monthDays;
@@ -336,7 +397,9 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     employeeInsuranceRial + totalEmployerInsuranceRial;
 
   // 4. Payroll Income Tax: tax treatment is controlled by the central pay-item catalog.
-  const taxableIncomeRial = sumTaxableIncome(payItemLines);
+  const taxableIncomeRial = input.taxSubject === false
+    ? 0
+    : sumTaxableIncome(payItemLines);
 
   const { totalTax: totalPayrollTaxRial, steps: taxSteps } =
     calculateProgressiveTax(taxableIncomeRial, reg.taxBrackets);
@@ -344,7 +407,13 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const effectiveTaxRate =
     taxableIncomeRial > 0 ? totalPayrollTaxRial / taxableIncomeRial : 0;
 
-  const totalDeductionsRial = employeeInsuranceRial + totalPayrollTaxRial;
+  const loanDeductionRial = Math.round(input.loanDeductionRial ?? 0);
+  const advanceDeductionRial = Math.round(input.advanceDeductionRial ?? 0);
+  const otherDeductionsRial = Math.round(input.otherDeductionsRial ?? 0);
+  const manualDeductionsRial =
+    loanDeductionRial + advanceDeductionRial + otherDeductionsRial;
+  const totalDeductionsRial =
+    employeeInsuranceRial + totalPayrollTaxRial + manualDeductionsRial;
   const netPayRial = grossEarningsRial - totalDeductionsRial;
   const totalEmployerCostRial = grossEarningsRial + totalEmployerInsuranceRial;
 
@@ -433,7 +502,12 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     overtimePayRial,
     nightShiftPayRial,
     holidayPayRial,
+    fridayWorkPayRial,
+    missionPayRial,
+    insuredBenefitsRial,
+    nonInsuredBenefitsRial,
     variableBonusRial,
+    signedCorrectionRial,
     grossEarningsRial,
     insuranceSubjectEarningsRial,
     insuranceMonthlyCeilingRial,
@@ -447,6 +521,10 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     taxSteps,
     totalPayrollTaxRial,
     effectiveTaxRate,
+    loanDeductionRial,
+    advanceDeductionRial,
+    otherDeductionsRial,
+    manualDeductionsRial,
     totalDeductionsRial,
     netPayRial,
     totalEmployerCostRial,
