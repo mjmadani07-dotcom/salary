@@ -226,6 +226,14 @@ function makeEmployeeFromMaster(
     isActive: isActiveForPeriod,
     payrollInput,
     masterDataIssues,
+    jobTitle: terms.contract?.jobTitle ?? '',
+    costCenter: master.costCenter?.trim() || terms.contract?.department?.trim() || '',
+    bankAccountNumber: master.bankAccountNumber ?? '',
+    bankIban: master.bankIban ?? '',
+    insuranceNumber: master.insuranceNumber ?? '',
+    hireDateJalali: master.hireDateJalali,
+    terminationDateJalali: master.terminationDateJalali,
+    leaveBalanceDays: snapshotLine?.leaveBalanceDays,
   };
 }
 
@@ -275,6 +283,14 @@ export function createPayrollWorkspaceEmployees(
       isActive: line.status !== 'excluded',
       payrollInput: line.payrollInput,
       masterDataIssues: line.issues.filter((issue) => issue.code.startsWith('MONTHLY_')),
+      jobTitle: line.jobTitle,
+      costCenter: line.costCenter,
+      bankAccountNumber: line.bankAccountNumber,
+      bankIban: line.bankIban,
+      insuranceNumber: line.insuranceNumber,
+      hireDateJalali: line.hireDateJalali,
+      terminationDateJalali: line.terminationDateJalali,
+      leaveBalanceDays: line.leaveBalanceDays,
     }));
 
   return [...masterRows, ...legacyRows, ...snapshotOnlyRows].sort((left, right) =>
