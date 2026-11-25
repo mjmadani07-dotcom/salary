@@ -125,7 +125,7 @@ The standalone ledger is an optional supporting recordkeeping module, not a payr
 - [x] Create and download a separate safety backup of the current database automatically before an accepted restore; do not begin restore if the safety export fails.
 - [ ] Verify restore on a fresh browser profile/device, including record counts and the ability to open and use restored payroll periods.
 - [ ] Test upgrades from supported historical database schemas (including legacy encrypted-vault data) and verify no record loss.
-- [ ] Confirm whether any app settings are persisted outside IndexedDB and include them in the backup or document why they are intentionally excluded.
+- [x] Audit application persistence outside IndexedDB: the only `localStorage` use in the app source is the EOS implementation checklist (`iran-payroll-eos-checklist-v1`). It is non-payroll progress state, intentionally excluded from the payroll backup; payroll records remain in the documented IndexedDB stores.
 - [ ] Define a simple offline procedure for storing, retaining and periodically testing backup files on a second physical storage location.
 
 ### Phase 7 — Finalization & Go-Live (hard-stop milestone)
