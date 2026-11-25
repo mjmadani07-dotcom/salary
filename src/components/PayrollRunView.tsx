@@ -11,6 +11,7 @@ import {
 import { getPayrollRuleSet } from '../data/payrollRuleRegistry';
 import { formatMoney, toPersianDigits } from '../utils/payrollEngine';
 import type { PayrollInput } from '../utils/payrollEngine';
+import type { PayrollRunWorkflow } from '../types/payrollRunWorkflow';
 import { calculatePayrollRun } from '../utils/payrollRunEngine';
 import type { PayrollRunEmployee, PayrollRunResult } from '../utils/payrollRunEngine';
 import {
@@ -94,7 +95,7 @@ export function PayrollRunView({ onNavigateToEmployees }: PayrollRunViewProps) {
   const [monthlyExcelImportFeedback, setMonthlyExcelImportFeedback] = useState<string | null>(null);
   const [isMonthlyExcelImporting, setIsMonthlyExcelImporting] = useState(false);
   const [expandedDetailsEmployeeIds, setExpandedDetailsEmployeeIds] = useState<Set<string>>(() => new Set());
-  const [runResult, setRunResult] = useState<PayrollRunResult | null>(null);
+  const [runResult, setRunResult] = useState<(PayrollRunResult & { workflow?: PayrollRunWorkflow }) | null>(null);
   const [lastSavedRunId, setLastSavedRunId] = useState<string | null>(null);
   const [snapshotEmployeeIds, setSnapshotEmployeeIds] = useState<Set<string>>(() => new Set());
   const [searchText, setSearchText] = useState('');
