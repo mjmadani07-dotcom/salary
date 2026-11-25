@@ -35,8 +35,7 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - PayrollRun selection from employee master and resolution of effective contract/wage at period start.
 - Blockers for mid-period hire/termination, wage changes and contract changes until segmented proration is implemented.
 - Local IndexedDB storage for employees and payroll-run snapshots.
-- Monthly attendance totals ledger; matching records feed the payroll run.
-- Monthly leave balance ledger, including carry-forward recalculation when earlier months change.
+- Monthly attendance totals ledger and monthly leave balance ledger exist as separate modules. In the current lightweight workbench branch, the PayrollRunView does not yet load these records into the payroll calculation; end-to-end ingestion and reconciliation remain open work.
 - Compatibility with records stored in the legacy encrypted vault.
 - CI tests, TypeScript validation and production build.
 
@@ -48,6 +47,8 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 - [x] Explicitly defer full operational EOS development while retaining current EOS functionality.
 - [x] Add a single development roadmap and synchronize the compliance/implementation notes and Pull Request summary with the actual branch state.
 - [x] Add a 1405 legal source review register; formal legal approval and issuer-signed primary copies remain outstanding.
+- [x] Audit the 8-sheet Excel reference workbook and record all employee, monthly, regulatory, settlement and report-selector inputs in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md).
+- [ ] Implement the missing and partial items in the Excel coverage matrix without removing or merging any source input. Secondary fields may use progressive disclosure, but each must remain independently stored and traceable.
 
 ### Phase 2 — Legal rules and calculation integrity
 - [x] Create a structured 1405 legal source review register and identify source/implementation gaps.
@@ -64,9 +65,10 @@ The existing EOS calculation/simulator screens and calculations are retained as-
 ### Phase 3 — Attendance/leave to payroll integration
 - [ ] Define the meaning of actual attendance days, paid days, paid leave, unpaid leave, absence and payable days.
 - [ ] Reconcile the current monthly attendance totals with the above model without breaking existing records.
-- [x] Connect monthly leave records to PayrollRun through a blocking reconciliation review for unpaid leave.
-- [x] Invalidate the confirmation when worked days change or the stored unpaid-leave quantity changes.
-- [x] Prevent automatic/double deduction: the manager must confirm the monthly work/payroll-day input has already been reconciled; no legal formula is guessed.
+- [ ] Load the selected period's monthly attendance and leave records into the PayrollRun workspace, preserving the current records and snapshot compatibility.
+- [ ] Reconcile paid leave, sick leave, unpaid leave, absence and payable days; do not assume that unlike categories are interchangeable.
+- [ ] Add explicit confirmation/invalidation gates for reviewed unpaid leave and worked/payable days.
+- [ ] Prevent automatic/double deduction: the manager must confirm the monthly work/payroll-day input has already been reconciled; no legal formula is guessed.
 - [ ] Define the legally/contractually approved conversion from attendance and leave categories to payable days before automating any deduction.
 - [ ] Keep daily event capture, shift rosters and mission data as separate extensions after the monthly model is stable.
 
@@ -117,6 +119,6 @@ The current branch is a development baseline, not a legally approved production 
 
 ## 6. Current status
 
-Last verified development branch: `feat/payroll-rule-registry-engine`.
+Current work branch: `feat/lightweight-payroll-workbench`.
 
-The attendance/leave reconciliation review gate, 1405 legal-source register and initial employee debt ledger are implemented. Latest verified CI run [45565410203](https://github.com/mjmadani07-dotcom/salary/actions/runs/45565410203) passed 53 tests, TypeScript validation and production build. The RuleSet traces the approved job-classification schedule as SRC-014 but keeps its application conditional on employee/workshop evidence. The pull request remains open and unmerged.
+The 8-sheet Excel input audit is documented in [EXCEL_INPUT_COVERAGE_MATRIX.md](./EXCEL_INPUT_COVERAGE_MATRIX.md). The audit confirms that employee, monthly, regulatory and settlement inputs are not yet fully represented in the current UI/data/calculation path. The current PayrollRunView also does not yet ingest the separate attendance and leave ledgers. Latest verified code CI before the audit-documentation commits is [45581424659](https://github.com/mjmadani07-dotcom/salary/actions/runs/45581424659), which passed 64 tests, TypeScript validation and production build at code commit `7d89ff875fc63912a6aaccff4a3c9b5788e16ab7`. The pull request remains open and unmerged.
